@@ -1,0 +1,43 @@
+# === env / secret files ===
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+*.kdbx
+credentials.json
+service-account*.json
+gha-creds-*.json
+.npmrc
+
+# === Python ===
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# === Flet / Flutter build output ===
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+storage/
+
+# === 同梱バイナリ（サイズが大きく、取得スクリプトで再現する） ===
+# sf / clamscan / gs / magick は scripts/fetch-*.sh で取得する方針。
+# 検証中のみローカルに置くため除外する。
+spike/assets/bin/
+assets/bin/
+
+# === editor / OS ===
+.DS_Store
+.idea/
+.vscode/settings.json

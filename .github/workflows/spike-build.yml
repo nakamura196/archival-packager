@@ -1,0 +1,116 @@
+# Flet 実行可能性検証（spike/README.md の項目 3）
+#
+# Flutter は macOS から Windows デスクトップをクロスビルドできないため、
+# Windows 版が作れるかは CI でしか確かめられない。同梱した sf.exe が
+# パッケージ後に解決・起動できるところまでを 1 本で通す。
+#
+# 検証が終わったらこの workflow は本番用に差し替える（署名・公証を足す）。
+
+name: spike build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "spike/**"
+      - ".github/workflows/spike-build.yml"
+
+permissions:
+  contents: read
+
+env:
+  # 同梱する siegfried のバージョン。mac / Windows で同一版に揃える
+  # （フォーマット識別結果が OS でぶれると保存パッケージの再現性が崩れるため）。
+  SIEGFRIED_VERSION: "1-11-6"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows
+            sf_asset: win64
+          - os: macos-latest
+            target: macos
+            sf_asset: mac64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      # Flet は自前で Flutter を取得する（現在 3.29.2 固定）。
+      # 数百 MB あるためキャッシュしないと毎回数分かかる。
+      - name: Cache Flet's Flutter
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.flet
+            ~/flutter
+          key: flet-flutter-${{ matrix.os }}-${{ hashFiles('uv.lock') }}
+
+      - name: Fetch siegfried
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p spike/assets/bin
+          url="https://github.com/richardlehane/siegfried/releases/download/v${SIEGFRIED_VERSION//-/.}/siegfried_${SIEGFRIED_VERSION}_${{ matrix.sf_asset }}.zip"
+          echo "downloading $url"
+          curl -fsSL -o sf.zip "$url"
+          unzip -o -j sf.zip -d spike/assets/bin
+          chmod +x spike/assets/bin/sf* || true
+          ls -la spike/assets/bin
+
+      # flet は PATH から「flutter を含むディレクトリ」を丸ごと除去する
+      # （spike/README.md の落とし穴を参照）。CocoaPods が flutter と同居していると
+      # 巻き添えで消え、macOS ビルドが "CocoaPods not installed" で落ちる。
+      # 症状が分かりにくいので、ビルド前に除去後の PATH で pod を確認しておく。
+      - name: Check pod survives flet's PATH cleanup (macOS only)
+        if: matrix.target == 'macos'
+        run: |
+          uv run python - <<'PY'
+          import os, shutil, subprocess, sys
+          from flet.utils import cleanup_path
+          cleaned = cleanup_path(cleanup_path(os.environ.get("PATH", ""), "flutter"), "dart")
+          removed = [p for p in os.environ.get("PATH", "").split(os.pathsep)
+                     if p not in cleaned.split(os.pathsep)]
+          print("flet が PATH から除去するディレクトリ:", removed)
+          env = {**os.environ, "PATH": cleaned}
+          pod = shutil.which("pod", path=cleaned)
+          print("除去後の PATH での pod:", pod or "NOT_FOUND")
+          if pod is None:
+              sys.exit("pod が flet の PATH から消えている。"
+                       "flutter と同居しないディレクトリへ symlink すること。")
+          print(subprocess.run([pod, "--version"], capture_output=True, text=True, env=env).stdout.strip())
+          PY
+
+      - name: Build
+        run: uv run flet build ${{ matrix.target }} spike --product "Flet Spike" --bundle-id com.nakamura.fletspike --org com.nakamura
+
+      # 同梱バイナリが成果物のどこに入ったかを機械的に確認する。
+      # 出力先は python_app_path 相対なので spike/build/ になる（リポジトリ直下ではない）。
+      # sf は app.zip 内に格納されるため、zip の中身まで見ないと在否が分からない。
+      - name: Verify sf is bundled
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "--- 成果物ルート ---"
+          ls -la spike/build/
+          echo "--- app.zip 内の sf ---"
+          found=0
+          while IFS= read -r z; do
+            echo "[$z]"
+            if unzip -l "$z" | grep -E 'assets/bin/sf(\.exe)?$'; then found=1; fi
+          done < <(find spike/build -name 'app.zip')
+          test "$found" = "1" || { echo "app.zip 内に sf が見つからない"; exit 1; }
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: spike-${{ matrix.target }}
+          path: spike/build/
+          retention-days: 7
