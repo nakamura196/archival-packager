@@ -31,7 +31,45 @@ Flet の配布パイプラインは Electron ほど踏み固められていな�
 |---|---|---|---|
 | 1 | 同梱バイナリの起動 | `flet build macos` した .app から、同梱した `sf -version` が動く | ✅ 合格 |
 | 2 | 署名と公証 | その .app に Developer ID 署名（hardened runtime）と公証が通り、Gatekeeper を抜ける | ✅ 合格 |
-| 3 | Windows ビルド | 同一ソースから `flet build windows` が通り、同梱 `sf.exe` が動く | 実行中 |
+| 3 | Windows ビルド | 同一ソースから `flet build windows` が通り、同梱 `sf.exe` が動く | ✅ 合格 |
+
+### 検証 3 の結果
+
+`windows-2022` + macOS の両ジョブが success。`flet build windows` が通り、
+同梱した `sf.exe` が配置先から起動することまで確認した。
+
+到達までに 3 段階の別々の失敗があり、いずれも Flet や Windows 固有の
+欠陥ではなく環境要因だった。
+
+| 失敗 | 原因 | 対処 |
+|---|---|---|
+| `UnicodeEncodeError: '●'` | flet CLI の進捗表示(rich)が出すスピナー文字を Windows 既定の cp1252 が encode できない | `--no-rich-output` + `PYTHONIOENCODING=utf-8` |
+| `sf: error opening signature file` | `default.sig` は data zip の `siegfried/` 配下にあり、unzip のパターンが外していた | パターンを `*/default.sig` にし、取得後に `test -f` で確認 |
+| `could not find any instance of Visual Studio` | `windows-latest` は現在 `windows-2025-vs2026`。Flutter 3.29.2 は VS2026 を認識できない | Flet を上げて Flutter を新しくする（下記） |
+
+### Flutter のバージョンは Flet が決める（Flutter 単体では上げられない）
+
+`flutter_base.py` の判定は名前に反して**下限ではなくメジャー・マイナーの完全一致**。
+
+```python
+flutter_version.major == required.major and flutter_version.minor == required.minor
+```
+
+システムに新しい Flutter があっても却下され、Flet が要求する版を自前で落とす。
+したがって **Flutter だけ新しくすることはできず、Flet ごと上げるしかない**。
+
+| Flet | 要求 Flutter |
+|---|---|
+| 0.28.3 | 3.29.2（VS2026 非対応） |
+| 0.80.0 | 3.38.3 |
+| 0.86.2 | 3.44.7 |
+
+### Flet 0.86 系で変わったこと
+
+- **Flutter SDK 導入時に対話確認が入る。** stdin の無い CI では `EOFError` で
+  落ちるため `--yes` が必須。
+- **`--product` が .app 名に反映されない**（`spike.app` になる）。
+  スクリプトと workflow は名前をハードコードせず探索すること。
 
 ### 検証 2 の最終結果
 

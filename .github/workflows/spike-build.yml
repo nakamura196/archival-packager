@@ -28,6 +28,12 @@ on:
 permissions:
   contents: read
 
+# 同じブランチで push を重ねたとき、古い実行を打ち切る。
+# 1 実行あたり macOS/Windows 合わせて 15 分ほど runner を占有するため。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   # 同梱する siegfried のバージョン。mac / Windows で同一版に揃える
   # （フォーマット識別結果が OS でぶれると保存パッケージの再現性が崩れるため）。
@@ -70,7 +76,19 @@ jobs:
           python-version: "3.12"
           enable-cache: true
 
-      # Flutter は別途インストールしない。Flet が自前で取得する（0.86.2 は Flutter 3.44.7 を要求）。
+      # Flet が要求する Flutter のバージョンを取り出す。これを cache キーにする。
+      # uv.lock のハッシュでキーすると、無関係な依存を 1 つ変えただけで
+      # 1.25GB の Flutter SDK を再取得し、さらに保存に 90 秒かかる。
+      # 実際にキャッシュが無効になるのは Flutter が変わったときだけ。
+      - name: Resolve required Flutter version
+        id: flutter
+        shell: bash
+        run: |
+          v=$(uv run python -c "import flet.version; print(flet.version.flutter_version)")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Flet が要求する Flutter: $v"
+
+      # Flutter は別途インストールしない。Flet が自前で取得する。
       # subosito/flutter-action 等で PATH に flutter を置くと、flet の cleanup_path が
       # そのディレクトリを丸ごと除去し、同居するツール（pod 等）を巻き添えにする。
       # 詳細は spike/README.md の「検証中に判明した落とし穴」。
@@ -80,7 +98,7 @@ jobs:
           path: |
             ~/.flet
             ~/flutter
-          key: flet-flutter-${{ matrix.os }}-${{ hashFiles('uv.lock') }}
+          key: flet-flutter-${{ matrix.os }}-${{ steps.flutter.outputs.version }}
 
       - name: Fetch siegfried
         shell: bash
@@ -129,6 +147,8 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: "1"
+          # flutter doctor は毎回走るが、CI ではこの結果で分岐していない。
+          FLET_CLI_SKIP_FLUTTER_DOCTOR: "true"
         run: uv run flet build ${{ matrix.target }} spike --yes --no-rich-output --product "Flet Spike" --bundle-id com.nakamura.fletspike --org com.nakamura
 
       # 同梱バイナリはバンドル内に置く。app.zip に入れると公証が弾く
@@ -164,5 +184,10 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: spike-${{ matrix.target }}
-          path: spike/build/
+          # spike/build/ 全体を指定すると中間生成物 spike/build/flutter/ (1.8GB) まで
+          # 上げてしまい、macOS で 132 秒かかっていた。最終成果物だけに絞る。
+          path: |
+            spike/build/macos
+            spike/build/windows
           retention-days: 7
+          if-no-files-found: error
