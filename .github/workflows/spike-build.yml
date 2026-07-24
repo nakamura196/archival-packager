@@ -77,10 +77,11 @@ jobs:
             "https://github.com/richardlehane/siegfried/releases/download/v${ver}/siegfried_${SIEGFRIED_VERSION}_${{ matrix.sf_asset }}.zip"
           unzip -o -j sf.zip -d "binaries/$osdir"
           # 署名 DB。同梱しないと配布先で識別が失敗する（開発機では OS 既定を拾って気づけない）。
+          # data zip の中では siegfried/ 配下に入っているので、パターンにディレクトリを含める。
           curl -fsSL -o data.zip \
             "https://github.com/richardlehane/siegfried/releases/download/v${ver}/data_${SIEGFRIED_VERSION}.zip"
-          unzip -o -j data.zip 'default.sig' -d "binaries/$osdir" || \
-            echo "警告: data zip に default.sig が無い。中身: $(unzip -l data.zip | head -20)"
+          unzip -o -j data.zip '*/default.sig' -d "binaries/$osdir"
+          test -f "binaries/$osdir/default.sig"
           chmod +x "binaries/$osdir"/sf* 2>/dev/null || true
           ls -la "binaries/$osdir"
 
@@ -104,8 +105,15 @@ jobs:
                        "flutter と同居しないディレクトリへ symlink すること。")
           PY
 
+      # --no-rich-output は Windows で必須。flet CLI の進捗表示(rich)が
+      # スピナー文字 U+25CF を出し、Windows コンソール既定の cp1252 では
+      # encode できず UnicodeEncodeError でビルドごと落ちる。
+      # PYTHONIOENCODING も併せて指定し、他の非ASCII出力でも落ちないようにする。
       - name: Build
-        run: uv run flet build ${{ matrix.target }} spike --product "Flet Spike" --bundle-id com.nakamura.fletspike --org com.nakamura
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: "1"
+        run: uv run flet build ${{ matrix.target }} spike --no-rich-output --product "Flet Spike" --bundle-id com.nakamura.fletspike --org com.nakamura
 
       # 同梱バイナリはバンドル内に置く。app.zip に入れると公証が弾く
       # （spike/README.md「同梱バイナリは app.zip に入れてはいけない」）。

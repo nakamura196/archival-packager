@@ -59,6 +59,21 @@ cp "$BINARIES/default.sig" "$DEST/default.sig"
 chmod 755 "$DEST/sf"
 print "  $DEST/{sf,default.sig}"
 
+# バンドル外を指す symlink があると、公証は通っても Gatekeeper が
+#   rejected (invalid destination for symbolic link in bundle)
+# で弾く。serious_python_darwin.framework の中に、ビルドしたマシンの
+# pub-cache を指す絶対パス symlink (.pod) が残る。実行時には不要な残骸なので削除する。
+# 署名の前に消すこと（後で消すと封が破れる）。
+print "[1.5/4] バンドル外を指す symlink を除去"
+typeset -i removed=0
+while IFS= read -r link; do
+  [[ -n "$link" ]] || continue
+  print "  削除: ${link#$APP/} -> $(readlink "$link")"
+  rm -f "$link"
+  (( removed++ ))
+done < <(find "$APP" -type l -exec sh -c 'case "$(readlink "$1")" in /*) echo "$1";; esac' _ {} \; 2>/dev/null)
+if (( removed == 0 )); then print "  なし"; fi
+
 print "[2/4] バンドル内の Mach-O を全て署名"
 # パーミッションで絞らない（dylib は実行ビットを持たないことがある）。
 #
@@ -104,4 +119,4 @@ unsigned=0
 for f in "${machos[@]}"; do
   codesign -v "$f" >/dev/null 2>&1 || { print "    UNSIGNED: $f"; unsigned=1 }
 done
-(( unsigned == 0 )) && print "    なし"
+if (( unsigned == 0 )); then print "    なし"; fi
