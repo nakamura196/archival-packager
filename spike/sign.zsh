@@ -27,7 +27,9 @@
 
 set -euo pipefail
 
-APP="${1:-spike/build/macos/Flet Spike.app}"
+# .app の名前は Flet のバージョンによって変わるため探索して決める
+# （0.28 系は --product が反映されて "Flet Spike.app"、0.86 系は "spike.app"）。
+APP="${1:-$(find spike/build/macos -maxdepth 1 -name "*.app" 2>/dev/null | head -1)}"
 IDENTITY="Developer ID Application: Satoru Nakamura (Q6S8JS6GWV)"
 ENTITLEMENTS="spike/entitlements.plist"
 BINARIES="binaries/macos"

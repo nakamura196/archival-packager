@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-APP="${1:-spike/build/macos/Flet Spike.app}"
+APP="${1:-$(find spike/build/macos -maxdepth 1 -name "*.app" 2>/dev/null | head -1)}"
 ZIP="spike/build/FletSpike-notarize.zip"
 
 [[ -d "$APP" ]] || { print -u2 "アプリが見つかりません: $APP"; exit 1 }
