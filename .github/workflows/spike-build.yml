@@ -17,8 +17,21 @@
 
 name: spike build
 
+# 既定では Windows のみ動かす。
+#
+# private リポジトリの macOS runner は課金倍率が 10 倍で、実時間 30 分の利用が
+# 課金 305 分に相当した（Windows は 2 倍で 34 分 -> 68 分）。しかも macOS は
+# 手元の Mac でビルド・署名・公証まで検証できるため、CI で毎回回す必要が無い。
+# CI でしか確かめられないのは Windows（クロスビルド不可）だけ。
+#
+# macOS も回したいときは workflow_dispatch から include_macos を有効にする。
 on:
   workflow_dispatch:
+    inputs:
+      include_macos:
+        description: "macOS もビルドする（課金 10 倍。通常はローカル検証で足りる）"
+        type: boolean
+        default: false
   push:
     paths:
       - "spike/**"
@@ -29,7 +42,7 @@ permissions:
   contents: read
 
 # 同じブランチで push を重ねたとき、古い実行を打ち切る。
-# 1 実行あたり macOS/Windows 合わせて 15 分ほど runner を占有するため。
+# 課金は実時間 × runner 倍率で効いてくるため、無駄な実行を残さない。
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -44,7 +57,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
+        # include_macos が有効なときだけ macOS を足す。既定は Windows のみ。
+        include: ${{ fromJSON(inputs.include_macos && '[{"os":"windows-latest","target":"windows","sf_asset":"win64"},{"os":"macos-latest","target":"macos","sf_asset":"mac64"}]' || '[{"os":"windows-latest","target":"windows","sf_asset":"win64"}]') }}
+        #
+        # 以下は上の JSON の内容と、そこに至った経緯の記録:
           # windows-latest は現在 windows-2025-vs2026（Visual Studio 2026）。
           #
           # Flet 0.28.3 が要求する Flutter 3.29.2 ではこの世代を認識できず、
@@ -61,12 +77,8 @@ jobs:
           #
           # Flet 0.86.2 は Flutter 3.44.7 を要求する。これで VS 2026 に対応する
           # 想定のため、runner の pin を外して windows-latest のまま通す。
-          - os: windows-latest
-            target: windows
-            sf_asset: win64
-          - os: macos-latest
-            target: macos
-            sf_asset: mac64
+          #   - os: windows-latest  / target: windows / sf_asset: win64
+          #   - os: macos-latest    / target: macos   / sf_asset: mac64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
