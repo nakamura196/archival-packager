@@ -118,7 +118,36 @@ Developer ID + hardened runtime（entitlements は空 dict、サンドボック�
 署名した .app から、展開された sf が問題なく起動した。
 `disable-library-validation` は現時点で不要。
 
-### siegfried の署名ファイルを同梱していない ← 未対処の欠陥
+### 同梱バイナリは app.zip に入れてはいけない（公証が弾く）← 実測で確定
+
+最初の構成（Python アプリ側の `assets/bin/sf`）は **起動はできるが公証で Invalid になる**。
+Apple の審査は app.zip の中まで降りて検査する。
+
+```
+path: .../flutter_assets/app/app.zip/assets/bin/sf
+  The binary is not signed with a valid Developer ID certificate.
+  The signature does not include a secure timestamp.
+  The executable does not have the hardened runtime enabled.
+```
+
+zip 内のデータは署名できないため、この構成は原理的に公証を通せない。
+**バイナリは `.app/Contents/Resources/bin/` に置き、個別に Developer ID で署名する。**
+現行 aip（Swift 版）が `Resources/bin/` に置いているのと同じ構成に揃うことになる。
+
+配置後の解決は `Path(sys.executable).parent.parent / "Resources" / "bin"` で足りる
+（`sys.executable` は `<App>.app/Contents/MacOS/<exe>`）。
+
+### 署名対象を実行ビットで絞ってはいけない ← 実測で確定
+
+`find -perm +111` で Mach-O を絞ると **dylib を取りこぼす**。実際に
+`Python.framework/Versions/3.12/lib/` の `libssl.3.dylib` と `libcrypto.3.dylib` は
+mode `rw-r--r--`（実行ビット無し）で、これが未署名のまま残って公証が Invalid になった。
+
+判定は必ず `file(1)` の Mach-O 判定で行い、パーミッションで絞らないこと。
+署名後は「未署名の Mach-O が残っていないか」を全件 `codesign -v` で確認する
+（`sign.zsh` の [4/4] がこれを行う）。
+
+### siegfried の署名ファイルを同梱していない ← 対処済み
 
 検証中、sf は `default.sig` を
 `/opt/homebrew/Cellar/siegfried/1.11.4/share/siegfried/default.sig` から読んでいた。

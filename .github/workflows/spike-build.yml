@@ -1,8 +1,17 @@
 # Flet 実行可能性検証（spike/README.md の項目 3）
 #
 # Flutter は macOS から Windows デスクトップをクロスビルドできないため、
-# Windows 版が作れるかは CI でしか確かめられない。同梱した sf.exe が
-# パッケージ後に解決・起動できるところまでを 1 本で通す。
+# Windows 版が作れるかは CI でしか確かめられない。
+#
+# この workflow で確かめること:
+#   - flet build windows が通るか
+#   - 同梱バイナリ(sf.exe)を known_locations() が想定する場所に置けるか
+#   - その場所から sf.exe が実際に起動するか
+#
+# 確かめられないこと（正直に書いておく）:
+#   GUI アプリを実際に起動しての解決確認。CI にデスクトップセッションが無いため、
+#   バイナリの配置と単体起動までを確認し、解決ロジック自体は
+#   main.py の known_locations() がその配置を指していることで担保する。
 #
 # 検証が終わったらこの workflow は本番用に差し替える（署名・公証を足す）。
 
@@ -13,6 +22,7 @@ on:
   push:
     paths:
       - "spike/**"
+      - "binaries/**"
       - ".github/workflows/spike-build.yml"
 
 permissions:
@@ -44,8 +54,10 @@ jobs:
           python-version: "3.12"
           enable-cache: true
 
-      # Flet は自前で Flutter を取得する（現在 3.29.2 固定）。
-      # 数百 MB あるためキャッシュしないと毎回数分かかる。
+      # Flutter は別途インストールしない。Flet が自前で取得する（現在 3.29.2 固定）。
+      # subosito/flutter-action 等で PATH に flutter を置くと、flet の cleanup_path が
+      # そのディレクトリを丸ごと除去し、同居するツール（pod 等）を巻き添えにする。
+      # 詳細は spike/README.md の「検証中に判明した落とし穴」。
       - name: Cache Flet's Flutter
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
@@ -58,56 +70,70 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p spike/assets/bin
-          url="https://github.com/richardlehane/siegfried/releases/download/v${SIEGFRIED_VERSION//-/.}/siegfried_${SIEGFRIED_VERSION}_${{ matrix.sf_asset }}.zip"
-          echo "downloading $url"
-          curl -fsSL -o sf.zip "$url"
-          unzip -o -j sf.zip -d spike/assets/bin
-          chmod +x spike/assets/bin/sf* || true
-          ls -la spike/assets/bin
+          osdir="${{ matrix.target }}"
+          mkdir -p "binaries/$osdir"
+          ver="${SIEGFRIED_VERSION//-/.}"
+          curl -fsSL -o sf.zip \
+            "https://github.com/richardlehane/siegfried/releases/download/v${ver}/siegfried_${SIEGFRIED_VERSION}_${{ matrix.sf_asset }}.zip"
+          unzip -o -j sf.zip -d "binaries/$osdir"
+          # 署名 DB。同梱しないと配布先で識別が失敗する（開発機では OS 既定を拾って気づけない）。
+          curl -fsSL -o data.zip \
+            "https://github.com/richardlehane/siegfried/releases/download/v${ver}/data_${SIEGFRIED_VERSION}.zip"
+          unzip -o -j data.zip 'default.sig' -d "binaries/$osdir" || \
+            echo "警告: data zip に default.sig が無い。中身: $(unzip -l data.zip | head -20)"
+          chmod +x "binaries/$osdir"/sf* 2>/dev/null || true
+          ls -la "binaries/$osdir"
 
-      # flet は PATH から「flutter を含むディレクトリ」を丸ごと除去する
-      # （spike/README.md の落とし穴を参照）。CocoaPods が flutter と同居していると
-      # 巻き添えで消え、macOS ビルドが "CocoaPods not installed" で落ちる。
-      # 症状が分かりにくいので、ビルド前に除去後の PATH で pod を確認しておく。
+      # flet は PATH から「flutter を含むディレクトリ」を丸ごと除去する。
+      # CocoaPods が flutter と同居していると巻き添えで消え、macOS ビルドが
+      # "CocoaPods not installed" で落ちる。症状が分かりにくいので事前に確認する。
       - name: Check pod survives flet's PATH cleanup (macOS only)
         if: matrix.target == 'macos'
         run: |
           uv run python - <<'PY'
-          import os, shutil, subprocess, sys
+          import os, shutil, sys
           from flet.utils import cleanup_path
-          cleaned = cleanup_path(cleanup_path(os.environ.get("PATH", ""), "flutter"), "dart")
-          removed = [p for p in os.environ.get("PATH", "").split(os.pathsep)
-                     if p not in cleaned.split(os.pathsep)]
+          original = os.environ.get("PATH", "")
+          cleaned = cleanup_path(cleanup_path(original, "flutter"), "dart")
+          removed = [p for p in original.split(os.pathsep) if p not in cleaned.split(os.pathsep)]
           print("flet が PATH から除去するディレクトリ:", removed)
-          env = {**os.environ, "PATH": cleaned}
           pod = shutil.which("pod", path=cleaned)
           print("除去後の PATH での pod:", pod or "NOT_FOUND")
           if pod is None:
               sys.exit("pod が flet の PATH から消えている。"
                        "flutter と同居しないディレクトリへ symlink すること。")
-          print(subprocess.run([pod, "--version"], capture_output=True, text=True, env=env).stdout.strip())
           PY
 
       - name: Build
         run: uv run flet build ${{ matrix.target }} spike --product "Flet Spike" --bundle-id com.nakamura.fletspike --org com.nakamura
 
-      # 同梱バイナリが成果物のどこに入ったかを機械的に確認する。
-      # 出力先は python_app_path 相対なので spike/build/ になる（リポジトリ直下ではない）。
-      # sf は app.zip 内に格納されるため、zip の中身まで見ないと在否が分からない。
-      - name: Verify sf is bundled
+      # 同梱バイナリはバンドル内に置く。app.zip に入れると公証が弾く
+      # （spike/README.md「同梱バイナリは app.zip に入れてはいけない」）。
+      # 配置先は main.py の known_locations() と一致させること。
+      - name: Embed binaries into the build output
         shell: bash
         run: |
           set -euo pipefail
-          echo "--- 成果物ルート ---"
-          ls -la spike/build/
-          echo "--- app.zip 内の sf ---"
-          found=0
-          while IFS= read -r z; do
-            echo "[$z]"
-            if unzip -l "$z" | grep -E 'assets/bin/sf(\.exe)?$'; then found=1; fi
-          done < <(find spike/build -name 'app.zip')
-          test "$found" = "1" || { echo "app.zip 内に sf が見つからない"; exit 1; }
+          if [ "${{ matrix.target }}" = "macos" ]; then
+            dest="spike/build/macos/Flet Spike.app/Contents/Resources/bin"
+          else
+            dest="spike/build/windows/bin"
+          fi
+          mkdir -p "$dest"
+          cp binaries/${{ matrix.target }}/* "$dest/"
+          ls -la "$dest"
+
+      - name: Verify the bundled sf actually runs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.target }}" = "macos" ]; then
+            sf="spike/build/macos/Flet Spike.app/Contents/Resources/bin/sf"
+          else
+            sf="spike/build/windows/bin/sf.exe"
+          fi
+          chmod +x "$sf" 2>/dev/null || true
+          "$sf" -sig "$(dirname "$sf")/default.sig" -version
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

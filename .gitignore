@@ -34,8 +34,8 @@ storage/
 # === 同梱バイナリ（サイズが大きく、取得スクリプトで再現する） ===
 # sf / clamscan / gs / magick は scripts/fetch-*.sh で取得する方針。
 # 検証中のみローカルに置くため除外する。
-spike/assets/bin/
-assets/bin/
+binaries/
+
 
 # === editor / OS ===
 .DS_Store
