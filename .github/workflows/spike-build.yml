@@ -39,7 +39,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          # windows-latest は現在 windows-2025-vs2026（Visual Studio 2026）。
+          # Flet 0.28.3 が同梱する Flutter 3.29.2 はこの世代を認識できず、
+          # 古い「Visual Studio 16 2019」を探しに行って
+          #   could not find any instance of Visual Studio.
+          #   Unable to generate build files
+          # で落ちる。Flet/Windows 固有の欠陥ではなく、Flutter と runner イメージの
+          # 世代ズレ。VS 2022 世代のイメージに固定して回避する。
+          #
+          # 恒久対応は Flet（＝同梱 Flutter）を新しくすること。本実装では
+          # 現行の Flet 最新版を評価した上でこの pin を外す。
+          - os: windows-2022
             target: windows
             sf_asset: win64
           - os: macos-latest

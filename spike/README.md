@@ -27,11 +27,32 @@ Flet の配布パイプラインは Electron ほど踏み固められていな�
 **外部バイナリ（sf / clamscan / gs / magick）の同梱**と**署名・公証**は前例が少ない。
 推測で採否を決めず、以下 3 点だけを実測する。
 
-| # | 確認すること | 合格条件 |
-|---|---|---|
-| 1 | 同梱バイナリの起動 | `flet build macos` した .app から、同梱した `sf -version` が動く |
-| 2 | 署名と公証 | その .app に Developer ID 署名（hardened runtime）と公証が通り、Gatekeeper を抜ける |
-| 3 | Windows ビルド | 同一ソースから `flet build windows` が通り、同梱 `sf.exe` が動く |
+| # | 確認すること | 合格条件 | 結果 |
+|---|---|---|---|
+| 1 | 同梱バイナリの起動 | `flet build macos` した .app から、同梱した `sf -version` が動く | ✅ 合格 |
+| 2 | 署名と公証 | その .app に Developer ID 署名（hardened runtime）と公証が通り、Gatekeeper を抜ける | ✅ 合格 |
+| 3 | Windows ビルド | 同一ソースから `flet build windows` が通り、同梱 `sf.exe` が動く | 実行中 |
+
+### 検証 2 の最終結果
+
+```
+notarytool: status: Accepted
+stapler:    The staple and validate action worked!
+spctl:      accepted / source=Notarized Developer ID
+```
+
+公証済みアプリでの実行結果（`~/flet-spike-report.txt`）:
+
+```
+HIT  [bundle:Contents/Resources/bin] .../Flet Spike.app/Contents/Resources/bin/sf
+default.sig: 同梱を使用
+siegfried 1.11.4
+.../Flet Spike.app/Contents/Resources/bin/default.sig
+結果: OK 同梱バイナリの起動に成功
+```
+
+既知の場所で一発ヒットし、総当たり探索へのフォールバックは発生していない。
+`default.sig` も同梱したものを参照しており、開発機の Homebrew 版を拾っていない。
 
 ### 1 について
 
