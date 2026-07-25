@@ -2,7 +2,10 @@
 name = "archival-packager"
 version = "0.1.0"
 description = "SIP/AIP creator for macOS and Windows from a single codebase"
-requires-python = ">=3.12"
+# Flet が .app / .exe に同梱する Python に合わせて固定する。
+# 開発環境だけ新しいと「開発機では通るが配布物では落ちる」（およびその逆）が起きる。
+# 実測: Flet 0.86.2 は python-build-standalone の 3.12.13 を同梱する。
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "flet[all]==0.86.2",
     # BagIt は自前実装しない。米国議会図書館のリファレンス実装を使う。
@@ -29,3 +32,11 @@ packages = ["src/archival_packager"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    # 自分のコードの警告は見逃したくないので既定はエラー。
+    "error",
+    # bagit 1.8.1 が codecs.open() を使っており 1 実行で数百件出る。
+    # 埋もれると本当の警告に気づけないので、これだけ黙らせる。
+    # bagit 側が修正されたらこの行を消して確認する。
+    "ignore:codecs.open\\(\\) is deprecated:DeprecationWarning:bagit",
+]
