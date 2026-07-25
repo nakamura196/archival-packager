@@ -182,12 +182,14 @@ def _date_range(files: list[ScannedFile]) -> tuple[str, str]:
 def _byte_string(files: list[ScannedFile]) -> str:
     """人間可読なバイト数。
 
-    Swift 版は ByteCountFormatter(.file) を使っており、これは 1000 進で
-    "1.2 MB" のように出す。同じ体裁に揃える。
+    Swift 版は ByteCountFormatter(.file) を使っており、1000 進で "1.2 MB" のように出す。
+    ただし 1000 未満のときの単位はロケール依存で、日本語環境では "99 バイト" になる
+    （"99 bytes" ではない）。差分検証でここが唯一の不一致として出たので合わせた。
+    接頭辞付きの単位（kB/MB/...）はロケールに依らずラテン文字のまま。
     """
     total = sum(f.size_bytes for f in files)
     if total < 1000:
-        return f"{total} bytes"
+        return f"{total} バイト"
     value = float(total)
     for unit in ("kB", "MB", "GB", "TB", "PB"):
         value /= 1000
