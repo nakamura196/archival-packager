@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  現行 aip（Resources/ArchivalPackager.entitlements）と同じ構成に揃えている。
+	  Developer ID 配布・非サンドボックス・hardened runtime のみ。
+
+	  App Sandbox を意図的に無効にしている理由は aip と同じで、有効だと
+	  ユーザが選んだ任意フォルダの走査と外部バイナリ(sf 等)の起動が制限されるため。
+
+	  Flet 固有の論点: Python 本体が同梱 framework として動くため、
+	  library validation に引っかかる場合は
+	  com.apple.security.cs.disable-library-validation の要否をここで判断する。
+	  まず何も足さずに署名し、実際に落ちたときだけ追加する（最小権限）。
+	-->
+</dict>
+</plist>

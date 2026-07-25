@@ -1,0 +1,135 @@
+# テストとビルドの検証。
+#
+# 既定では Linux でテストのみ走らせる。理由はコスト:
+#   Linux ×1 / Windows ×2 / macOS ×10（private リポジトリの課金倍率）
+# テストは OS 非依存なので Linux で足りる。
+#
+# ビルドの検証（Windows）は重いので、明示的に要求されたときだけ動かす。
+# macOS のビルド・署名・公証は手元の Mac でできるので CI では行わない。
+
+name: CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_windows:
+        description: "Windows のビルドも検証する"
+        type: boolean
+        default: false
+      build_macos:
+        description: "macOS のビルドも検証する（課金 10 倍。通常は手元で足りる）"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          # 開発と配布物で Python がずれると「開発機では通るが配布物では落ちる」
+          # （およびその逆）が起きる。Flet が同梱するのは 3.12。
+          python-version: "3.12"
+          enable-cache: true
+
+      - run: uv sync --group dev
+
+      - name: pytest
+        run: uv run pytest -q
+
+      # 同梱バイナリがある環境でのみ走る統合テストを、実際に走らせる。
+      # 無いと siegfried 関連のテストが黙ってスキップされ、
+      # 「通った」ように見えて実は検証していない状態になる。
+      - name: Fetch siegfried (Linux)
+        run: |
+          set -euo pipefail
+          mkdir -p binaries/macos
+          ver=1.11.6
+          curl -fsSL -o sf.zip "https://github.com/richardlehane/siegfried/releases/download/v${ver}/siegfried_1-11-6_linux64.zip"
+          unzip -o -j sf.zip -d binaries/macos
+          curl -fsSL -o data.zip "https://github.com/richardlehane/siegfried/releases/download/v${ver}/data_1-11-6.zip"
+          unzip -o -j data.zip '*/default.sig' -d binaries/macos
+          chmod +x binaries/macos/sf
+
+      - name: pytest（統合テストを含む）
+        run: uv run pytest -q
+
+  build:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.build_windows || inputs.build_macos)
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(
+          inputs.build_macos && inputs.build_windows
+            && '[{"os":"windows-latest","target":"windows"},{"os":"macos-latest","target":"macos"}]'
+          || (inputs.build_macos
+            && '[{"os":"macos-latest","target":"macos"}]'
+            || '[{"os":"windows-latest","target":"windows"}]') ) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      # Flet が要求する Flutter のバージョンでキャッシュする。
+      # uv.lock のハッシュでキーすると、無関係な依存を 1 つ変えただけで
+      # 1.25GB の Flutter SDK を再取得することになる。
+      - name: Resolve required Flutter version
+        id: flutter
+        shell: bash
+        run: |
+          v=$(uv run python -c "import flet.version; print(flet.version.flutter_version)")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Flet's Flutter
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.flet
+            ~/flutter
+          key: flet-flutter-${{ matrix.os }}-${{ steps.flutter.outputs.version }}
+
+      - name: Build
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: "1"
+          FLET_CLI_SKIP_FLUTTER_DOCTOR: "true"
+        run: >-
+          uv run flet build ${{ matrix.target }} . --yes --no-rich-output
+          --exclude .venv binaries build tests scripts spike .git .github
+          --product "Archival Packager"
+          --bundle-id com.nakamura.archivalpackager.x
+          --org com.nakamura
+
+      - name: Verify the app contains our code and its C extensions
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="build/${{ matrix.target }}"
+          # ソースが .pyc として入っていること。
+          find "$root" -name 'sip_pipeline.pyc' | head -1 | grep -q . \
+            || { echo "自前ソースが同梱されていない"; exit 1; }
+          # lxml は C 拡張。純 Python の依存と違い、同梱に失敗しうる。
+          find "$root" \( -name 'etree*.so' -o -name 'etree*.pyd' \) | head -1 | grep -q . \
+            || { echo "lxml の C 拡張が同梱されていない"; exit 1; }
+          echo "OK: 自前ソースと lxml を確認"
