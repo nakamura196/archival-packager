@@ -36,6 +36,7 @@ from __future__ import annotations
 import os
 import shutil
 import stat
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -353,4 +354,40 @@ def check_path_lengths(pkg_dir: Path, files: list[ScannedFile]) -> list[str]:
         full = pkg_dir / "objects" / f.relative_path
         if len(str(full)) >= _MAX_PATH_WINDOWS:
             warnings.append(f"パスが長すぎます（Windows で開けない可能性）: {f.relative_path}")
+    return warnings
+
+
+def check_unicode_normalization(files: list[ScannedFile], *, sanitized: bool) -> list[str]:
+    """記録名の Unicode 正規化形が NFC でないファイルを警告として返す。
+
+    check_path_lengths と同じ「作った側では露見しない移送先の問題」を扱う。
+
+    macOS は濁点付きの仮名などを分解形(NFD)で返すことがある。この名前のまま
+    マニフェストに書くと、APFS は正規化に鈍感なので macOS 上では一致するが、
+    NTFS / ext4 では別名として扱われ、照合が失敗する。作った環境でだけ通る
+    パッケージになるので、作った側で気づけるようにする。
+
+    記録名だけを黙って NFC に直すことはしない。実ファイル名が NFD のままだと
+    今度は「マニフェストに書いてあるファイルが無い」bag になるため。名前を
+    揃えたい場合はファイル名の安全化（sanitize）を使う。実ファイルごと
+    NFC の名前で書き出されるので、記録と実体が食い違わない。
+    """
+    offenders = [
+        f.relative_path
+        for f in files
+        if unicodedata.normalize("NFC", f.relative_path) != f.relative_path
+    ]
+    if not offenders:
+        return []
+
+    warnings = [
+        f"ファイル名が NFC 正規化されていません（Windows/Linux で別名と判定される可能性）: {rel}"
+        for rel in offenders
+    ]
+    if not sanitized:
+        warnings.insert(
+            0,
+            f"Unicode 正規化形が NFC でないファイル名が {len(offenders)} 件あります。"
+            "「ファイル名を安全化する」を有効にすると、実ファイルごと NFC に統一されます。",
+        )
     return warnings

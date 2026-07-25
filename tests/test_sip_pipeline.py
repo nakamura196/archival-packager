@@ -239,6 +239,44 @@ class TestZipInput:
         assert zip_io.effective_root(extracted) == extracted
 
 
+class TestFormatIdentificationFailure:
+    """識別できないことと、作業が止まることは別。
+
+    siegfried が配布する mac ビルドは 1 つだけで中身は arm64。一方こちらの
+    アプリ本体は universal なので Intel Mac でも起動し、そこで sf の実行だけが
+    失敗する。フォーマット識別は SIP の必須要素ではない（PUID 欄が空になるだけ）
+    ので、移管作業そのものを落としてはいけない。
+    """
+
+    def test_unrunnable_siegfried_does_not_stop_the_sip(self, source, tmp_path, monkeypatch):
+        from archival_packager.core import bundled, siegfried
+
+        monkeypatch.setattr(bundled, "find", lambda name: Path("/nonexistent/sf"))
+
+        def boom(*_a, **_k):
+            raise OSError(8, "Exec format error")
+
+        monkeypatch.setattr(siegfried, "identify", boom)
+
+        result, messages = run(source, tmp_path)
+        assert result.sip_path.is_dir(), "SIP は作られる"
+        assert any("識別に失敗" in m for m in messages)
+
+    def test_reported_failure_mentions_the_cause(self, source, tmp_path, monkeypatch):
+        from archival_packager.core import bundled, siegfried
+        from archival_packager.core.models import SIPPipelineError
+
+        monkeypatch.setattr(bundled, "find", lambda name: Path("/nonexistent/sf"))
+        monkeypatch.setattr(
+            siegfried, "identify",
+            lambda *_a, **_k: (_ for _ in ()).throw(
+                SIPPipelineError.tool_failed("siegfried", 1, "署名 DB が壊れています")
+            ),
+        )
+        _result, messages = run(source, tmp_path)
+        assert any("署名 DB" in m for m in messages), "原因が追える形で残す"
+
+
 class TestVirusScanning:
     def test_skipped_without_tool(self, source, tmp_path, monkeypatch):
         """検査できないことと、検査して検出なしだったことを混同しないこと。"""

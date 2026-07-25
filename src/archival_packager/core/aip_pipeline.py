@@ -25,6 +25,7 @@ from pathlib import Path
 from . import bundled, conversion_registry, fixity, mets, normalizer, sip_builder, sip_reader, zip_io
 from .aip_models import (
     AgentKind,
+    AIPErrorKind,
     AIPFile,
     AIPInput,
     AIPOptions,
@@ -164,6 +165,18 @@ def _record_ingestion_events(
         )
 
 
+# 同梱していない変換ツールについて、report を読んだ人が次に何をすればよいか。
+_TOOL_HINTS = {
+    # AGPL-3.0 のため同梱していない。判断の経緯は conversion_registry.py と
+    # scripts/fetch-binaries.zsh の冒頭に書いてある。
+    "gs": "Ghostscript は同梱していません。PATH 上にあれば使います",
+}
+
+
+def _tool_hint(tool: str) -> str:
+    return _TOOL_HINTS.get(tool, "同梱されていません")
+
+
 def _normalize_all(
     files: list[AIPFile], work_dir: Path, now: str, progress: Progress
 ) -> list[str]:
@@ -185,8 +198,20 @@ def _normalize_all(
             derivative = normalizer.normalize(f, rule, work_dir)
         except AIPPipelineError as exc:
             # 1 ファイルの変換失敗で移管全体を止めない。原本はそのまま保存される。
-            warnings.append(f"変換に失敗（原本のまま保存）: {f.relative_path} — {exc.message}")
-            progress(f"変換に失敗（原本のまま保存）: {f.relative_path}")
+            #
+            # 「ツールが無い」と「ファイルが変換できない」は原因も対処も違う。
+            # 前者は環境の問題（同梱していない Ghostscript が代表例）で、
+            # 資料そのものには何も問題がない。同じ文言にすると、資料が壊れて
+            # いるのかツールが足りないのか、report を読んでも区別できない。
+            if exc.kind is AIPErrorKind.TOOL_NOT_FOUND:
+                note = (
+                    f"変換ツールが無いため原本のまま保存: {f.relative_path} "
+                    f"— {rule.tool}（{_tool_hint(rule.tool)}）"
+                )
+            else:
+                note = f"変換に失敗（原本のまま保存）: {f.relative_path} — {exc.message}"
+            warnings.append(note)
+            progress(note)
             f.events.append(
                 PremisEvent(
                     type="normalization", date_time=now,

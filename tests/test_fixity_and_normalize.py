@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from archival_packager.core import conversion_registry, fixity, normalizer
+from archival_packager.core import conversion_registry, fixity, image_normalize, normalizer
 from archival_packager.core.aip_models import (
     AIPFile,
     AIPPipelineError,
@@ -110,17 +110,21 @@ class TestManifestLineParsing:
 
 
 class TestConversionRegistry:
-    def test_images_go_to_tiff_via_imagemagick(self):
+    def test_images_go_to_tiff_in_process(self):
         rule = conversion_registry.rule_for("fmt/11", DerivativePurpose.PRESERVATION)
         assert rule is not None
-        assert rule.tool == "magick", "sips は Windows に無いので使わない"
+        assert rule.tool == image_normalize.TOOL, "sips は Windows に無いので使わない"
         assert rule.out_extension == "tiff"
         assert rule.puid_out == conversion_registry.TIFF_PUID
 
-    def test_image_conversion_is_lossless(self):
-        """保存用途で非可逆圧縮が既定で掛かると取り返しがつかない。"""
-        rule = conversion_registry.rule_for("fmt/41", DerivativePurpose.PRESERVATION)
-        assert "-compress" in rule.args and "none" in rule.args
+    def test_image_conversion_needs_no_external_binary(self):
+        """同梱バイナリの有無に左右されないこと。
+
+        外部ツールに任せると、配布先に無ければ「変換されないまま原本だけ保存」に
+        静かに落ちる。画像は最も件数が多いので、そこは落とさない。
+        """
+        rule = conversion_registry.rule_for("fmt/11", DerivativePurpose.PRESERVATION)
+        assert rule.args == [], "外部プロセスの引数を持たない"
 
     def test_postscript_goes_to_pdf_via_ghostscript(self):
         rule = conversion_registry.rule_for("fmt/124", DerivativePurpose.PRESERVATION)
@@ -162,9 +166,11 @@ class TestDerivativeNaming:
 
 class TestNormalizerFailures:
     def test_missing_tool_raises(self, tmp_path, monkeypatch):
+        """外部プロセスに頼るルール（gs）は、ツールが無ければ失敗を返す。"""
         monkeypatch.setattr(normalizer, "locate", lambda tool: None)
-        f = AIPFile("a.png", tmp_path / "a.png", 1, "u1")
-        rule = conversion_registry.rule_for("fmt/11", DerivativePurpose.PRESERVATION)
+        f = AIPFile("a.ps", tmp_path / "a.ps", 1, "u1")
+        rule = conversion_registry.rule_for("fmt/124", DerivativePurpose.PRESERVATION)
+        assert rule.tool == "gs"
         with pytest.raises(AIPPipelineError) as exc:
             normalizer.normalize(f, rule, tmp_path / "work")
         assert "変換ツールが見つかりません" in exc.value.message
@@ -227,3 +233,121 @@ class TestNormalizerFailures:
         assert derivative.sha256 is not None
         assert derivative.tool_name == str(fake)
         assert "{in}" not in derivative.command_line, "コマンドは実パスに展開して記録する"
+
+
+class TestImageNormalization:
+    """画像 → 非圧縮 TIFF。外部プロセスを使わないので配布先でも必ず動く。
+
+    ここで確かめたいのは「変換できた」ことより「変換で何も失っていない」こと。
+    保存用派生物が原本より情報の少ないものになっていたら、変換しない方がまだ良い。
+    """
+
+    def _png(self, path: Path, **kw) -> Path:
+        from PIL import Image
+
+        Image.new(kw.pop("mode", "RGB"), (8, 8), kw.pop("color", (10, 20, 30))).save(path)
+        return path
+
+    def test_produces_uncompressed_tiff(self, tmp_path):
+        from PIL import Image
+
+        out = tmp_path / "out.tiff"
+        image_normalize.to_tiff(self._png(tmp_path / "a.png"), out)
+        with Image.open(out) as got:
+            assert got.format == "TIFF"
+            assert got.info.get("compression") == "raw", "非可逆どころか圧縮自体を掛けない"
+
+    def test_same_input_gives_same_bytes(self, tmp_path):
+        """OS をまたいでも同じ資料から同じ派生物が出ることが前提。
+
+        少なくとも同一環境で決定的であることは固定しておく（非決定なら
+        そもそも OS 間の一致を論じられない）。
+        """
+        src = self._png(tmp_path / "a.png")
+        first, second = tmp_path / "1.tiff", tmp_path / "2.tiff"
+        image_normalize.to_tiff(src, first)
+        image_normalize.to_tiff(src, second)
+        assert sha256_of(first) == sha256_of(second)
+
+    def test_multi_frame_images_keep_every_frame(self, tmp_path):
+        """アニメーション GIF を素直に保存すると 1 フレーム目以外が警告も無く消える。
+
+        「変換したのに中身が減っている」のは最も気づきにくい壊れ方なので、
+        多ページ TIFF として全フレームを残す。
+        """
+        from PIL import Image
+
+        frames = [Image.new("RGB", (4, 4), c).convert("P")
+                  for c in [(255, 0, 0), (0, 255, 0), (0, 0, 255)]]
+        src = tmp_path / "anim.gif"
+        frames[0].save(src, save_all=True, append_images=frames[1:])
+
+        out = tmp_path / "anim.tiff"
+        detail = image_normalize.to_tiff(src, out)
+        with Image.open(out) as got:
+            assert got.n_frames == 3
+        assert "3 フレーム" in detail, "落とさなかったことを PREMIS に残す"
+
+    def test_palette_transparency_is_preserved(self, tmp_path):
+        """TIFF のパレットはアルファを持てない。P のまま書くと透過だけ消える。"""
+        from PIL import Image
+
+        im = Image.new("P", (4, 4))
+        im.putpalette([255, 0, 0] * 256)
+        im.info["transparency"] = 0
+        src = tmp_path / "t.png"
+        im.save(src)
+
+        out = tmp_path / "t.tiff"
+        image_normalize.to_tiff(src, out)
+        with Image.open(out) as got:
+            assert got.mode == "RGBA"
+            assert got.getpixel((0, 0))[3] == 0, "透過が残っている"
+
+    def test_bit_depth_is_not_reduced(self, tmp_path):
+        """16bit を 8bit に落とすのは情報の破棄。勝手に RGB へ揃えない。"""
+        from PIL import Image
+
+        src = tmp_path / "g16.png"
+        Image.new("I;16", (4, 4)).save(src)
+        out = tmp_path / "g16.tiff"
+        image_normalize.to_tiff(src, out)
+        with Image.open(out) as got:
+            assert got.mode == "I;16"
+
+    def test_pixels_survive_the_round_trip(self, tmp_path):
+        from PIL import Image
+
+        src = tmp_path / "a.png"
+        Image.new("RGB", (4, 4), (12, 34, 56)).save(src)
+        out = tmp_path / "a.tiff"
+        image_normalize.to_tiff(src, out)
+        with Image.open(out) as got:
+            assert got.size == (4, 4)
+            assert got.convert("RGB").tobytes() == bytes([12, 34, 56]) * 16
+
+    def test_detail_note_records_the_library_version(self, tmp_path):
+        """出力バイト列は Pillow / libtiff の版に依存する。後から追えるようにする。"""
+        detail = image_normalize.to_tiff(self._png(tmp_path / "a.png"), tmp_path / "a.tiff")
+        assert "Pillow" in detail and "libtiff" in detail
+
+    def test_broken_image_is_an_error_not_a_crash(self, tmp_path):
+        """壊れたファイルで移管全体を止めない（呼び出し側が警告にする）。"""
+        src = tmp_path / "broken.png"
+        src.write_bytes(b"not really a png")
+        f = AIPFile("broken.png", src, src.stat().st_size, "u1")
+        rule = conversion_registry.rule_for("fmt/11", DerivativePurpose.PRESERVATION)
+        with pytest.raises(AIPPipelineError):
+            normalizer.normalize(f, rule, tmp_path / "work")
+
+    def test_normalize_records_pillow_as_the_tool(self, tmp_path):
+        src = self._png(tmp_path / "a.png")
+        f = AIPFile("a.png", src, src.stat().st_size, "u1")
+        rule = conversion_registry.rule_for("fmt/11", DerivativePurpose.PRESERVATION)
+        derivative = normalizer.normalize(f, rule, tmp_path / "work")
+
+        assert derivative.relative_path == "a-preservation.tiff"
+        assert derivative.puid_out == conversion_registry.TIFF_PUID
+        assert "Pillow" in derivative.tool_name
+        assert derivative.sha256 == sha256_of(derivative.path)
+        assert src.read_bytes(), "原本は残っている"

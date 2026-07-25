@@ -3,21 +3,25 @@
 現行 Swift 実装の `Sources/AIP/ConversionRegistry.swift` に対応する。
 PUID をキーに「保存用の派生物をどのツールでどう作るか」を引く。
 
-## sips をやめて ImageMagick に統一した
+## sips をやめて Pillow に統一した
 
 Swift 版は画像→TIFF に macOS 内蔵の `sips` を使っていた。これは Windows に存在しない。
 
-代替として ImageMagick(`magick`) を**両OSで**同梱する。Windows 側だけ別ツールにする
-選択肢もあるが、採らない。**同じ資料から作った保存用派生物のバイト列が OS によって
-変わると、長期保存の観点で説明できなくなる**（どちらが「正」なのか決められない）。
-変換ツールとそのバージョンは PREMIS event に記録するので、片方だけ差し替えると
-記録の意味も揃わなくなる。
+代替は Pillow（アプリ内で実行。外部プロセスを起こさない）。ImageMagick の同梱も
+検討したが、macOS 向けの公式な再配布可能ビルドが無く、両OSで別ビルド＝別 libtiff に
+なるため見送った。**同じ資料から作った保存用派生物のバイト列が OS によって変わると、
+長期保存の観点で説明できなくなる**（どちらが「正」なのか決められない）。
+判断の詳細は image_normalize.py の冒頭に書いてある。
 
-PostScript/EPS→PDF の Ghostscript は元から両OS対応なので変更しない。
+PostScript/EPS→PDF の Ghostscript は引き続き外部プロセス。ただし**同梱しない**
+（AGPL-3.0 であり、MIT のアプリに同梱すると配布ライセンスの判断が要る。加えて
+macOS 向け公式ビルドが無い）。現行 Swift 版も同梱しておらず、PATH 上の gs を使う。
+gs が無い環境では変換されず、原本がそのまま保存され report に警告が出る。
 """
 
 from __future__ import annotations
 
+from . import image_normalize
 from .aip_models import DerivativePurpose, NormalizationRule
 
 # ImageMagick で TIFF 化する画像フォーマット。
@@ -56,10 +60,9 @@ def rule_for(puid: str | None, purpose: DerivativePurpose) -> NormalizationRule 
         return NormalizationRule(
             puid_in=puid,
             purpose=DerivativePurpose.PRESERVATION,
-            tool="magick",
-            # -compress none: 可逆であることを明示する。保存用途で
-            # 非可逆圧縮が既定で掛かると取り返しがつかない。
-            args=["{in}", "-compress", "none", "{out}"],
+            # アプリ内で実行するので args は使わない（image_normalize が判断する）。
+            tool=image_normalize.TOOL,
+            args=[],
             puid_out=TIFF_PUID,
             out_extension="tiff",
         )

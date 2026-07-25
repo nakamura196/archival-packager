@@ -109,6 +109,14 @@ jobs:
             ~/flutter
           key: flet-flutter-${{ matrix.os }}-${{ steps.flutter.outputs.version }}
 
+      # 同梱バイナリの取得は、ビルドそのものと同じくらい壊れやすい
+      # （配布形態やアーカイブ構造が上流の都合で変わる）。ビルドの前に走らせて、
+      # 取得できなくなったことに気づけるようにする。
+      - name: Fetch bundled binaries (Windows)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: pwsh -File scripts/fetch-binaries.ps1
+
       - name: Build
         env:
           PYTHONIOENCODING: utf-8
@@ -121,6 +129,22 @@ jobs:
           --bundle-id com.nakamura.archivalpackager.x
           --org com.nakamura
 
+      # 同梱バイナリは .exe と同じ階層の bin/ に置く（core/bundled.py の解決順）。
+      # ビルド成果物に入れるのは flet ではなくこちらの責任。
+      - name: Place bundled binaries next to the executable (Windows)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Recurse -Path build\windows -Filter "*.exe" |
+                 Where-Object { $_.Name -notlike "*clamscan*" -and $_.Name -notlike "*freshclam*" -and $_.Name -notlike "sf.exe" } |
+                 Select-Object -First 1
+          if (-not $exe) { throw "ビルドした .exe が見つかりません" }
+          $dest = Join-Path $exe.DirectoryName "bin"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item -Recurse -Force -Path "binaries\windows\*" -Destination $dest
+          Write-Host "配置先: $dest"
+          Get-ChildItem $dest | Format-Table Name, Length
+
       - name: Verify the app contains our code and its C extensions
         shell: bash
         run: |
@@ -132,4 +156,22 @@ jobs:
           # lxml は C 拡張。純 Python の依存と違い、同梱に失敗しうる。
           find "$root" \( -name 'etree*.so' -o -name 'etree*.pyd' \) | head -1 | grep -q . \
             || { echo "lxml の C 拡張が同梱されていない"; exit 1; }
-          echo "OK: 自前ソースと lxml を確認"
+          # Pillow も C 拡張。画像の保存用変換はこれに依存している。
+          find "$root" \( -name '_imaging*.so' -o -name '_imaging*.pyd' \) | head -1 | grep -q . \
+            || { echo "Pillow の C 拡張が同梱されていない"; exit 1; }
+          echo "OK: 自前ソース・lxml・Pillow を確認"
+
+      # 同梱バイナリが実際に起動するかまで見る。DLL や証明書の入れ忘れは
+      # 「置いたのに動かない」形で出るので、存在確認だけでは足りない。
+      - name: Smoke-test the bundled binaries (Windows)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $bin = (Get-ChildItem -Recurse -Path build\windows -Directory -Filter "bin" | Select-Object -First 1).FullName
+          & (Join-Path $bin "clamscan.exe") --version
+          if ($LASTEXITCODE -ne 0) { throw "同梱 clamscan が起動しません" }
+          & (Join-Path $bin "sf.exe") -version
+          if ($LASTEXITCODE -ne 0) { throw "同梱 sf が起動しません" }
+          if (-not (Get-ChildItem -Path (Join-Path $bin "clamav-certs") -Filter "*.crt")) {
+            throw "CVD 検証用の証明書が入っていません"
+          }

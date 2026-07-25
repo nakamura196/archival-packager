@@ -136,3 +136,44 @@ class TestFletAPICompatibility:
         assert "await picker.get_directory_path" in source
         assert "await picker.pick_files" in source
         assert "page.overlay" not in source
+
+
+class TestVirusDatabaseControls:
+    """定義 DB の取得は数百 MB のダウンロード。UI スレッドで走らせない。
+
+    そして状態を常に表示する。「検査できなかった」を「ウイルスが無かった」と
+    読み違えさせるのが、このアプリで最も避けたい誤解のひとつ。
+    """
+
+    def test_update_runs_off_the_ui_thread(self):
+        source = inspect.getsource(ui_app.main)
+        handler = source.split("def on_update_virus_db(")[1].split("virus_db_button.on_click")[0]
+        assert "threading.Thread" in handler
+        assert "clamav.update_database" not in handler, "クリックハンドラで直接走らせない"
+
+    def test_run_is_blocked_while_updating(self):
+        """更新中に本処理を始めると、途中の DB で検査してしまう。"""
+        source = inspect.getsource(ui_app.main)
+        handler = source.split("def on_update_virus_db(")[1].split("virus_db_button.on_click")[0]
+        assert "run_button.disabled = True" in handler
+
+    def test_buttons_are_restored_even_on_failure(self):
+        source = inspect.getsource(ui_app.main)
+        worker = source.split("def update_virus_db_worker(")[1].split("def on_update_virus_db(")[0]
+        finally_block = worker.split("finally:")[1]
+        assert "virus_db_button.disabled = False" in finally_block
+        assert "run_button.disabled" in finally_block
+
+    def test_status_is_refreshed_after_updating(self):
+        source = inspect.getsource(ui_app.main)
+        worker = source.split("def update_virus_db_worker(")[1].split("def on_update_virus_db(")[0]
+        assert "virus_db_status.value" in worker
+
+    def test_update_button_is_disabled_without_freshclam(self):
+        """同梱していない環境で押せてしまうと、押した先で失敗するだけ。"""
+        source = inspect.getsource(ui_app.main)
+        assert "clamav.find_updater() is None" in source
+
+    def test_missing_clamav_is_stated_rather_than_implied_clean(self):
+        source = inspect.getsource(ui_app.main)
+        assert "検査できません" in source

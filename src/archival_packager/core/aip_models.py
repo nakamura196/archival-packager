@@ -222,7 +222,7 @@ class NormalizationRule:
 
     puid_in: str
     purpose: DerivativePurpose
-    tool: str  # 実行バイナリ名（同梱 gs / magick 等）
+    tool: str  # 変換の担い手。外部バイナリ名（gs）か、アプリ内変換の識別子（pillow）
     args: list[str]  # 引数テンプレート（{in} {out} を実パスに置換）
     out_extension: str  # 出力ファイルの拡張子（例: "pdf"）
     puid_out: str | None = None  # 出力フォーマットの PUID（分かれば）

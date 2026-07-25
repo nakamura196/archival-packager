@@ -9,26 +9,24 @@ born-digital / デジタル化ファイルから **SIP（受入）** と **AIP�
 
 | | 状態 |
 |---|---|
-| コア移植（SIP / AIP 全モジュール） | ✅ 完了（274 テスト） |
+| コア移植（SIP / AIP 全モジュール） | ✅ 完了（320 テスト） |
 | **現行実装との出力一致** | ✅ **差分なし** |
 | UI（3 モード） | ✅ パッケージ版で起動確認済み |
-| `.app` ビルド | ✅ 248MB |
-| Developer ID 署名 | ✅ Mach-O 90 件・未署名ゼロ |
-| **公証（Apple）** | ✅ **Accepted / `spctl: accepted`** |
-| 同梱バイナリの起動 | ✅ 検証済み（macOS / Windows） |
-| Windows ビルド | ✅ 検証済み（`windows-latest` / spike 段） |
+| Developer ID 署名 | ✅ 未署名 Mach-O ゼロ |
+| **公証（Apple）** | ✅ **Accepted / `spctl: accepted`**（ClamAV 同梱前の版） |
+| フォーマット識別（siegfried） | ✅ 同梱・起動確認済み |
+| ウイルス検査（ClamAV） | ✅ 同梱・EICAR で検出まで確認 |
+| 画像 → TIFF（Pillow） | ✅ アプリ内変換・通しで確認 |
+| Windows ビルド | ⏳ spike 段では通過。本実装では未実行 |
 
 ### 次にやること
 
 1. **Windows ビルドを本実装で再確認。** spike では通っているが、本実装のコードでは
    まだ回していない。GitHub Actions を `workflow_dispatch` で
-   `build_windows: true` にして実行する。
-2. **ClamAV / Ghostscript / ImageMagick の同梱。** 現在は siegfried のみ。
-   `scripts/fetch-binaries.zsh` に同じ方針（バージョン固定）で追加する。
-3. **NFC 正規化の方針決定。** `SIPOptions.normalize_recorded_paths_nfc` は
-   現行実装との出力一致を優先して既定 `False` にしてある。macOS と Windows で
-   同じ資料から同じマニフェストを得るには `True` が要る。差分検証が通った今、
-   切り替えを判断できる状態にある。
+   `build_windows: true` にして実行する。同梱バイナリの取得・配置・起動確認まで
+   CI に入れてあるので、この 1 回で同梱まわりも一緒に検証できる。
+2. **ClamAV 同梱後の版で公証をやり直す。** 公証済みなのは ClamAV を入れる前の版。
+   Mach-O が 7 件増えている（clamscan / freshclam / dylib 5 件）。
 
 ## 使い方（開発）
 
@@ -41,14 +39,18 @@ uv run pytest                     # テスト
 配布物のビルド:
 
 ```
-./scripts/fetch-binaries.zsh      # 同梱バイナリを取得（バージョン固定）
-./scripts/build.zsh macos         # .app（不要物を除外して 248MB）
+./scripts/fetch-binaries.zsh      # 同梱バイナリを取得（バージョン固定・起動確認まで）
+./scripts/build.zsh macos         # .app（不要物を除外）
 ./scripts/sign.zsh                # Developer ID + hardened runtime
 op run --env-file=<aip>/.env -- ./scripts/notarize.zsh   # 公証と staple
 ```
 
 同梱バイナリは `binaries/<os>/` に置き、リポジトリには含めない
-（サイズが大きく、取得は `fetch-binaries.zsh` で再現可能）。
+（サイズが大きく、取得はスクリプトで再現可能）。方針は
+「[外部ツールの同梱方針](#外部ツールの同梱方針)」を参照。
+
+ウイルス定義 DB（数百 MB）は同梱しない。配布物が肥大化する上に、配った瞬間から
+古くなる。アプリの「ウイルス定義データベース」から `freshclam` で取得する。
 
 ### 検証の順序
 
@@ -101,9 +103,65 @@ Swift 実装（macOS 専用、Developer ID 署名・公証済み）を、Windows
 ファイル名に LF/CR/% を含む場合マニフェスト中でのパーセントエンコードを要求するが、
 Swift 版はこれを行っていない。
 
+## 外部ツールの同梱方針
+
+同梱するものは `binaries/<os>/` に置き、リポジトリには含めない。取得は
+`scripts/fetch-binaries.zsh`（macOS）と `scripts/fetch-binaries.ps1`（Windows）で
+再現できる。**バージョンは両OSで必ず揃える。** 識別や検査の結果が環境で変わると、
+同じ資料から作った保存パッケージの再現性が崩れるため。
+
+| ツール | 用途 | 同梱 | 理由 |
+|---|---|---|---|
+| siegfried | フォーマット識別 | ✅ | 公式ビルドあり。`default.sig` も必須なので一緒に入れる |
+| ClamAV | ウイルス検査 | ✅ | 公式ビルドあり。定義 DB はアプリから `freshclam` で取得 |
+| Pillow | 画像 → TIFF | ✅（pip） | 外部プロセス不要。両OSで同一 wheel＝同一 libtiff |
+| Ghostscript | PostScript/EPS → PDF | ❌ | **AGPL-3.0**。macOS 向け公式ビルドも無い |
+
+### Ghostscript を同梱しない理由
+
+Ghostscript は AGPL-3.0 で、MIT のこのアプリに同梱すると**配布物全体のライセンスを
+どう扱うかの判断が要る**（Artifex は商用ライセンスを別途販売している）。加えて
+macOS 向けの公式ビルドが配布されておらず、ソースからの構築が必要になる。
+現行 Swift 版も同梱しておらず、PATH 上の `gs` を使う方式。同じ扱いにしてある。
+
+`gs` が無い環境では PostScript/EPS は変換されず、原本がそのまま保存され、
+report に**ツールが無いことが明示される**（資料が壊れている場合とは別の文言にしてある。
+原因も対処も違うものを同じ文言にすると、report を読んでも区別がつかない）。
+
+同梱する判断に切り替えるなら、ライセンス上の整理が先。
+
+### ImageMagick をやめて Pillow にした理由
+
+Swift 版は画像 → TIFF に macOS 内蔵の `sips` を使っていた。Windows には無いので
+置き換えが要り、当初は ImageMagick を両OSに同梱する方針だった。取りやめた理由:
+
+- **macOS 向けの公式な再配布可能ビルドが無い。** 配布されているのは Windows の
+  portable ビルドと Linux の AppImage、あとはソースだけ。
+- **その結果、両OSで別ビルドになる。** Homebrew 版と Windows portable 版では
+  同梱される libtiff の版も揃わず、**同じ資料から出る派生物のバイト列が
+  OS によって変わる**。どちらが「正」なのか説明できない。
+
+Pillow なら wheel が両OS向けに同一版で提供され、libtiff も wheel 同梱の同じものが
+使われる。外部プロセスが要らないので「配布先にツールが無くて変換されなかった」も
+起きない。詳細は `core/image_normalize.py` の冒頭。
+
+### 同梱で繰り返し踏んだ落とし穴
+
+いずれも**開発機には該当ツールが入っているため、開発中は動いてしまう**。
+配布先で初めて壊れる形なので、意識して潰す必要がある。
+
+- **siegfried の `default.sig`**：同梱しないと配布先で署名 DB を見つけられない。
+- **ClamAV の CVD 検証用証明書**：ClamAV 1.4 以降、これが無いと定義 DB を読めない。
+  探索先はビルド時に焼き込まれた絶対パス（`/usr/local/clamav/etc/certs`）なので、
+  同梱して `CVD_CERTS_DIR` で渡す。`--cvdcertsdir` だけでは freshclam 内部の
+  DB 検証まで届かず、**取得は成功したように見えて検査が 0 件になる**。
+- **`install_name_tool` は署名を壊す**。arm64 では署名が無効な実行ファイルは
+  起動時に SIGKILL される（`rc=137`。エラーメッセージも出ない）。
+
 ## 移植中に見つけた現行実装の問題
 
-移植は現行実装の再読でもある。テストを書く過程で次が判明し、新実装では修正した。
+移植は現行実装の再読でもある。テストを書く過程で次が判明し、**Swift 側も修正済み**
+（[archival-packager#3](https://github.com/nakamura196/archival-packager/pull/3) でマージ）。
 
 1. **完全性確認が `failed` を `skipped` と報告する場合がある。**
    マニフェスト記載のファイルが全て存在しないとき、`checked == 0` の判定が先に効いて
@@ -113,12 +171,18 @@ Swift 版はこれを行っていない。
 2. **PREMIS の `eventIdentifierValue` を XML 生成のたびに振っていた。**
    同じ入力から 2 回生成すると別の出力になり、差分検証ができなかった。
 
-3. **`structMap` の並び順が走査順に依存していた。** 同じ資料から違う METS が出うる。
+3. **`accession.csv` の解析が引用フィールド内の改行を扱えない。**
+   先に行で切ってからパースするため、原理的に扱えない。書き出し側は改行を含む値を
+   引用で囲むので、自分が書いた CSV を読み戻せない状態だった。
 
-4. **`accession.csv` の解析が引用フィールド内の改行を扱えない。**
-   先に行で切ってからパースするため、原理的に扱えない。
+### 誤検出だったもの
 
-5. **XML のエスケープ漏れの余地。** DFXML の `esc()` は `'` を扱っていない。
+当初は上記に加えて 2 件を問題として挙げていたが、読み直したところ**誤りだった**。
+記録として残しておく。
+
+- **`structMap` の並び順**：`localizedStandardCompare` でソート済み。問題なし。
+- **DFXML の `esc()` が `'` を扱わない**：`esc` は text ノードにのみ使われており、
+  text 内の `'` はエスケープ不要。属性も `"` 区切りなので問題なし。
 
 ## 実装のドキュメント
 

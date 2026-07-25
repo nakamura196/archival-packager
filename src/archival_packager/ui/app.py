@@ -25,7 +25,7 @@ from pathlib import Path
 
 import flet as ft
 
-from ..core import aip_pipeline, sip_pipeline
+from ..core import aip_pipeline, clamav, sip_pipeline
 from ..core.aip_models import AIPOptions, AIPPipelineError, AIPResult, DescriptiveMetadata
 from ..core.models import SIPMetadata, SIPOptions, SIPPipelineError, SIPResult
 from . import platform as plat
@@ -113,6 +113,30 @@ def main(page: ft.Page) -> None:
     )
     serialize_zip = ft.Checkbox(label="成果物を ZIP（無圧縮）に固める", value=False)
     normalize = ft.Checkbox(label="保存用フォーマットへ変換する（AIP）", value=True)
+
+    # ------------------------------------------------------------------
+    # ウイルス定義データベース
+    # ------------------------------------------------------------------
+    #
+    # 定義 DB は数百 MB あり、しかも日々更新される。アプリに同梱すると
+    # 配布物が肥大化した上に、配った瞬間から古くなる。ここから取得する。
+    #
+    # 状態を常に見せるのは、「検査できなかった」を「ウイルスが無かった」と
+    # 読み違えさせないため。チェックを入れていても DB が無ければ検査は走らない。
+
+    def virus_db_message() -> str:
+        if clamav.find_tool() is None:
+            return "ウイルス定義: ClamAV が同梱されていないため検査できません"
+        return clamav.database_status()
+
+    virus_db_status = ft.Text(
+        virus_db_message(), size=12, color=ft.Colors.ON_SURFACE_VARIANT
+    )
+    virus_db_button = ft.OutlinedButton(
+        "定義を取得 / 更新",
+        icon=ft.Icons.CLOUD_DOWNLOAD,
+        disabled=clamav.find_updater() is None,
+    )
 
     # ------------------------------------------------------------------
     # ファイル選択
@@ -350,6 +374,34 @@ def main(page: ft.Page) -> None:
 
     run_button.on_click = on_run
 
+    def update_virus_db_worker() -> None:
+        """freshclam を別スレッドで走らせる。数百 MB のダウンロードなので。"""
+        try:
+            clamav.update_database(progress=log)
+            log("ウイルス定義の更新が完了しました。")
+        except (SIPPipelineError, AIPPipelineError) as exc:
+            _show_error(exc.message)
+        except Exception as exc:  # noqa: BLE001
+            _show_error(f"{type(exc).__name__}: {exc}", traceback.format_exc())
+        finally:
+            virus_db_status.value = virus_db_message()
+            virus_db_button.disabled = False
+            run_button.disabled = state.input_path is None or state.output_parent is None
+            progress_bar.visible = False
+            page.update()
+
+    def on_update_virus_db(_e: ft.ControlEvent) -> None:
+        clear_log()
+        log("ウイルス定義を取得しています（数百 MB あります）…")
+        virus_db_button.disabled = True
+        # 更新中に本処理を始めると、途中の DB で検査してしまう。
+        run_button.disabled = True
+        progress_bar.visible = True
+        page.update()
+        threading.Thread(target=update_virus_db_worker, daemon=True).start()
+
+    virus_db_button.on_click = on_update_virus_db
+
     # ------------------------------------------------------------------
     # レイアウト
     # ------------------------------------------------------------------
@@ -399,6 +451,7 @@ def main(page: ft.Page) -> None:
                 "オプション",
                 make_bag, sanitize, scan_pii, scan_virus, normalize, serialize_zip,
             ),
+            section("ウイルス定義データベース", virus_db_status, virus_db_button),
             section(
                 "前回の受入記録（配列前後の突合）",
                 ft.OutlinedButton(

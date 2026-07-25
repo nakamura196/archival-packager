@@ -34,17 +34,20 @@ class SIPOptions:
     sanitize_filenames: bool = False  # 受入時にファイル名を安全化するか
     serialize_zip: bool = False  # 生成した SIP を無圧縮 zip に固めて単一ファイル化するか
 
-    # 現行 Swift 版には無い項目。
+    # NFC 正規化の独立オプションは置かない（検討の結果、危険と判断した）。
     #
-    # macOS(APFS) と Windows(NTFS) では、同じ見た目のファイル名でも
-    # Unicode の正規化形が異なることがある（濁点などが分解されるか合成されるか）。
-    # マニフェストや METS に記録する文字列がプラットフォームで揺れると、
-    # 「同じ資料から作った SIP なのに突合できない」という事故になる。
+    # macOS が readdir で返すファイル名は分解形(NFD)になることがあり、Windows は
+    # 合成形(NFC)が普通。同じ資料から作った SIP の記録文字列が OS で揺れる。
+    # そこで「記録する文字列だけ NFC に直す」案を検討したが、これは採らない。
+    # 実ファイル名が NFD のままマニフェストに NFC を書くと、正規化に鈍感でない
+    # ファイルシステム（NTFS / ext4）では記載パスのファイルが見つからず、
+    # **作った macOS でだけ検証が通る bag** ができる。長期保存で最も避けたい形。
     #
-    # ただし既定は False にしてある。現行実装との出力一致（差分検証）を
-    # 先に成立させるため。両OS での一貫性を優先する運用に切り替える判断は、
-    # 差分検証が通ってから明示的に行う。
-    normalize_recorded_paths_nfc: bool = False
+    # NFC 化は「実ファイルをその名前で書き出す」ことと必ず対にする。それは既に
+    # sanitize_filenames が行っている（filenames.apply(..., normalize_nfc=True)）。
+    # sanitize が OFF のときは NFD のまま記録し、代わりに警告を出す
+    # （sip_builder.check_unicode_normalization）。黙って揃えないことより、
+    # 揃っていないと知らせることを選ぶ。
 
 
 @dataclass(slots=True)

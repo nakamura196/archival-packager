@@ -15,6 +15,7 @@ dependencies = [
     "lxml>=5.3.0",
     # PII 走査で PDF からテキストを抽出する（macOS 専用の PDFKit の代替）。
     "pypdf>=5.1.0",
+    "pillow>=11.0",
 ]
 
 [dependency-groups]

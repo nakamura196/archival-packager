@@ -1,6 +1,6 @@
 """同梱バイナリの解決。
 
-siegfried(sf) / clamscan / gs / magick といった外部ツールは、開発時と
+siegfried(sf) / clamscan / freshclam / gs といった外部ツールは、開発時と
 パッケージ後で置き場所が変わる。その差をここに閉じ込める。
 
 ## 配置の根拠（spike/README.md の実測結果）

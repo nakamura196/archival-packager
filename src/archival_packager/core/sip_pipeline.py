@@ -94,6 +94,11 @@ def run(
         # Windows で開けない長さのパスを警告に足す。macOS で作った SIP を
         # Windows へ渡したときに初めて露見する種類の問題なので、作った側で検出する。
         result.warnings.extend(sip_builder.check_path_lengths(result.sip_path, files))
+        result.warnings.extend(
+            sip_builder.check_unicode_normalization(
+                files, sanitized=options.sanitize_filenames
+            )
+        )
 
         if options.serialize_zip:
             progress("ZIP（無圧縮）に固めています…")
@@ -163,7 +168,18 @@ def _identify_formats(
         return files
 
     progress("フォーマットを識別しています（siegfried）…")
-    records = siegfried.identify(root)
+    try:
+        records = siegfried.identify(root)
+    except (SIPPipelineError, OSError) as exc:
+        # 同梱されていても起動できないことがある。siegfried が配布する mac ビルドは
+        # 1 つだけで中身は arm64 だが、こちらのアプリ本体は universal なので
+        # Intel Mac でも起動してしまい、そこで "Bad CPU type in executable" になる。
+        #
+        # フォーマット識別は SIP 作成の必須要素ではない（PUID 欄が空になるだけ）。
+        # ここで移管作業全体を落とすのは割に合わないので、警告にして続行する。
+        detail = exc.message if isinstance(exc, SIPPipelineError) else str(exc)
+        progress(f"フォーマット識別に失敗したためスキップします: {detail}")
+        return files
 
     # siegfried が返すパス文字列と、こちらが持つ絶対パスを突き合わせる。
     # 表記の揺れ（シンボリックリンク・相対表記）に備えて解決したパスで引く。

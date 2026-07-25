@@ -36,7 +36,12 @@ BINARIES="binaries/macos"
 
 [[ -d "$APP" ]] || { print -u2 "アプリが見つかりません: $APP"; exit 1 }
 [[ -f "$ENTITLEMENTS" ]] || { print -u2 "entitlements が見つかりません: $ENTITLEMENTS"; exit 1 }
-[[ -f "$BINARIES/sf" ]] || { print -u2 "同梱バイナリがありません: $BINARIES/sf"; exit 1 }
+for required in sf default.sig clamscan freshclam; do
+  [[ -e "$BINARIES/$required" ]] || {
+    print -u2 "同梱バイナリがありません: $BINARIES/$required（./scripts/fetch-binaries.zsh を先に）"
+    exit 1
+  }
+done
 
 # codesign のセキュアタイムスタンプ取得はネットワーク次第で確率的に失敗するため
 # リトライで吸収する（現行 aip の export-devid.sh と同じ方針）。
@@ -53,13 +58,19 @@ retry() {
 print "[1/4] 同梱バイナリをバンドルへ配置"
 DEST="$APP/Contents/Resources/bin"
 mkdir -p "$DEST"
-# sf 本体と、その署名ファイル default.sig。default.sig を同梱しないと
-# 配布先で siegfried が署名 DB を見つけられない（開発機では Homebrew 版の
-# default.sig を拾ってしまい、この欠陥に気づけない）。
-cp "$BINARIES/sf" "$DEST/sf"
-cp "$BINARIES/default.sig" "$DEST/default.sig"
-chmod 755 "$DEST/sf"
-print "  $DEST/{sf,default.sig}"
+# binaries/macos/ の中身をそのまま入れる。個別に列挙すると、後から増えた
+# ファイル（ClamAV の dylib 群など）を取りこぼす。
+#
+# 内訳:
+#   sf, default.sig          siegfried 本体と署名 DB。default.sig を同梱しないと
+#                            配布先で署名 DB を見つけられない（開発機では
+#                            Homebrew 版を拾ってしまい、この欠陥に気づけない）
+#   clamscan, freshclam      ウイルス検査と定義 DB の取得/更新
+#   lib*.dylib               上記が @executable_path / @loader_path で引く実体
+cp -R "$BINARIES"/. "$DEST"/
+find "$DEST" -type f -name '*.dylib' -exec chmod 755 {} +
+chmod 755 "$DEST/sf" "$DEST/clamscan" "$DEST/freshclam"
+print "  $DEST ($(ls "$DEST" | wc -l | tr -d ' ') 件)"
 
 # バンドル外を指す symlink があると、公証は通っても Gatekeeper が
 #   rejected (invalid destination for symbolic link in bundle)

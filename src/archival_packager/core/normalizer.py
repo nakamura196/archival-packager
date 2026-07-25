@@ -15,7 +15,7 @@ import subprocess
 import uuid as _uuid
 from pathlib import Path
 
-from . import bundled
+from . import bundled, image_normalize
 from .aip_models import (
     AIPFile,
     AIPPipelineError,
@@ -46,6 +46,36 @@ def normalize(file: AIPFile, rule: NormalizationRule, work_dir: Path) -> Derivat
     ツールが見つからない/変換失敗時は送出する（呼び出し側で警告にして
     AIP 化自体は続行する。1 ファイルの変換失敗で移管全体を止めない）。
     """
+    if rule.tool == image_normalize.TOOL:
+        return _normalize_in_process(file, rule, work_dir)
+    return _normalize_by_subprocess(file, rule, work_dir)
+
+
+def _normalize_in_process(
+    file: AIPFile, rule: NormalizationRule, work_dir: Path
+) -> Derivative:
+    """外部プロセスを使わない変換（画像 → TIFF）。
+
+    同梱バイナリの探索も PATH も要らないので、配布先で「ツールが無くて変換
+    されなかった」が起きない。
+    """
+    derivative_uuid = str(_uuid.uuid4())
+    out_path = work_dir / f"{derivative_uuid}.{rule.out_extension}"
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        detail = image_normalize.to_tiff(file.absolute_path, out_path)
+    except OSError as exc:
+        # 壊れた画像・未対応のサブフォーマットはここに来る。落とさず警告にする。
+        raise AIPPipelineError.tool_failed(rule.tool, -1, str(exc)) from exc
+
+    return _derivative(file, rule, out_path, derivative_uuid,
+                       tool_name=image_normalize.version_note(), command_line=detail)
+
+
+def _normalize_by_subprocess(
+    file: AIPFile, rule: NormalizationRule, work_dir: Path
+) -> Derivative:
     tool_path = locate(rule.tool)
     if tool_path is None:
         raise AIPPipelineError.tool_not_found(rule.tool)
@@ -81,14 +111,30 @@ def normalize(file: AIPFile, rule: NormalizationRule, work_dir: Path) -> Derivat
         # 存在しない派生物を PREMIS に記録してしまわないよう、ここで止める。
         raise AIPPipelineError.tool_failed(rule.tool, 0, "出力が生成されませんでした")
 
+    return _derivative(file, rule, out_path, derivative_uuid,
+                       tool_name=rule.tool, command_line=" ".join([rule.tool, *args]))
+
+
+def _derivative(
+    file: AIPFile,
+    rule: NormalizationRule,
+    out_path: Path,
+    derivative_uuid: str,
+    *,
+    tool_name: str,
+    command_line: str,
+) -> Derivative:
+    if not out_path.is_file():
+        raise AIPPipelineError.tool_failed(rule.tool, 0, "出力が生成されませんでした")
+
     return Derivative(
         purpose=DerivativePurpose.PRESERVATION,
         path=out_path,
         relative_path=derivative_relative_path(file.relative_path, rule.out_extension),
         size_bytes=out_path.stat().st_size,
         uuid=derivative_uuid,
-        tool_name=rule.tool,
-        command_line=" ".join([rule.tool, *args]),
+        tool_name=tool_name,
+        command_line=command_line,
         sha256=sha256_of(out_path),
         puid_out=rule.puid_out,
     )

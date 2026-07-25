@@ -7,6 +7,7 @@ bag は自前実装ではなく bagit（米国議会図書館のリファレン�
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -262,3 +263,56 @@ class TestGuards:
         deep.relative_path = "/".join(["長い名前のフォルダ"] * 20) + "/file.txt"
         warnings = sip_builder.check_path_lengths(tmp_path / "pkg", [deep])
         assert warnings and "パスが長すぎます" in warnings[0]
+
+
+class TestUnicodeNormalizationCheck:
+    """記録名が NFC でないことを、黙って直さずに警告する。
+
+    記録文字列だけ NFC に直すと、実ファイルが NFD のままの bag ができ、
+    正規化に鈍感でない NTFS / ext4 では「マニフェストのファイルが無い」
+    となる。作った macOS でだけ検証が通る状態が最も危ない。
+    """
+
+    # ソースの保存形に依存しないよう、リテラルではなく明示的に構成する。
+    NFD = unicodedata.normalize("NFD", "が.txt")  # macOS が返しうる分解形
+    NFC = unicodedata.normalize("NFC", "が.txt")  # 合成形
+
+    def _file(self, rel):
+        return ScannedFile(rel, Path("/x") / rel, 1, datetime.fromtimestamp(0))
+
+    def test_decomposed_name_is_flagged(self):
+        warnings = sip_builder.check_unicode_normalization(
+            [self._file(self.NFD)], sanitized=False
+        )
+        assert any("NFC 正規化されていません" in w for w in warnings)
+
+    def test_guidance_points_at_sanitize_when_it_is_off(self):
+        warnings = sip_builder.check_unicode_normalization(
+            [self._file(self.NFD)], sanitized=False
+        )
+        assert "ファイル名を安全化" in warnings[0]
+
+    def test_no_guidance_line_when_sanitize_already_ran(self):
+        # sanitize 済みで残っているなら、案内しても仕方がない（既に有効）。
+        warnings = sip_builder.check_unicode_normalization(
+            [self._file(self.NFD)], sanitized=True
+        )
+        assert warnings and "ファイル名を安全化" not in warnings[0]
+
+    def test_composed_name_is_silent(self):
+        assert sip_builder.check_unicode_normalization(
+            [self._file(self.NFC)], sanitized=False
+        ) == []
+
+    def test_ascii_names_are_silent(self):
+        assert sip_builder.check_unicode_normalization(
+            [self._file("plain.txt"), self._file("a/b.pdf")], sanitized=False
+        ) == []
+
+    def test_sanitize_removes_the_condition(self):
+        """sanitize は実ファイルごと NFC 名にするので、警告対象が消える。"""
+        from archival_packager.core import filenames
+
+        sanitized, _ = filenames.apply([self._file(self.NFD)], normalize_nfc=True)
+        assert sanitized[0].relative_path == self.NFC
+        assert sip_builder.check_unicode_normalization(sanitized, sanitized=True) == []

@@ -214,7 +214,7 @@ class TestNormalization:
 
         result, _ = run_aip(sip, tmp_path, normalize=True)
         assert result.derivative_count == 0
-        assert any("変換に失敗" in w for w in result.warnings)
+        assert any("原本のまま保存" in w for w in result.warnings)
         assert (result.aip_path / "data" / "objects" / "a.txt").is_file(), "原本は保存される"
 
         root = etree.fromstring(result.mets_path.read_bytes())
@@ -224,6 +224,104 @@ class TestNormalization:
             namespaces=NS,
         )
         assert "fail" in outcomes, "失敗も記録に残す"
+
+    def test_missing_tool_is_distinguishable_from_a_broken_file(
+        self, sip, tmp_path, monkeypatch
+    ):
+        """原因も対処も違うものを、同じ文言にまとめない。
+
+        Ghostscript は AGPL のため同梱していない。gs が無い環境では
+        PostScript/EPS が変換されないが、それは資料が壊れているのではなく
+        環境にツールが無いだけ。report を読む人が区別できる必要がある。
+        """
+        from archival_packager.core import conversion_registry
+        from archival_packager.core.aip_models import DerivativePurpose, NormalizationRule
+
+        rule = NormalizationRule(
+            puid_in="fmt/124", purpose=DerivativePurpose.PRESERVATION,
+            tool="gs", args=["{in}", "{out}"], out_extension="pdf",
+        )
+        monkeypatch.setattr(conversion_registry, "rule_for", lambda puid, purpose: rule)
+        monkeypatch.setattr(
+            aip_pipeline.conversion_registry, "rule_for", lambda puid, purpose: rule
+        )
+        monkeypatch.setattr(aip_pipeline.normalizer, "locate", lambda tool: None)
+
+        result, _ = run_aip(sip, tmp_path, normalize=True)
+        joined = "\n".join(result.warnings)
+        assert "変換ツールが無いため原本のまま保存" in joined
+        assert "Ghostscript は同梱していません" in joined, "次に何をすればよいか分かること"
+        assert "変換に失敗" not in joined, "ファイルが壊れているかのように読ませない"
+
+
+class TestImageNormalizationEndToEnd:
+    """画像 → TIFF を通しで確かめる。
+
+    これまでこの経路は端から端まで動かしたことが無かった。変換に外部ツール
+    （sips / ImageMagick）が要り、開発機にもテスト環境にも無かったため。
+    アプリ内変換にしたことで初めて実際に検証できる。
+    """
+
+    @pytest.fixture
+    def sip_with_image(self, tmp_path: Path) -> Path:
+        from PIL import Image
+
+        src = tmp_path / "img-in"
+        src.mkdir()
+        Image.new("RGB", (16, 16), (200, 100, 50)).save(src / "写真.png")
+
+        out = tmp_path / "img-sip-out"
+        out.mkdir()
+        sip_path = sip_pipeline.run(
+            input_path=src,
+            output_parent=out,
+            metadata=SIPMetadata(identifier="2026-写真", title="写真資料"),
+            options=SIPOptions(),
+            progress=lambda _m: None,
+        ).sip_path
+
+        # PUID は SIP の formats.csv から継承される。ここで直接書いておくことで、
+        # このテストが siegfried の同梱有無に左右されないようにする
+        # （バイナリは配布物に含めないので、CI では sf が無い）。
+        formats = sip_path / "metadata" / "submissionDocumentation" / "formats.csv"
+        formats.write_text(
+            "﻿相対パス,フォーマット名,PRONOM,MIME,拡張子警告,サイズ(バイト),更新日時,SHA-256\r\n"
+            "写真.png,Portable Network Graphics,fmt/11,image/png,,0,,\r\n",
+            encoding="utf-8",
+        )
+        return sip_path
+
+    def test_png_becomes_an_uncompressed_tiff_derivative(self, sip_with_image, tmp_path):
+        from PIL import Image
+
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+        assert result.derivative_count == 1, "PNG が正規化されていない"
+
+        tiff = result.aip_path / "data" / "objects" / "写真-preservation.tiff"
+        assert tiff.is_file()
+        with Image.open(tiff) as got:
+            assert got.info.get("compression") == "raw"
+            assert got.size == (16, 16)
+
+        original = result.aip_path / "data" / "objects" / "写真.png"
+        assert original.is_file(), "原本も残す"
+
+    def test_premis_records_the_conversion(self, sip_with_image, tmp_path):
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+        root = etree.fromstring(result.mets_path.read_bytes())
+
+        notes = root.xpath(
+            "//premis:event[premis:eventType='normalization']"
+            "//premis:eventOutcomeDetailNote/text()",
+            namespaces=NS,
+        )
+        assert any("Pillow" in n for n in notes), "何で変換したかが残っていない"
+
+    def test_derivative_is_in_the_bag_manifest(self, sip_with_image, tmp_path):
+        """派生物がマニフェストに載っていなければ、後の完全性確認から漏れる。"""
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+        manifest = (result.aip_path / "manifest-sha256.txt").read_text(encoding="utf-8")
+        assert "写真-preservation.tiff" in manifest
 
 
 class TestGuards:
