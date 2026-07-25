@@ -5,15 +5,29 @@ born-digital / デジタル化ファイルから **SIP（受入）** と **AIP�
 
 ## 現在の状態
 
-技術検証（`spike/`）は 3 項目とも合格し、**コアの移植と差分検証まで完了**している。
+移植は完了し、署名済み `.app` まで通っている。
 
 | | 状態 |
 |---|---|
-| 同梱バイナリの起動 | ✅ 検証済み（macOS / Windows） |
-| Developer ID 署名・公証 | ✅ 検証済み（`spctl: accepted / Notarized Developer ID`） |
-| Windows ビルド | ✅ 検証済み（`windows-latest`） |
-| コア移植 | ✅ 完了（270 テスト） |
+| コア移植（SIP / AIP 全モジュール） | ✅ 完了（274 テスト） |
 | **現行実装との出力一致** | ✅ **差分なし** |
+| UI（3 モード） | ✅ パッケージ版で起動確認済み |
+| `.app` ビルド | ✅ 248MB |
+| Developer ID 署名 | ✅ Mach-O 90 件・未署名ゼロ |
+| 同梱バイナリの起動 | ✅ 検証済み（macOS / Windows） |
+| Windows ビルド | ✅ 検証済み（`windows-latest` / spike 段） |
+
+### 次にやること
+
+1. **Windows ビルドを本実装で再確認。** spike では通っているが、本実装のコードでは
+   まだ回していない。GitHub Actions を `workflow_dispatch` で
+   `build_windows: true` にして実行する。
+2. **ClamAV / Ghostscript / ImageMagick の同梱。** 現在は siegfried のみ。
+   `scripts/fetch-binaries.zsh` に同じ方針（バージョン固定）で追加する。
+3. **NFC 正規化の方針決定。** `SIPOptions.normalize_recorded_paths_nfc` は
+   現行実装との出力一致を優先して既定 `False` にしてある。macOS と Windows で
+   同じ資料から同じマニフェストを得るには `True` が要る。差分検証が通った今、
+   切り替えを判断できる状態にある。
 
 ## 使い方（開発）
 
@@ -26,12 +40,27 @@ uv run pytest                     # テスト
 配布物のビルド:
 
 ```
-uv run flet build macos . --yes --product "Archival Packager"
+./scripts/fetch-binaries.zsh      # 同梱バイナリを取得（バージョン固定）
+./scripts/build.zsh macos         # .app（不要物を除外して 248MB）
 ./scripts/sign.zsh                # Developer ID + hardened runtime
+op run --env-file=<aip>/.env -- ./scripts/notarize.zsh   # 公証と staple
 ```
 
-同梱バイナリ（siegfried / ClamAV / Ghostscript / ImageMagick）は `binaries/<os>/` に置く。
-リポジトリには含めない（サイズが大きく、取得は再現可能なため）。
+同梱バイナリは `binaries/<os>/` に置き、リポジトリには含めない
+（サイズが大きく、取得は `fetch-binaries.zsh` で再現可能）。
+
+### 検証の順序
+
+**UI を変えたら必ず起動させて確認する。** 依存の API 変更は静的な検査では
+捕まらない。実際に Flet 0.86 で `FilePicker` が
+コールバック方式から `await` 方式へ変わっており、パッケージ版を起動して
+初めて `TypeError` で落ちた。
+
+```
+uv run pytest              # 速い。API 存在チェックも含む
+uv run flet run .          # 開発モード。ビルドより遥かに速く同じ問題を捕まえる
+./scripts/build.zsh macos  # 最終確認。FilePicker の問題はここでしか出なかった
+```
 
 ## 移植の検証方法
 
