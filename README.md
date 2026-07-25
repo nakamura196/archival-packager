@@ -14,6 +14,7 @@ born-digital / デジタル化ファイルから **SIP（受入）** と **AIP�
 | UI（3 モード） | ✅ パッケージ版で起動確認済み |
 | `.app` ビルド | ✅ 248MB |
 | Developer ID 署名 | ✅ Mach-O 90 件・未署名ゼロ |
+| **公証（Apple）** | ✅ **Accepted / `spctl: accepted`** |
 | 同梱バイナリの起動 | ✅ 検証済み（macOS / Windows） |
 | Windows ビルド | ✅ 検証済み（`windows-latest` / spike 段） |
 
