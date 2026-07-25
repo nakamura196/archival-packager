@@ -122,34 +122,48 @@ def main(page: ft.Page) -> None:
     output_label = ft.Text("未選択", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
     prior_label = ft.Text("未選択（任意）", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
 
+    # FilePicker は「サービス」として page.services に登録し、選択結果は
+    # コールバックではなく await の戻り値で受け取る（Flet 0.86 の API）。
+    # 0.28 系の on_result= / FilePickerResultEvent は存在しない。
+    picker = ft.FilePicker()
+    page.services.append(picker)
+
     def refresh_run_enabled() -> None:
         run_button.disabled = state.input_path is None or state.output_parent is None
         page.update()
 
-    def on_input(e: ft.FilePickerResultEvent) -> None:
-        chosen = e.path or (e.files[0].path if e.files else None)
+    async def choose_input_dir(_e: ft.ControlEvent) -> None:
+        chosen = await picker.get_directory_path(dialog_title="素材フォルダ / SIP を選ぶ")
         if chosen:
             state.input_path = Path(chosen)
-            input_label.value = str(state.input_path)
+            input_label.value = chosen
         refresh_run_enabled()
 
-    def on_output(e: ft.FilePickerResultEvent) -> None:
-        if e.path:
-            state.output_parent = Path(e.path)
-            output_label.value = str(state.output_parent)
+    async def choose_input_zip(_e: ft.ControlEvent) -> None:
+        files = await picker.pick_files(
+            dialog_title="受入 ZIP を選ぶ", allowed_extensions=["zip"], allow_multiple=False
+        )
+        if files:
+            state.input_path = Path(files[0].path)
+            input_label.value = files[0].path
         refresh_run_enabled()
 
-    def on_prior(e: ft.FilePickerResultEvent) -> None:
-        if e.files:
-            state.prior_accession = Path(e.files[0].path)
-            prior_label.value = str(state.prior_accession)
+    async def choose_output(_e: ft.ControlEvent) -> None:
+        chosen = await picker.get_directory_path(dialog_title="出力先フォルダを選ぶ")
+        if chosen:
+            state.output_parent = Path(chosen)
+            output_label.value = chosen
+        refresh_run_enabled()
+
+    async def choose_prior(_e: ft.ControlEvent) -> None:
+        files = await picker.pick_files(
+            dialog_title="前回の accession.csv を選ぶ",
+            allowed_extensions=["csv"], allow_multiple=False,
+        )
+        if files:
+            state.prior_accession = Path(files[0].path)
+            prior_label.value = files[0].path
         page.update()
-
-    input_dir_picker = ft.FilePicker(on_result=on_input)
-    input_file_picker = ft.FilePicker(on_result=on_input)
-    output_picker = ft.FilePicker(on_result=on_output)
-    prior_picker = ft.FilePicker(on_result=on_prior)
-    page.overlay.extend([input_dir_picker, input_file_picker, output_picker, prior_picker])
 
     # ------------------------------------------------------------------
     # 実行
@@ -224,7 +238,7 @@ def main(page: ft.Page) -> None:
                         spacing=2,
                     ),
                     bgcolor=ft.Colors.AMBER_50,
-                    border=ft.border.all(1, ft.Colors.AMBER_400),
+                    border=ft.Border.all(1, ft.Colors.AMBER_400),
                     border_radius=6,
                     padding=10,
                 )
@@ -320,7 +334,7 @@ def main(page: ft.Page) -> None:
                     spacing=4,
                 ),
                 bgcolor=ft.Colors.RED_50,
-                border=ft.border.all(1, ft.Colors.RED_400),
+                border=ft.Border.all(1, ft.Colors.RED_400),
                 border_radius=6,
                 padding=10,
             )
@@ -357,14 +371,12 @@ def main(page: ft.Page) -> None:
                         ft.OutlinedButton(
                             "フォルダを選ぶ",
                             icon=ft.Icons.FOLDER,
-                            on_click=lambda _e: input_dir_picker.get_directory_path(),
+                            on_click=choose_input_dir,
                         ),
                         ft.OutlinedButton(
                             "ZIP を選ぶ",
                             icon=ft.Icons.ARCHIVE,
-                            on_click=lambda _e: input_file_picker.pick_files(
-                                allow_multiple=False, allowed_extensions=["zip"]
-                            ),
+                            on_click=choose_input_zip,
                         ),
                     ],
                     wrap=True,
@@ -376,7 +388,7 @@ def main(page: ft.Page) -> None:
                 ft.OutlinedButton(
                     "フォルダを選ぶ",
                     icon=ft.Icons.FOLDER,
-                    on_click=lambda _e: output_picker.get_directory_path(),
+                    on_click=choose_output,
                 ),
                 output_label,
             ),
@@ -392,13 +404,11 @@ def main(page: ft.Page) -> None:
                 ft.OutlinedButton(
                     "accession.csv を選ぶ",
                     icon=ft.Icons.UPLOAD_FILE,
-                    on_click=lambda _e: prior_picker.pick_files(
-                        allow_multiple=False, allowed_extensions=["csv"]
-                    ),
+                    on_click=choose_prior,
                 ),
                 prior_label,
             ),
-            ft.Container(run_button, padding=ft.padding.only(top=8)),
+            ft.Container(run_button, padding=ft.Padding.only(top=8)),
         ],
         spacing=14,
         scroll=ft.ScrollMode.AUTO,
@@ -411,11 +421,11 @@ def main(page: ft.Page) -> None:
             progress_bar,
             ft.Container(
                 progress_log,
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=6,
                 expand=True,
             ),
-            ft.Container(result_panel, padding=ft.padding.only(top=6)),
+            ft.Container(result_panel, padding=ft.Padding.only(top=6)),
         ],
         spacing=8,
         expand=True,
@@ -436,7 +446,7 @@ def main(page: ft.Page) -> None:
 
 
 def run() -> None:
-    ft.app(main)
+    ft.run(main)
 
 
 if __name__ == "__main__":
