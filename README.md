@@ -35,9 +35,20 @@ born-digital / デジタル化ファイルから **SIP（受入）** と **AIP�
    DLL は MSVC ランタイム込みで同梱）は実際にダウンロードして確認済み。
    取得スクリプトはその前提で書いてある。
 
-2. **Ghostscript のライセンス整理。** 同梱しない判断は暫定。PostScript/EPS の
+2. **Windows のコード署名。** **未対応。** 無署名の `.exe` は SmartScreen が
+   毎回「発行元不明」を出し、組織によっては管理者にブロックされる。macOS だけ
+   公証済みで Windows が無署名だと、実質 Windows 版は配りにくい。
+   OV / EV コードサイニング証明書の調達が要る（年額が発生する）。
+
+   現状 CI が出す Windows 成果物は動作確認用であって配布物ではない。
+   その旨をアーティファクト名にも入れてある（`...-windows-unsigned`）。
+
+3. **Ghostscript のライセンス整理。** 同梱しない判断は暫定。PostScript/EPS の
    変換が実運用で必要になるなら、AGPL のまま同梱してよいか（あるいは Artifex の
    商用ライセンスを取るか）を決める必要がある。それまでは PATH 上の `gs` を使う。
+
+4. **いつ Swift 版から切り替えるか。** 差分検証が通り、公証・同梱まで揃った。
+   並行運用をいつまで続けるかを決められる状態にある。
 
 ## 使い方（開発）
 
@@ -47,14 +58,22 @@ uv run flet run .                 # 開発モードで起動
 uv run pytest                     # テスト
 ```
 
-配布物のビルド:
+配布物のビルド（macOS）:
 
 ```
 ./scripts/fetch-binaries.zsh      # 同梱バイナリを取得（バージョン固定・起動確認まで）
 ./scripts/build.zsh macos         # .app（不要物を除外）
-./scripts/sign.zsh                # Developer ID + hardened runtime
-op run --env-file=<aip>/.env -- ./scripts/notarize.zsh   # 公証と staple
+./scripts/sign.zsh                # Developer ID + hardened runtime + LICENSE/NOTICE
+op run --env-file=<aip>/.env -- ./scripts/notarize.zsh   # .app の公証と staple
+op run --env-file=<aip>/.env -- ./scripts/release.zsh    # .dmg 化・署名・公証・staple
+op run --env-file=<aip>/.env -- ./scripts/release.zsh --publish   # + タグと GitHub Release
 ```
+
+**この順序を崩さないこと。** `sign.zsh` はバンドルの中身を変えるので、後から
+実行すると公証チケットが無効になる。`release.zsh` は開始前に署名・公証・
+ライセンス表示の同梱を検証し、揃っていなければ何もせず止まる。
+
+`--publish` を付けない限り、外部には何も出さない（dmg を作るところまで）。
 
 同梱バイナリは `binaries/<os>/` に置き、リポジトリには含めない
 （サイズが大きく、取得はスクリプトで再現可能）。方針は
@@ -140,6 +159,20 @@ report に**ツールが無いことが明示される**（資料が壊れてい
 原因も対処も違うものを同じ文言にすると、report を読んでも区別がつかない）。
 
 同梱する判断に切り替えるなら、ライセンス上の整理が先。
+
+### 配布物に入れるライセンス表示
+
+同梱物の一覧と条件は [`NOTICE`](NOTICE) にまとめてある。**`LICENSE` と `NOTICE` は
+配布物に必ず同梱する。** とくに ClamAV は GPL-2.0 で、表示だけでなく
+**ソースコードの入手手段を示す義務がある**（`NOTICE` に上流リリースの URL と
+バージョンを明記してある。同梱しているのは改変していない公式ビルド）。
+
+同梱は自動化してある。macOS は `sign.zsh` が `Contents/Resources/` へ置き、
+`release.zsh` が dmg 化の前に有無を検証する。Windows は CI が実行ファイルの
+隣に置き、スモークテストで存在を確認する。
+
+ここに書いてあるのは事実の整理であって法的な判断ではない。組織として配布する
+場合は、GPL コンポーネントの再頒布について所属機関の判断を仰ぐこと。
 
 ### ImageMagick をやめて Pillow にした理由
 

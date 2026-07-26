@@ -149,6 +149,10 @@ jobs:
           Write-Host "配置先: $dest"
           Get-ChildItem $dest | Format-Table Name, Length
 
+          # ライセンス表示。同梱している ClamAV は GPL-2.0 なので、表示と
+          # ソース入手手段の提示が要る。入れずに配ると条件を満たさない。
+          Copy-Item LICENSE, NOTICE -Destination $exes[0].DirectoryName -Force
+
       - name: Verify the app contains our code and its C extensions
         shell: bash
         run: |
@@ -179,3 +183,17 @@ jobs:
           if (-not (Get-ChildItem -Path (Join-Path $bin "clamav-certs") -Filter "*.crt")) {
             throw "CVD 検証用の証明書が入っていません"
           }
+          $root = Split-Path $bin -Parent
+          foreach ($doc in @("LICENSE", "NOTICE")) {
+            if (-not (Test-Path (Join-Path $root $doc))) { throw "$doc が配布物に入っていません" }
+          }
+
+      # 手元に Windows 機が無いので、成果物を持ち出せるようにしておく。
+      # 署名は未対応（README 参照）なので、これは動作確認用であって配布物ではない。
+      - name: Upload the build
+        if: matrix.target == 'windows'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: archival-packager-windows-unsigned
+          path: build/windows
+          retention-days: 7

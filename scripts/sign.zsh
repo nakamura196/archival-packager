@@ -72,6 +72,14 @@ find "$DEST" -type f -name '*.dylib' -exec chmod 755 {} +
 chmod 755 "$DEST/sf" "$DEST/clamscan" "$DEST/freshclam"
 print "  $DEST ($(ls "$DEST" | wc -l | tr -d ' ') 件)"
 
+# ライセンス表示を配布物に入れる。同梱している ClamAV は GPL-2.0 なので、
+# 表示とソース入手手段の提示が要る。バンドルに入れずに配ると条件を満たさない。
+for doc in LICENSE NOTICE; do
+  [[ -f "$doc" ]] || { print -u2 "$doc がありません。配布物に必要です"; exit 1 }
+  cp "$doc" "$APP/Contents/Resources/$doc"
+done
+print "  $APP/Contents/Resources/{LICENSE,NOTICE}"
+
 # バンドル外を指す symlink があると、公証は通っても Gatekeeper が
 #   rejected (invalid destination for symbolic link in bundle)
 # で弾く。serious_python_darwin.framework の中に、ビルドしたマシンの

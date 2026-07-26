@@ -1,0 +1,92 @@
+Archival Packager — 同梱している第三者コンポーネント
+=====================================================
+
+Archival Packager 自身は MIT ライセンス（LICENSE 参照）ですが、配布物には
+以下のコンポーネントが同梱されています。それぞれ元のライセンスが適用されます。
+
+このファイルは配布物に必ず同梱してください。**とくに ClamAV は GPL-2.0 であり、
+表示だけでなくソースコードの入手手段を示す義務があります**（後述）。
+
+なお、ここに書いてあるのは事実の一覧であって、法的な判断ではありません。
+組織として配布する場合は、GPL コンポーネントの再頒布について所属機関の
+判断を仰いでください。
+
+
+実行バイナリとして同梱するもの
+------------------------------
+
+### ClamAV 1.5.3 — GPL-2.0
+
+  含まれるファイル:
+    clamscan, freshclam
+    libclamav.12.dylib, libfreshclam.4.dylib, libclammspack.0.dylib,
+    libclamunrar.12.dylib, libclamunrar_iface.12.dylib
+    （Windows では対応する .exe / .dll）
+    clamav-certs/  （CVD 署名検証用の root CA）
+
+  Copyright (C) 2013-2026 Cisco Systems, Inc. and/or its affiliates.
+  https://www.clamav.net/
+
+  **上流が配布している公式ビルドを、改変せずにそのまま同梱しています。**
+  取得元と取得手順は scripts/fetch-binaries.zsh（macOS）および
+  scripts/fetch-binaries.ps1（Windows）に、バージョン固定で記述してあります。
+
+  対応するソースコードは同一リリースから入手できます:
+    https://github.com/Cisco-Talos/clamav/releases/tag/clamav-1.5.3
+    clamav-1.5.3.tar.gz
+
+  ライセンス全文:
+    https://github.com/Cisco-Talos/clamav/blob/main/COPYING.txt
+
+  ウイルス定義データベース（main.cvd / daily.cvd / bytecode.cvd）は
+  **同梱していません。** 利用者の環境で freshclam により取得されます。
+  定義データベースには ClamAV Virus Database License が別途適用されます。
+
+### siegfried 1.11.6 — Apache-2.0
+
+  含まれるファイル: sf（Windows では sf.exe）
+
+  Copyright 2014 Richard Lehane
+  https://github.com/richardlehane/siegfried
+
+  上流の公式ビルドを改変せずに同梱しています。
+
+### siegfried 署名データベース（default.sig）
+
+  含まれるファイル: default.sig
+
+  siegfried の data リリースに含まれるもので、The National Archives (UK) が
+  公開する PRONOM / DROID シグネチャファイルから生成されています。
+  DROID シグネチャファイルは Open Government Licence の下で公開されています。
+    https://www.nationalarchives.gov.uk/PRONOM/
+
+
+Python 実行環境とライブラリ
+---------------------------
+
+Flet が配布物に同梱する Python ランタイムと、依存ライブラリです。
+
+  Python 3.12          PSF License                 https://python.org/
+  Flet 0.86.2          Apache-2.0                  https://flet.dev/
+  Flutter              BSD-3-Clause                https://flutter.dev/
+  Pillow 12.3.0        MIT-CMU (HPND)              https://python-pillow.org/
+  lxml 6.1.1           BSD-3-Clause                https://lxml.de/
+    （libxml2 / libxslt: MIT）
+  bagit 1.9.0          Public Domain (LC)          https://github.com/LibraryOfCongress/bagit-python
+  pypdf 6.14.2         BSD-3-Clause                https://github.com/py-pdf/pypdf
+
+各パッケージのライセンス全文は、配布物内の site-packages（各配布物の
+dist-info ディレクトリ）に含まれています。
+
+
+同梱していないもの
+------------------
+
+### Ghostscript — AGPL-3.0
+
+  PostScript / EPS を PDF に変換する処理で参照しますが、**同梱していません。**
+  利用者の環境の PATH 上に gs があれば使い、無ければ変換せず原本のまま保存し、
+  report にその旨を記録します。
+
+  同梱しない理由と、同梱に切り替える場合に整理すべき点は README の
+  「外部ツールの同梱方針」に書いてあります。
