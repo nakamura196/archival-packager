@@ -13,7 +13,7 @@ born-digital / デジタル化ファイルから **SIP（受入）** と **AIP�
 | **現行実装との出力一致** | ✅ **差分なし** |
 | UI（3 モード） | ✅ パッケージ版で起動確認済み |
 | Developer ID 署名 | ✅ 未署名 Mach-O ゼロ |
-| **公証（Apple）** | ✅ **Accepted / `spctl: accepted`**（ClamAV 同梱前の版） |
+| **公証（Apple）** | ✅ **Accepted / `spctl: accepted`**（ClamAV 同梱後・357MB） |
 | フォーマット識別（siegfried） | ✅ 同梱・起動確認済み |
 | ウイルス検査（ClamAV） | ✅ 同梱・自作シグネチャで検出まで確認 |
 | 画像 → TIFF（Pillow） | ✅ アプリ内変換・通しで確認 |
@@ -34,6 +34,10 @@ born-digital / デジタル化ファイルから **SIP（受入）** と **AIP�
    構造（siegfried の win64 zip は平置き、ClamAV は単一のトップレベルディレクトリ、
    DLL は MSVC ランタイム込みで同梱）は実際にダウンロードして確認済み。
    取得スクリプトはその前提で書いてある。
+
+2. **Ghostscript のライセンス整理。** 同梱しない判断は暫定。PostScript/EPS の
+   変換が実運用で必要になるなら、AGPL のまま同梱してよいか（あるいは Artifex の
+   商用ライセンスを取るか）を決める必要がある。それまでは PATH 上の `gs` を使う。
 
 ## 使い方（開発）
 
