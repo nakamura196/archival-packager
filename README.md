@@ -15,7 +15,7 @@ born-digital / デジタル化ファイルから **SIP（受入）** と **AIP�
 | Developer ID 署名 | ✅ 未署名 Mach-O ゼロ |
 | **公証（Apple）** | ✅ **Accepted / `spctl: accepted`**（ClamAV 同梱前の版） |
 | フォーマット識別（siegfried） | ✅ 同梱・起動確認済み |
-| ウイルス検査（ClamAV） | ✅ 同梱・EICAR で検出まで確認 |
+| ウイルス検査（ClamAV） | ✅ 同梱・自作シグネチャで検出まで確認 |
 | 画像 → TIFF（Pillow） | ✅ アプリ内変換・通しで確認 |
 | Windows ビルド | ⏳ spike 段では通過。本実装では未実行 |
 

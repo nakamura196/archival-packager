@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -14,12 +15,6 @@ import pytest
 
 from archival_packager.core import bundled, clamav
 from archival_packager.core.models import SIPPipelineError
-
-# EICAR 標準アンチウイルステストファイル。無害だがどの製品も検出する。
-# 実際のマルウェアを置かずに検出経路を通せる唯一の手段。
-EICAR = (
-    r"X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
-)
 
 
 class TestDatabasePresence:
@@ -109,7 +104,7 @@ class TestOutputParsing:
     @pytest.mark.parametrize(
         "line,expected",
         [
-            ("/a/b.txt: Eicar-Test-Signature FOUND", ("/a/b.txt", "Eicar-Test-Signature")),
+            ("/a/b.txt: Test.Local.Signature FOUND", ("/a/b.txt", "Test.Local.Signature")),
             # 資料名にコロンや空白が入るのは普通のこと。
             ("/a/報告書: 最終版.doc: Win.Test.X FOUND", ("/a/報告書: 最終版.doc", "Win.Test.X")),
         ],
@@ -166,31 +161,99 @@ class TestOutputParsing:
 
 
 @pytest.mark.skipif(
-    bundled.find("clamscan") is None or not clamav.has_database(),
-    reason="同梱 clamscan と取得済み定義 DB がある環境でのみ実行",
+    bundled.find("clamscan") is None,
+    reason="同梱 clamscan がある環境でのみ実行",
 )
 class TestRealScan:
-    """同梱バイナリ・証明書・定義 DB が揃って初めて通る経路。
+    """同梱バイナリと証明書が揃って初めて通る経路。
 
     ここが通らないと、配布物では「検査したつもりで何も見ていない」状態になる。
-    証明書の同梱漏れはまさにこれで、clamscan は静かに 0 件を返していた。
+    証明書の同梱漏れはまさにこれで、clamscan は定義 DB を読めないまま
+    エラー終了していた。
+
+    ## EICAR テストシグネチャは使わない
+
+    検出経路の検証には EICAR（無害だがどの製品も検出する標準テスト文字列）を
+    使うのが定石だが、ここでは使わない。**開発機の端末保護ソフトが反応し、
+    組織のセキュリティ担当へ通報が飛ぶ**ため。テストのために人を動かすのは割に合わない。
+
+    代わりに、無害なテキストファイルの SHA-256 を自作シグネチャ(.hsb)にして
+    自分で「検出」させる。マルウェアらしき内容が一切ディスクに載らない上に、
+    検証できる範囲はむしろ広い:
+
+      - clamscan が起動し、指定したディレクトリから定義を読めること
+      - 証明書の配線ができていること（無いと定義の読み込み自体が code 2 で失敗する）
+      - 検出行 "<path>: <signature> FOUND" を正しく解析できること
+      - 検出しなかったファイルを巻き込まないこと
+
+    定義 DB 全体（3.6M シグネチャ）を読まないので実行も速い。
     """
 
-    def test_detects_the_eicar_test_signature(self, tmp_path):
-        (tmp_path / "eicar.txt").write_text(EICAR, encoding="ascii")
-        found = clamav.scan(tmp_path)
+    @staticmethod
+    def _signature_for(target: Path, db_dir: Path, name: str = "Test.Local.Signature") -> None:
+        """target の内容ハッシュを検出条件にした .hsb を db_dir に書く。
+
+        書式は "<SHA-256>:<バイト数>:<シグネチャ名>"。ClamAV はハッシュ長で
+        アルゴリズムを判別する。
+        """
+        data = target.read_bytes()
+        digest = hashlib.sha256(data).hexdigest()
+        db_dir.mkdir(parents=True, exist_ok=True)
+        (db_dir / "local.hsb").write_text(
+            f"{digest}:{len(data)}:{name}\n", encoding="ascii"
+        )
+
+    def test_detects_a_file_matching_the_loaded_signatures(self, tmp_path):
+        target = tmp_path / "in" / "対象.txt"
+        target.parent.mkdir()
+        target.write_text("これはただの文書です", encoding="utf-8")
+        self._signature_for(target, tmp_path / "db")
+
+        found = clamav.scan(tmp_path / "in", database=tmp_path / "db")
         assert len(found) == 1
-        assert "Eicar" in next(iter(found.values()))
+        assert Path(next(iter(found))).name == "対象.txt"
+        assert "Test.Local.Signature" in next(iter(found.values()))
 
-    def test_leaves_clean_files_alone(self, tmp_path):
-        (tmp_path / "clean.txt").write_text("ただの文書です", encoding="utf-8")
-        assert clamav.scan(tmp_path) == {}
+    def test_leaves_other_files_alone(self, tmp_path):
+        target = tmp_path / "in" / "対象.txt"
+        target.parent.mkdir()
+        target.write_text("これはただの文書です", encoding="utf-8")
+        (target.parent / "無関係.txt").write_text("別の内容", encoding="utf-8")
+        self._signature_for(target, tmp_path / "db")
 
-    def test_finds_it_in_a_subdirectory(self, tmp_path):
-        nested = tmp_path / "文書" / "sub"
+        found = clamav.scan(tmp_path / "in", database=tmp_path / "db")
+        assert [Path(p).name for p in found] == ["対象.txt"]
+
+    def test_recurses_into_subdirectories(self, tmp_path):
+        nested = tmp_path / "in" / "文書" / "sub"
         nested.mkdir(parents=True)
-        (nested / "eicar.txt").write_text(EICAR, encoding="ascii")
-        (tmp_path / "clean.txt").write_text("ok", encoding="utf-8")
-        found = clamav.scan(tmp_path)
+        target = nested / "対象.txt"
+        target.write_text("これはただの文書です", encoding="utf-8")
+        self._signature_for(target, tmp_path / "db")
+
+        found = clamav.scan(tmp_path / "in", database=tmp_path / "db")
         assert len(found) == 1
-        assert Path(next(iter(found))).name == "eicar.txt"
+
+    def test_nothing_is_reported_when_no_signature_matches(self, tmp_path):
+        target = tmp_path / "in" / "対象.txt"
+        target.parent.mkdir()
+        target.write_text("これはただの文書です", encoding="utf-8")
+        self._signature_for(target, tmp_path / "db")
+        # 署名を作った後で中身を変える。もう一致しない。
+        target.write_text("書き換えました", encoding="utf-8")
+
+        assert clamav.scan(tmp_path / "in", database=tmp_path / "db") == {}
+
+    def test_certificates_are_wired_up(self, tmp_path):
+        """証明書が無いと定義の読み込み自体が失敗する（code 2 → 例外）。
+
+        この配線が抜けていると clamscan はエラー終了する。それを握り潰すと
+        「検査したが何も出なかった」と読める結果になってしまう。
+        """
+        target = tmp_path / "in" / "対象.txt"
+        target.parent.mkdir()
+        target.write_text("これはただの文書です", encoding="utf-8")
+        self._signature_for(target, tmp_path / "db")
+
+        assert clamav.certs_directory() is not None, "証明書が同梱されていない"
+        clamav.scan(tmp_path / "in", database=tmp_path / "db")  # 例外にならない
