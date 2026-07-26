@@ -135,11 +135,15 @@ jobs:
         if: matrix.target == 'windows'
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Recurse -Path build\windows -Filter "*.exe" |
-                 Where-Object { $_.Name -notlike "*clamscan*" -and $_.Name -notlike "*freshclam*" -and $_.Name -notlike "sf.exe" } |
-                 Select-Object -First 1
-          if (-not $exe) { throw "ビルドした .exe が見つかりません" }
-          $dest = Join-Path $exe.DirectoryName "bin"
+          # Flutter の Windows 出力はバンドル直下に <app>.exe を置く。再帰で拾うと
+          # data\ 配下の同梱物まで候補に入るので、直下だけを見る。
+          # 1 つに定まらなければ黙って進めず落とす（間違った隣に置いても、
+          # 実行時に「同梱していない」と判定されるだけで原因が分かりにくい）。
+          $exes = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)
+          if ($exes.Count -ne 1) {
+            throw "ビルドした .exe を一意に決められません: $($exes.Name -join ', ')"
+          }
+          $dest = Join-Path $exes[0].DirectoryName "bin"
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
           Copy-Item -Recurse -Force -Path "binaries\windows\*" -Destination $dest
           Write-Host "配置先: $dest"

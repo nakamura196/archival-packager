@@ -25,8 +25,15 @@ born-digital / デジタル化ファイルから **SIP（受入）** と **AIP�
    まだ回していない。GitHub Actions を `workflow_dispatch` で
    `build_windows: true` にして実行する。同梱バイナリの取得・配置・起動確認まで
    CI に入れてあるので、この 1 回で同梱まわりも一緒に検証できる。
-2. **ClamAV 同梱後の版で公証をやり直す。** 公証済みなのは ClamAV を入れる前の版。
-   Mach-O が 7 件増えている（clamscan / freshclam / dylib 5 件）。
+
+   **現在 Actions は実行できない。** 支出上限に達しており、ジョブが開始されずに
+   失敗する（`The job was not started because ... your spending limit needs to be
+   increased`）。無料枠の回復は毎月 1 日。それまで待つか、上限を引き上げる。
+
+   待つ間にローカルで確認できることは済ませてある。Windows 版の配布アーカイブ
+   構造（siegfried の win64 zip は平置き、ClamAV は単一のトップレベルディレクトリ、
+   DLL は MSVC ランタイム込みで同梱）は実際にダウンロードして確認済み。
+   取得スクリプトはその前提で書いてある。
 
 ## 使い方（開発）
 
