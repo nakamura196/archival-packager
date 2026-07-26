@@ -120,8 +120,14 @@ trap 'hdiutil detach "$MOUNT" -quiet 2>/dev/null || true; rmdir "$MOUNT" 2>/dev/
 MOUNTED_APP=$(find "$MOUNT" -maxdepth 1 -name "*.app" | head -1)
 [[ -d "$MOUNTED_APP" ]] || { print -u2 "  dmg の中に .app がありません"; exit 1 }
 spctl -a -vv "$MOUNTED_APP" 2>&1 | sed 's/^/  /'
-"$MOUNTED_APP/Contents/Resources/bin/clamscan" --version | sed 's/^/  同梱 ClamAV: /'
-"$MOUNTED_APP/Contents/Resources/bin/sf" -version | tail -1 | sed 's/^/  同梱 siegfried: /'
+
+MOUNTED_BIN="$MOUNTED_APP/Contents/Resources/bin"
+"$MOUNTED_BIN/clamscan" --version | sed 's/^/  同梱 ClamAV: /'
+
+# sf は -home を渡さないとユーザ領域の署名 DB を探しに行き、開発機に
+# siegfried が入っていなければ FATAL で落ちる。アプリは常に -home を渡すので、
+# ここでも同じ条件で（＝同梱した default.sig が読めるかを）確かめる。
+"$MOUNTED_BIN/sf" -home "$MOUNTED_BIN" -version | tail -1 | sed 's/^/  同梱 siegfried: /'
 
 hdiutil detach "$MOUNT" -quiet
 trap - EXIT
