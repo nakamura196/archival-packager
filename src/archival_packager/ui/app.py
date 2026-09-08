@@ -47,7 +47,9 @@ class Selection:
 def main(page: ft.Page) -> None:
     page.title = "Archival Packager"
     page.window.width = 1000
-    page.window.height = 820
+    # 820 だと「オプション」欄が画面の下で切れ、スクロールしないと見えなかった。
+    # 13 インチのノート（1440x900 や 1280x800）でも収まる範囲で高くする。
+    page.window.height = 880
     page.window.min_width = 760
     page.padding = 0
 
