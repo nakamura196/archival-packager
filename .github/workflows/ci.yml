@@ -178,7 +178,13 @@ jobs:
           $bin = (Get-ChildItem -Recurse -Path build\windows -Directory -Filter "bin" | Select-Object -First 1).FullName
           & (Join-Path $bin "clamscan.exe") --version
           if ($LASTEXITCODE -ne 0) { throw "同梱 clamscan が起動しません" }
-          & (Join-Path $bin "sf.exe") -version
+          # sf は -home を渡さないとユーザ領域（%LOCALAPPDATA%\siegfried）の署名 DB を
+          # 探しに行き、そこに何も無ければ FATAL で落ちる。アプリは常に -home を渡すので、
+          # 確認もアプリと同じ渡し方でなければ、実態と違うものを見ていることになる。
+          if (-not (Test-Path (Join-Path $bin "default.sig"))) {
+            throw "siegfried の署名 DB (default.sig) が入っていません"
+          }
+          & (Join-Path $bin "sf.exe") -home $bin -version
           if ($LASTEXITCODE -ne 0) { throw "同梱 sf が起動しません" }
           if (-not (Get-ChildItem -Path (Join-Path $bin "clamav-certs") -Filter "*.crt")) {
             throw "CVD 検証用の証明書が入っていません"
