@@ -1,0 +1,9 @@
+# GitHub Pages（このフォルダだけを公開サイトとして配信する）の設定。
+#
+# リポジトリ本体は private のまま。Pages の公開元を docs/ にすると、
+# **docs/ の中身だけ**がサイトとして配信される。ソースコードは出ない。
+#
+# 逆に言えば、docs/ に置いたものは誰でも見られる。ここに機密を置かないこと。
+title: Archival Packager
+description: OAIS の情報パッケージ（SIP / AIP）を作成するデスクトップアプリ
+theme: jekyll-theme-minimal
