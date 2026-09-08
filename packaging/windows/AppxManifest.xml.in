@@ -5,9 +5,9 @@
   @EXE@ と @VERSION@ は CI が実際の値に置き換える。
 
   Identity の Name / Publisher は Partner Center が発行する値でなければならない。
-  アカウントを作るまで確定しないので、いまは検証用の値を入れてある。
-  **この値のままでは Store に受理されない。** アカウントを作ったら、
-  Partner Center の「製品 ID」ページに出る値をここへ書き写す。
+  下の値は Partner Center の「Product identity」ページ（Archival Packager）から
+  写したもので、1 文字でも違うと Store が受理しない。勝手に変えないこと。
+  Store の掲載: https://apps.microsoft.com/detail/9N6XJD7THHPZ
 
   runFullTrust は Win32 アプリを MSIX に包むときの標準的な指定。
   同梱した clamscan / sf を子プロセスとして起動するために要る。
@@ -20,8 +20,8 @@
     IgnorableNamespaces="uap rescap">
 
   <Identity
-      Name="Nakamura.ArchivalPackager"
-      Publisher="CN=Archival Packager Development"
+      Name="SatoruNakamura.ArchivalPackager"
+      Publisher="CN=B36F83DF-04BA-4243-A19A-C4E79E9C7FF0"
       Version="@VERSION@"
       ProcessorArchitecture="x64" />
 
