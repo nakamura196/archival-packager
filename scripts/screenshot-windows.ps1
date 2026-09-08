@@ -53,9 +53,21 @@ for ($i = 1; $i -le 60; $i++) {
 }
 if ($handle -eq [IntPtr]::Zero) { throw "アプリの窓が出ませんでした" }
 
-[void][Win32]::MoveWindow($handle, 0, 0, 1500, 950, $true)
-[void][Win32]::SetForegroundWindow($handle)
-Start-Sleep -Seconds 5   # 再描画を待つ
+# 窓の取っ手（ハンドル）は数秒で取れるが、Flet はそのあとで
+# 自分の既定の大きさ（app.py の page.window.width/height = 1000x820）を当てる。
+# すぐ広げても上書きされるので、落ち着くまで待ってから広げる。
+Start-Sleep -Seconds 25
+
+# Store は 1366x768 以上を求める。広げてから、実際に効いたか確かめる。
+for ($try = 1; $try -le 3; $try++) {
+    [void][Win32]::MoveWindow($handle, 0, 0, 1500, 980, $true)
+    [void][Win32]::SetForegroundWindow($handle)
+    Start-Sleep -Seconds 5
+    $probe = New-Object Win32+RECT
+    [void][Win32]::DwmGetWindowAttribute($handle, 9, [ref]$probe, 16)
+    if (($probe.Right - $probe.Left) -ge 1366) { break }
+    Write-Host "広げ直す（$try 回目。今 $($probe.Right - $probe.Left) px）"
+}
 
 # DWMWA_EXTENDED_FRAME_BOUNDS(9) を使う。GetWindowRect だと影の分の余白が入る。
 $r = New-Object Win32+RECT
