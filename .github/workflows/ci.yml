@@ -194,56 +194,13 @@ jobs:
             if (-not (Test-Path (Join-Path $root $doc))) { throw "$doc が配布物に入っていません" }
           }
 
-      # Store の掲載に要るスクリーンショットを、runner の画面から撮る。
-      #
-      # 手元に Windows 機が無いので、撮れるならここで撮るのが一番早い。
-      # ただし GitHub の Windows runner に描画できる画面があるかは環境依存で、
-      # 真っ黒な画像しか撮れないこともある。**撮れなくてもビルドは止めない。**
-      # 撮れたものを見て、使えるかどうかを人が判断する。
+      # Store の掲載に要るスクリーンショットを撮る。中身は scripts/screenshot-windows.ps1。
+      # 描画できるかは runner の環境しだいなので、撮れなくてもビルドは止めない。
       - name: Take screenshots for the Store listing (Windows)
         if: matrix.target == 'windows'
         continue-on-error: true
         shell: pwsh
-        run: |
-          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-
-          # Store は 1366x768 以上を求める。runner の既定は狭いことがあるので上げる。
-          try {
-            Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop
-            Write-Host "画面を 1920x1080 にした"
-          } catch {
-            Write-Host "解像度を変更できなかった: $($_.Exception.Message)"
-          }
-
-          $exe = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)[0].FullName
-          Write-Host "起動: $exe"
-          $proc = Start-Process -FilePath $exe -PassThru
-          # Flet は初回起動に時間がかかる（Python を展開する）。
-          Start-Sleep -Seconds 45
-
-          New-Item -ItemType Directory -Force -Path screenshots | Out-Null
-          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-          Write-Host "画面の大きさ: $($bounds.Width)x$($bounds.Height)"
-          $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
-          $g = [System.Drawing.Graphics]::FromImage($bmp)
-          $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
-          $bmp.Save("screenshots\01-launch.png", [System.Drawing.Imaging.ImageFormat]::Png)
-          $g.Dispose(); $bmp.Dispose()
-
-          # 全部同じ色なら、描画されていない（真っ黒など）。撮れたかの判定に使う。
-          $img = [System.Drawing.Image]::FromFile((Resolve-Path "screenshots\01-launch.png"))
-          $b = New-Object System.Drawing.Bitmap $img
-          $colors = @{}
-          for ($x = 0; $x -lt $b.Width; $x += 97) {
-            for ($y = 0; $y -lt $b.Height; $y += 97) {
-              $colors[$b.GetPixel($x, $y).ToArgb()] = $true
-            }
-          }
-          Write-Host "画面に出ている色の種類: $($colors.Count)"
-          if ($colors.Count -le 2) { Write-Host "::warning::画面が描画されていない可能性が高い" }
-          $b.Dispose(); $img.Dispose()
-
-          if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+        run: pwsh -File scripts/screenshot-windows.ps1
 
       - name: Upload the screenshots (Windows)
         if: matrix.target == 'windows'
