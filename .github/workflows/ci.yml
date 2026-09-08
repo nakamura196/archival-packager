@@ -194,6 +194,50 @@ jobs:
             if (-not (Test-Path (Join-Path $root $doc))) { throw "$doc が配布物に入っていません" }
           }
 
+      # MSIX（Microsoft Store が扱う配布形式）に包む。
+      #
+      # Store に MSIX で出すと Microsoft が署名し直すので、こちらで証明書を
+      # 買う必要がなくなる。ここで作るのは「包める形になっているか」の確認用で、
+      # Identity は Partner Center の値ではないため、このままでは提出できない。
+      - name: Package as MSIX (Windows)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $root = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)[0].DirectoryName
+          $exe  = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)[0].Name
+          $ver  = (Select-String -Path pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+
+          # MSIX の Version は 4 つ組で、末尾は 0 でなければならない。
+          $manifestVersion = "$ver.0"
+
+          Copy-Item -Recurse -Force packaging\windows\Assets -Destination (Join-Path $root "Assets")
+          (Get-Content packaging\windows\AppxManifest.xml.in -Raw) `
+            -replace '@EXE@', $exe -replace '@VERSION@', $manifestVersion |
+            Set-Content -Path (Join-Path $root "AppxManifest.xml") -Encoding UTF8
+          Write-Host "実行ファイル: $exe / バージョン: $manifestVersion"
+
+          # MakeAppx は Windows SDK に入っている。SDK のバージョンは runner の
+          # 更新で変わるので、決め打ちにせず一番新しいものを拾う。
+          $makeappx = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
+            -Recurse -Filter "makeappx.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "x64" } |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $makeappx) { throw "MakeAppx.exe が見つかりません（Windows SDK 未導入）" }
+          Write-Host "MakeAppx: $($makeappx.FullName)"
+
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          & $makeappx.FullName pack /d $root /p dist\ArchivalPackager.msix /o
+          if ($LASTEXITCODE -ne 0) { throw "MSIX の作成に失敗しました" }
+          Get-Item dist\ArchivalPackager.msix | Format-List Name, Length
+
+      - name: Upload the MSIX (Windows)
+        if: matrix.target == 'windows'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: archival-packager-windows-msix-unsigned
+          path: dist/ArchivalPackager.msix
+          retention-days: 7
+
       # 手元に Windows 機が無いので、成果物を持ち出せるようにしておく。
       # 署名は未対応（README 参照）なので、これは動作確認用であって配布物ではない。
       - name: Upload the build
