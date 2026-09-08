@@ -178,7 +178,13 @@ jobs:
           $bin = (Get-ChildItem -Recurse -Path build\windows -Directory -Filter "bin" | Select-Object -First 1).FullName
           & (Join-Path $bin "clamscan.exe") --version
           if ($LASTEXITCODE -ne 0) { throw "同梱 clamscan が起動しません" }
-          & (Join-Path $bin "sf.exe") -version
+          # sf は -home を渡さないとユーザ領域（%LOCALAPPDATA%\siegfried）の署名 DB を
+          # 探しに行き、そこに何も無ければ FATAL で落ちる。アプリは常に -home を渡すので、
+          # 確認もアプリと同じ渡し方でなければ、実態と違うものを見ていることになる。
+          if (-not (Test-Path (Join-Path $bin "default.sig"))) {
+            throw "siegfried の署名 DB (default.sig) が入っていません"
+          }
+          & (Join-Path $bin "sf.exe") -home $bin -version
           if ($LASTEXITCODE -ne 0) { throw "同梱 sf が起動しません" }
           if (-not (Get-ChildItem -Path (Join-Path $bin "clamav-certs") -Filter "*.crt")) {
             throw "CVD 検証用の証明書が入っていません"
@@ -187,6 +193,110 @@ jobs:
           foreach ($doc in @("LICENSE", "NOTICE")) {
             if (-not (Test-Path (Join-Path $root $doc))) { throw "$doc が配布物に入っていません" }
           }
+
+      # Store の掲載に要るスクリーンショットを、runner の画面から撮る。
+      #
+      # 手元に Windows 機が無いので、撮れるならここで撮るのが一番早い。
+      # ただし GitHub の Windows runner に描画できる画面があるかは環境依存で、
+      # 真っ黒な画像しか撮れないこともある。**撮れなくてもビルドは止めない。**
+      # 撮れたものを見て、使えるかどうかを人が判断する。
+      - name: Take screenshots for the Store listing (Windows)
+        if: matrix.target == 'windows'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+
+          # Store は 1366x768 以上を求める。runner の既定は狭いことがあるので上げる。
+          try {
+            Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop
+            Write-Host "画面を 1920x1080 にした"
+          } catch {
+            Write-Host "解像度を変更できなかった: $($_.Exception.Message)"
+          }
+
+          $exe = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)[0].FullName
+          Write-Host "起動: $exe"
+          $proc = Start-Process -FilePath $exe -PassThru
+          # Flet は初回起動に時間がかかる（Python を展開する）。
+          Start-Sleep -Seconds 45
+
+          New-Item -ItemType Directory -Force -Path screenshots | Out-Null
+          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          Write-Host "画面の大きさ: $($bounds.Width)x$($bounds.Height)"
+          $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+          $bmp.Save("screenshots\01-launch.png", [System.Drawing.Imaging.ImageFormat]::Png)
+          $g.Dispose(); $bmp.Dispose()
+
+          # 全部同じ色なら、描画されていない（真っ黒など）。撮れたかの判定に使う。
+          $img = [System.Drawing.Image]::FromFile((Resolve-Path "screenshots\01-launch.png"))
+          $b = New-Object System.Drawing.Bitmap $img
+          $colors = @{}
+          for ($x = 0; $x -lt $b.Width; $x += 97) {
+            for ($y = 0; $y -lt $b.Height; $y += 97) {
+              $colors[$b.GetPixel($x, $y).ToArgb()] = $true
+            }
+          }
+          Write-Host "画面に出ている色の種類: $($colors.Count)"
+          if ($colors.Count -le 2) { Write-Host "::warning::画面が描画されていない可能性が高い" }
+          $b.Dispose(); $img.Dispose()
+
+          if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+
+      - name: Upload the screenshots (Windows)
+        if: matrix.target == 'windows'
+        continue-on-error: true
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: archival-packager-windows-screenshots
+          path: screenshots/
+          retention-days: 7
+
+      # MSIX（Microsoft Store が扱う配布形式）に包む。
+      #
+      # Store に MSIX で出すと Microsoft が署名し直すので、こちらで証明書を
+      # 買う必要がなくなる。ここで作るのは「包める形になっているか」の確認用で、
+      # Identity は Partner Center の値ではないため、このままでは提出できない。
+      - name: Package as MSIX (Windows)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $root = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)[0].DirectoryName
+          $exe  = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)[0].Name
+          $ver  = (Select-String -Path pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+
+          # MSIX の Version は 4 つ組で、末尾は 0 でなければならない。
+          $manifestVersion = "$ver.0"
+
+          Copy-Item -Recurse -Force packaging\windows\Assets -Destination (Join-Path $root "Assets")
+          (Get-Content packaging\windows\AppxManifest.xml.in -Raw) `
+            -replace '@EXE@', $exe -replace '@VERSION@', $manifestVersion |
+            Set-Content -Path (Join-Path $root "AppxManifest.xml") -Encoding UTF8
+          Write-Host "実行ファイル: $exe / バージョン: $manifestVersion"
+
+          # MakeAppx は Windows SDK に入っている。SDK のバージョンは runner の
+          # 更新で変わるので、決め打ちにせず一番新しいものを拾う。
+          $makeappx = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
+            -Recurse -Filter "makeappx.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "x64" } |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $makeappx) { throw "MakeAppx.exe が見つかりません（Windows SDK 未導入）" }
+          Write-Host "MakeAppx: $($makeappx.FullName)"
+
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          & $makeappx.FullName pack /d $root /p dist\ArchivalPackager.msix /o
+          if ($LASTEXITCODE -ne 0) { throw "MSIX の作成に失敗しました" }
+          Get-Item dist\ArchivalPackager.msix | Format-List Name, Length
+
+      - name: Upload the MSIX (Windows)
+        if: matrix.target == 'windows'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: archival-packager-windows-msix-unsigned
+          path: dist/ArchivalPackager.msix
+          retention-days: 7
 
       # 手元に Windows 機が無いので、成果物を持ち出せるようにしておく。
       # 署名は未対応（README 参照）なので、これは動作確認用であって配布物ではない。

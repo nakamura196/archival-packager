@@ -17,23 +17,22 @@ born-digital / デジタル化ファイルから **SIP（受入）** と **AIP�
 | フォーマット識別（siegfried） | ✅ 同梱・起動確認済み |
 | ウイルス検査（ClamAV） | ✅ 同梱・自作シグネチャで検出まで確認 |
 | 画像 → TIFF（Pillow） | ✅ アプリ内変換・通しで確認 |
-| Windows ビルド | ⏳ spike 段では通過。本実装では未実行 |
+| Windows ビルド | ✅ 本実装で通過（2026-09-08 の CI。同梱ツールの起動確認まで） |
 
 ### 次にやること
 
-1. **Windows ビルドを本実装で再確認。** spike では通っているが、本実装のコードでは
-   まだ回していない。GitHub Actions を `workflow_dispatch` で
-   `build_windows: true` にして実行する。同梱バイナリの取得・配置・起動確認まで
-   CI に入れてあるので、この 1 回で同梱まわりも一緒に検証できる。
+1. ~~**Windows ビルドを本実装で再確認。**~~ **完了（2026-09-08）。**
+   `workflow_dispatch` で `build_windows: true` を実行し、ビルド・同梱バイナリの
+   取得と配置・起動確認まで通した（run 34283085312）。成果物は
+   `archival-packager-windows-unsigned`（109MB）。
 
-   **現在 Actions は実行できない。** 支出上限に達しており、ジョブが開始されずに
-   失敗する（`The job was not started because ... your spending limit needs to be
-   increased`）。無料枠の回復は毎月 1 日。それまで待つか、上限を引き上げる。
+   7 月に止まっていたのは Actions の支出上限（`The job was not started because ...
+   your spending limit needs to be increased`）で、これは解消済み。
 
-   待つ間にローカルで確認できることは済ませてある。Windows 版の配布アーカイブ
-   構造（siegfried の win64 zip は平置き、ClamAV は単一のトップレベルディレクトリ、
-   DLL は MSVC ランタイム込みで同梱）は実際にダウンロードして確認済み。
-   取得スクリプトはその前提で書いてある。
+   **最初の 1 回はスモークテストだけが落ちた。** `sf.exe` に `-home` を渡しておらず、
+   ユーザ領域の署名 DB を探しに行って FATAL になっていた。アプリ（`core/siegfried.py`）は
+   常に `-home` を渡すので、**確認だけがアプリと違う呼び方をしていた**ことになる。
+   macOS 側は `release.zsh` で同じ直しを入れてあった（ea9a214）。同じ間違いが 2 か所にあった。
 
 2. **Windows のコード署名。** **未対応。** 無署名の `.exe` は SmartScreen が
    毎回「発行元不明」を出し、組織によっては管理者にブロックされる。macOS だけ

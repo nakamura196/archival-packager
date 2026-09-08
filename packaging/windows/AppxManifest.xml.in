@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX（Microsoft Store が扱う配布形式）のマニフェスト雛形。
+
+  @EXE@ と @VERSION@ は CI が実際の値に置き換える。
+
+  Identity の Name / Publisher は Partner Center が発行する値でなければならない。
+  下の値は Partner Center の「Product identity」ページ（Archival Packager）から
+  写したもので、1 文字でも違うと Store が受理しない。勝手に変えないこと。
+  Store の掲載: https://apps.microsoft.com/detail/9N6XJD7THHPZ
+
+  runFullTrust は Win32 アプリを MSIX に包むときの標準的な指定。
+  同梱した clamscan / sf を子プロセスとして起動するために要る。
+  Store 提出時は制限付き機能として申告する（デスクトップアプリでは通例認められる）。
+-->
+<Package
+    xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+    xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+    xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+    IgnorableNamespaces="uap rescap">
+
+  <Identity
+      Name="SatoruNakamura.ArchivalPackager"
+      Publisher="CN=B36F83DF-04BA-4243-A19A-C4E79E9C7FF0"
+      Version="@VERSION@"
+      ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Archival Packager</DisplayName>
+    <PublisherDisplayName>Satoru Nakamura</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="ja-JP" />
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application Id="ArchivalPackager" Executable="@EXE@" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+          DisplayName="Archival Packager"
+          Description="デジタル資料から OAIS の情報パッケージ（SIP / AIP）を作成します。"
+          BackgroundColor="transparent"
+          Square150x150Logo="Assets\Square150x150Logo.png"
+          Square44x44Logo="Assets\Square44x44Logo.png">
+        <!-- Square310x310Logo を書くなら Wide310x150Logo も要る（MakeAppx が弾く）。 -->
+        <uap:DefaultTile
+            Square310x310Logo="Assets\Square310x310Logo.png"
+            Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- ウイルス定義の取得（freshclam）に要る。 -->
+    <Capability Name="internetClient" />
+    <!-- 同梱バイナリを子プロセスとして起動するために要る。 -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
