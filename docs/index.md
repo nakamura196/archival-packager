@@ -11,4 +11,4 @@
 
 ## 開発
 
-中村 覚（東京大学史料編纂所） nakamura@hi.u-tokyo.ac.jp
+中村 覚（東京大学） nakamura@hi.u-tokyo.ac.jp

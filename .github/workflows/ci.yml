@@ -124,7 +124,7 @@ jobs:
           FLET_CLI_SKIP_FLUTTER_DOCTOR: "true"
         run: >-
           uv run flet build ${{ matrix.target }} . --yes --no-rich-output
-          --exclude .venv binaries build tests scripts spike .git .github
+          --exclude .venv binaries build tests scripts spike .git .github packaging store docs
           --product "Archival Packager"
           --bundle-id com.nakamura.archivalpackager.x
           --org com.nakamura
