@@ -35,9 +35,12 @@
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
   </Dependencies>
 
+  <!--
+    画面は日本語だけ。en-US を書くと「英語にも対応している」と申告したことになり、
+    Store の規約 10.7（対応を宣言した言語はすべて用意すること）に反する。
+  -->
   <Resources>
     <Resource Language="ja-JP" />
-    <Resource Language="en-US" />
   </Resources>
 
   <Applications>
