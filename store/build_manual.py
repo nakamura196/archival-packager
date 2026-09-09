@@ -156,17 +156,32 @@ para("画面の上に「IARC has recently updated the age ratings questionnaire�
      "出ています。質問が追加されているので、未回答の欄が残らないよう最後まで進めてください。",
      bold=True)
 para("")
-para("答え方", bold=True)
-bullet("暴力、性的表現、不適切な言葉、薬物、賭博 … すべて「いいえ」")
-bullet("利用者どうしのやりとり（チャット等） … 「いいえ」")
-bullet("個人情報の共有 … 「いいえ」（端末内で完結し、外部に送信しません）")
-bullet("位置情報 … 「いいえ」")
-bullet("デジタル購入、広告 … 「いいえ」")
+para("実際の質問と答え（2026年9月9日時点の画面）", bold=True)
+bullet("App Type … All Other App Types を選ぶ")
+bullet("Downloaded App（性的表現・暴力・言葉づかいが同梱されているか） … No")
+bullet("User Content Sharing（利用者どうしのやりとり） … No")
+bullet("Online Content（アプリから見られる、同梱外のコンテンツ） … No")
+bullet("Promotion or Sale of Age-Restricted Products（たばこ・酒・銃・賭博） … No")
+bullet("現在地を他の利用者と共有するか … No")
+bullet("デジタル商品を購入できるか … No")
+bullet("現金報酬・ギフトカード・暗号資産・NFT … No")
+bullet("Web ブラウザまたは検索エンジンか … No")
+bullet("主にニュースまたは教育の製品か … No")
+bullet("審査機関から直接レーティングを取得するか／物理メディアで配布するか … No")
 para("")
-para("ただし1つだけ「はい」があります。", bold=True)
-bullet("インターネットに接続するか … 「はい」")
-para("ウイルス定義データベースの取得で database.clamav.net に接続します。"
-     "接続することを申告しないと、実態と食い違います。", indent=0.5)
+para("App Type 以外はすべて No です。答えたあと Preview ratings を押して確定します。",
+     bold=True)
+para("")
+para("迷いやすい2つ", bold=True)
+para("Online Content は「利用者が見るコンテンツ」を指します。例として挙がっているのが "
+     "Netflix の映画、Amazon の商品一覧、Spotify の曲、ニュース記事です。ウイルス定義"
+     "データベースは利用者が見るものではなく、アプリが動くためのデータなので No です。",
+     indent=0.4)
+para("")
+para("「主にニュースまたは教育の製品か」も No です。研究の成果物ではありますが、この質問は"
+     "「学習用のコンテンツを提供する製品」を指しています。本アプリは業務用の道具です。",
+     indent=0.4)
+para("")
 
 # ---------------------------------------------------------------- 5
 doc.add_page_break()
