@@ -266,3 +266,34 @@ class TestBundledToolsDoNotOpenAConsoleWindow:
             + ", ".join(offenders)
         )
 
+
+class TestProgressDoesNotFloodTheLog:
+    """ウイルス定義の取得で、進捗を行として積まないこと。
+
+    freshclam は数十 MB のダウンロード中、進捗バーを何度も出し直す。
+    そのまま積むと数百行になり、「更新できたか」が埋もれる。
+    """
+
+    def test_update_passes_a_status_callback(self):
+        source = inspect.getsource(ui_app.main)
+        assert "status=log_status" in source, (
+            "定義更新では status を渡し、進捗行を 1 行の書き換えにすること"
+        )
+
+    def test_status_replaces_the_last_line(self):
+        source = inspect.getsource(ui_app.main)
+        body = source.split("def log_status(")[1].split("def clear_log(")[0]
+        assert "items[-1] = text" in body, "直前が途中経過ならその行を差し替えること"
+
+    def test_progress_lines_are_classified(self):
+        """進捗バーの判定が、実際の freshclam の出力に当たること。"""
+        from archival_packager.core import clamav
+
+        assert clamav._is_progress_line(
+            "Time:    1.2s, ETA:    0.0s [========>]   60.00MiB/60.00MiB"
+        )
+        assert not clamav._is_progress_line("Database test passed.")
+        assert not clamav._is_progress_line(
+            "daily.cvd updated (version: 27000, sigs: 2000000)"
+        )
+

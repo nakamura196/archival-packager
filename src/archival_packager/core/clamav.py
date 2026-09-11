@@ -106,11 +106,22 @@ def database_status(directory: Path | None = None) -> str:
     return f"ウイルス定義: 取得済み（{len(present)} ファイル / 更新 {when}）"
 
 
+def _is_progress_line(line: str) -> bool:
+    """freshclam の進捗バーの行か。
+
+    freshclam はダウンロード中、同じ行を何度も出し直す（端末では上書きされる）。
+    こちらは行として受け取るので、そのまま流すと数百行が積み上がり、
+    肝心の「更新できたか」が埋もれる。
+    """
+    return "ETA:" in line or "[=" in line or line.rstrip().endswith("%]")
+
+
 def update_database(
     *,
     updater: Path | None = None,
     directory: Path | None = None,
     progress: Callable[[str], None] = lambda _msg: None,
+    status: Callable[[str], None] | None = None,
 ) -> None:
     """同梱 freshclam で定義 DB を取得/更新する。
 
@@ -118,8 +129,10 @@ def update_database(
     読もうとし、無ければエラーで止まる。配布先の環境設定に依存したくないので、
     最小構成の設定ファイルを自前で書いて明示的に渡す。システム側の設定には触れない。
 
-    進捗行は逐次 progress に流す。数十 MB のダウンロードなので、
-    黙って固まったように見えないようにする。
+    ダウンロードは数十 MB あるので、黙って固まったように見えないよう逐次流す。
+    ただし**進捗バーの行は status へ回す**。status を渡した側は、行を積まずに
+    1 行を書き換える想定。渡されなければ進捗バーは捨てる（積み上げない）。
+    それ以外の行（何を取得したか、検証できたか）は progress へ。
     """
     updater = updater or find_updater()
     if updater is None:
@@ -152,7 +165,12 @@ def update_database(
     assert proc.stdout is not None
     with proc.stdout as stream:
         for line in stream:
-            if line := line.strip():
+            if not (line := line.strip()):
+                continue
+            if _is_progress_line(line):
+                if status is not None:
+                    status(line)
+            else:
                 progress(line)
 
     if proc.wait() != 0:

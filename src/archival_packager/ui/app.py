@@ -86,6 +86,26 @@ def main(page: ft.Page) -> None:
         ui(lambda: progress_log.controls.append(
             ft.Text(message, size=12, selectable=True)))
 
+    def log_status(message: str) -> None:
+        """途中経過を 1 行で書き換える。
+
+        ウイルス定義の取得は数十 MB あり、freshclam は進捗を何度も出し直す。
+        それを行として積むと数百行になり、「更新できたか」が埋もれる。
+        直前も途中経過だったなら、その行を差し替える。
+        """
+
+        def _set() -> None:
+            text = ft.Text(message, size=12, selectable=True,
+                           color=ft.Colors.ON_SURFACE_VARIANT)
+            text.data = "status"
+            items = progress_log.controls
+            if items and getattr(items[-1], "data", None) == "status":
+                items[-1] = text
+            else:
+                items.append(text)
+
+        ui(_set)
+
     def clear_log() -> None:
         def _clear() -> None:
             progress_log.controls.clear()
@@ -456,7 +476,7 @@ def main(page: ft.Page) -> None:
     def update_virus_db_worker() -> None:
         """freshclam を別スレッドで走らせる。数百 MB のダウンロードなので。"""
         try:
-            clamav.update_database(progress=log)
+            clamav.update_database(progress=log, status=log_status)
             log("ウイルス定義の更新が完了しました。")
         except (SIPPipelineError, AIPPipelineError) as exc:
             _show_error(exc.message)
