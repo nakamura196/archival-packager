@@ -14,5 +14,15 @@
 	  com.apple.security.cs.disable-library-validation の要否をここで判断する。
 	  まず何も足さずに署名し、実際に落ちたときだけ追加する（最小権限）。
 	-->
+
+	<!--
+	  ファイル選択ダイアログに要る。**サンドボックスの有無とは別に要る。**
+	  Flutter 側の file_picker は、この entitlement が署名に入っているかを
+	  自分で見ており、無いと ENTITLEMENT_NOT_FOUND を投げてダイアログを
+	  開かない（0.1.5 の macOS 版で踏んだ）。非サンドボックスなので、
+	  これがあってもアクセス範囲が広がるわけではない。
+	-->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
 </dict>
 </plist>

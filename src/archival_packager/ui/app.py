@@ -18,6 +18,8 @@ AIPContentView / ResultViewer）に対応する。
 
 from __future__ import annotations
 
+import os
+import sys
 import threading
 import traceback
 from collections.abc import Callable
@@ -790,7 +792,82 @@ def main(page: ft.Page) -> None:
     state.on_page = True
 
 
+def self_test(page: ft.Page) -> None:
+    """**同梱した形のまま**、外から見える部分を一通り叩いて結果を出す。
+
+    なぜ要るか
+    ----------
+    Python 側のテストでは届かない層がある。画面の組み立ては tests/ で
+    確かめられるが、「フォルダを選ぶ」「クリップボードに入れる」は
+    Flutter 側の部品が仕事をする。そこは、署名して包んだあとの
+    実物を動かさないと分からない。
+
+      - 0.1.5 の macOS 版: 署名に entitlement が足りず、フォルダ選択が
+        ENTITLEMENT_NOT_FOUND で落ちた。ビルドも起動も通っていた
+
+    そこで、包んだアプリ自身に自己診断を持たせる。
+
+        archival-packager --self-test
+
+    画面を組み立て、外とやり取りする手続きを順に呼び、PASS / FAIL を
+    標準出力に書いて終了コードで返す。macOS は署名したあと、Windows は
+    CI のビルド直後に走らせる。
+    """
+    import asyncio
+
+    results: list[tuple[str, str]] = []
+
+    def record(name: str, error: BaseException | None) -> None:
+        results.append((name, "OK" if error is None else f"NG {error!r}"))
+
+    main(page)
+    record("画面の組み立て", None)
+
+    picker = next(
+        (s for s in page.services if isinstance(s, ft.FilePicker)), None
+    )
+    clipboard = next(
+        (s for s in page.services if isinstance(s, ft.Clipboard)), None
+    )
+
+    async def probe() -> None:
+        # フォルダ選択。ここは利用者が選ぶまで返らないので、開いたところまでを見る。
+        # 権限が足りなければ、開く前に例外になる（それが拾いたいもの）。
+        if picker is None:
+            record("フォルダ選択", RuntimeError("FilePicker が無い"))
+        else:
+            task = asyncio.ensure_future(
+                picker.get_directory_path(dialog_title="自己診断")
+            )
+            done, _pending = await asyncio.wait({task}, timeout=8)
+            if task in done and task.exception() is not None:
+                record("フォルダ選択", task.exception())
+            else:
+                record("フォルダ選択", None)
+
+        if clipboard is None:
+            record("クリップボード", RuntimeError("Clipboard が無い"))
+        else:
+            try:
+                await clipboard.set("archival-packager self test")
+                record("クリップボード", None)
+            except BaseException as exc:  # noqa: BLE001 - 何が来ても記録する
+                record("クリップボード", exc)
+
+        failed = [f"{n}: {r}" for n, r in results if r != "OK"]
+        for name, result in results:
+            print(f"  {result:<4} {name}", flush=True)
+        print("自己診断: " + ("PASS" if not failed else "FAIL"), flush=True)
+        # 画面を開いたまま握っているので、ここで落とす。
+        os._exit(1 if failed else 0)
+
+    page.run_task(probe)
+
+
 def run() -> None:
+    if "--self-test" in sys.argv or os.environ.get("ARCHIVAL_PACKAGER_SELF_TEST") == "1":
+        ft.run(self_test)
+        return
     ft.run(main)
 
 

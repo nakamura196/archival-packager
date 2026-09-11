@@ -215,6 +215,28 @@ jobs:
       #
       # 撮影そのものは runner の描画環境しだいなので失敗を許すが、
       # 「窓が出たか」だけは落として止める（スクリプトが例外を投げる）。
+      # 包んだアプリ自身に自己診断をさせる。
+      #
+      # Python 側のテストは Flutter の部品まで届かない。「フォルダを選ぶ」
+      # 「クリップボードに入れる」は、包んで署名したあとの実物でないと
+      # 確かめられない（macOS 版は entitlement 不足でここが落ちた）。
+      - name: Self-test the packaged app (Windows)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $exe = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)[0].FullName
+          $out = Join-Path $PWD "self-test.log"
+          $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -PassThru `
+                 -RedirectStandardOutput $out -RedirectStandardError "self-test-err.log"
+          if (-not $p.WaitForExit(180000)) {
+            $p.Kill()
+            throw "自己診断が 3 分で終わりませんでした"
+          }
+          foreach ($f in @($out, "self-test-err.log")) {
+            if (Test-Path $f) { Write-Host "--- $f ---"; Get-Content $f | Write-Host }
+          }
+          if ($p.ExitCode -ne 0) { throw "自己診断に落ちた項目があります（$($p.ExitCode)）" }
+
       - name: Launch the packaged app and take screenshots (Windows)
         if: matrix.target == 'windows'
         shell: pwsh
