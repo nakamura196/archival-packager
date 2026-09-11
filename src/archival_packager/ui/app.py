@@ -792,6 +792,10 @@ def main(page: ft.Page) -> None:
     state.on_page = True
 
 
+#: 自己診断を指示する環境変数。値に結果ファイルのパスを入れると、そこに書く。
+SELF_TEST_ENV = "ARCHIVAL_PACKAGER_SELF_TEST"
+
+
 def self_test(page: ft.Page) -> None:
     """**同梱した形のまま**、外から見える部分を一通り叩いて結果を出す。
 
@@ -815,11 +819,27 @@ def self_test(page: ft.Page) -> None:
     """
     import asyncio
 
-    print("自己診断モードで起動しました", flush=True)
+    #: 結果の書き出し先。包んだアプリでは標準出力が呼び出し元まで戻らないので、
+    #: ファイルに書く。環境変数にパスを入れて指示する（"1" ならファイルなし）。
+    report_path = os.environ.get(SELF_TEST_ENV, "")
+    lines: list[str] = ["自己診断モードで起動しました"]
+
+    def emit(line: str) -> None:
+        lines.append(line)
+        print(line, flush=True)
+        if report_path and report_path != "1":
+            try:
+                Path(report_path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+            except OSError:
+                pass
+
+    emit("開始")
     results: list[tuple[str, str]] = []
 
     def record(name: str, error: BaseException | None) -> None:
-        results.append((name, "OK" if error is None else f"NG {error!r}"))
+        result = "OK" if error is None else f"NG {error!r}"
+        results.append((name, result))
+        emit(f"  {result:<4} {name}")
 
     main(page)
     record("画面の組み立て", None)
@@ -856,9 +876,7 @@ def self_test(page: ft.Page) -> None:
                 record("クリップボード", exc)
 
         failed = [f"{n}: {r}" for n, r in results if r != "OK"]
-        for name, result in results:
-            print(f"  {result:<4} {name}", flush=True)
-        print("自己診断: " + ("PASS" if not failed else "FAIL"), flush=True)
+        emit("自己診断: " + ("PASS" if not failed else "FAIL"))
         # 画面を開いたまま握っているので、ここで落とす。
         os._exit(1 if failed else 0)
 
@@ -868,7 +886,7 @@ def self_test(page: ft.Page) -> None:
 def run() -> None:
     # 包んだアプリでは、渡したはずの引数が Flet の入口まで届かないことがある
     # （実際 macOS の .app では届かなかった）。環境変数を主、引数を従にする。
-    if os.environ.get("ARCHIVAL_PACKAGER_SELF_TEST") == "1" or "--self-test" in sys.argv:
+    if os.environ.get(SELF_TEST_ENV) or "--self-test" in sys.argv:
         ft.run(self_test)
         return
     ft.run(main)

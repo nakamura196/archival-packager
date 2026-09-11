@@ -7,6 +7,9 @@
 # ダイアログを開く前に落ちる（0.1.5 で踏んだ）。
 # ビルドも起動も通るので、実物を動かして初めて分かる。
 #
+# 結果は**ファイル**で受け取る。包んだアプリの標準出力は、
+# 呼び出し元まで戻ってこない。
+#
 # 使い方: zsh scripts/self-test-mac.zsh [.app へのパス]
 
 set -euo pipefail
@@ -17,9 +20,11 @@ app="${1:-build/macos/archival-packager.app}"
 bin="$app/Contents/MacOS/$(basename "$app" .app)"
 [[ -x "$bin" ]] || bin="$(find "$app/Contents/MacOS" -type f -perm -111 | head -1)"
 
+report="$(mktemp -t archival-packager-self-test)"
+rm -f "$report"
+
 print "自己診断: $bin"
-log="$(mktemp)"
-ARCHIVAL_PACKAGER_SELF_TEST=1 "$bin" --self-test > "$log" 2>&1 &
+ARCHIVAL_PACKAGER_SELF_TEST="$report" "$bin" --self-test >/dev/null 2>&1 &
 pid=$!
 
 i=0
@@ -28,20 +33,18 @@ while [ $i -lt 24 ] && kill -0 $pid 2>/dev/null; do
   i=$((i+1))
 done
 
-if kill -0 $pid 2>/dev/null; then
-  kill -9 $pid 2>/dev/null || true
-  print -u2 "2 分で終わりませんでした"
-  cat "$log"
+kill -9 $pid 2>/dev/null || true
+
+if [[ ! -f "$report" ]]; then
+  print -u2 "自己診断が結果を残しませんでした（起動していないか、書けていない）"
   exit 1
 fi
 
-wait $pid
-status=$?
-cat "$log"
-rm -f "$log"
-
-if [ $status -ne 0 ]; then
-  print -u2 "自己診断に落ちた項目があります（終了コード $status）"
+cat "$report"
+if ! grep -q "自己診断: PASS" "$report"; then
+  print -u2 "自己診断に落ちた項目があります"
+  rm -f "$report"
   exit 1
 fi
+rm -f "$report"
 print "自己診断: すべて通りました"

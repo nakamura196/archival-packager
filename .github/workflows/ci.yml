@@ -226,18 +226,24 @@ jobs:
         run: |
           $exe = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)[0].FullName
           $out = Join-Path $PWD "self-test.log"
-          # 引数が入口まで届かない場合があるので、環境変数でも指示する。
-          $env:ARCHIVAL_PACKAGER_SELF_TEST = "1"
+          # 引数が入口まで届かない場合があるので、環境変数で指示する。
+          # 結果はファイルで受け取る（包んだアプリの標準出力は戻ってこない）。
+          $report = Join-Path $PWD "self-test-report.txt"
+          if (Test-Path $report) { Remove-Item $report }
+          $env:ARCHIVAL_PACKAGER_SELF_TEST = $report
           $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -PassThru `
                  -RedirectStandardOutput $out -RedirectStandardError "self-test-err.log"
-          if (-not $p.WaitForExit(180000)) {
-            $p.Kill()
-            throw "自己診断が 3 分で終わりませんでした"
-          }
+          if (-not $p.WaitForExit(180000)) { $p.Kill() }
           foreach ($f in @($out, "self-test-err.log")) {
             if (Test-Path $f) { Write-Host "--- $f ---"; Get-Content $f | Write-Host }
           }
-          if ($p.ExitCode -ne 0) { throw "自己診断に落ちた項目があります（$($p.ExitCode)）" }
+          if (-not (Test-Path $report)) {
+            throw "自己診断が結果を残しませんでした（起動していないか、書けていない）"
+          }
+          Write-Host "--- 自己診断 ---"
+          $text = Get-Content $report -Raw
+          Write-Host $text
+          if ($text -notmatch "自己診断: PASS") { throw "自己診断に落ちた項目があります" }
 
       - name: Launch the packaged app and take screenshots (Windows)
         if: matrix.target == 'windows'
