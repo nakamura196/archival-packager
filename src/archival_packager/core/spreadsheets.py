@@ -65,6 +65,12 @@ def _to_csv(rows: list[list[str]]) -> str:
 
 def _iso(dt) -> str:
     """ISO8601（UTC・秒精度）。Swift の ISO8601DateFormatter の既定出力に合わせる。"""
+    # tz を持たない値は UTC とみなす。dfxml._iso と揃える（両者がずれると、
+    # 同じファイルの更新日時が技術メタデータと記述シートで食い違う）。
+    # Windows では、素の datetime を astimezone でローカル時刻に変換しようとすると
+    # 1970-01-01 前後で OSError になる、という事情もある。
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 

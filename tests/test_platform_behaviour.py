@@ -99,3 +99,47 @@ class TestUserDataLocation:
         path = clamav.database_directory()
         install_dir = Path(sys.executable).resolve().parent
         assert install_dir not in path.resolve().parents
+
+
+class TestNaiveTimestampsDoNotCrash:
+    """tz を持たない日時でも落ちないこと。
+
+    Windows では、素の datetime を astimezone でローカル時刻へ直そうとすると
+    1970-01-01 付近で OSError になる。CI の Windows で実際に踏んだ。
+    """
+
+    def _file(self):
+        from datetime import datetime
+        from pathlib import Path
+
+        from archival_packager.core.models import ScannedFile
+
+        return ScannedFile(
+            relative_path="a.txt",
+            absolute_path=Path("/x/a.txt"),
+            size_bytes=1,
+            modified=datetime(1970, 1, 1, 0, 0, 0),
+        )
+
+    def test_description_sheet(self):
+        from archival_packager.core import spreadsheets
+
+        assert "1970-01-01T00:00:00Z" in spreadsheets.formats([self._file()])
+
+    def test_epoch_timestamp_from_the_filesystem(self):
+        """更新日時が 1970-01-01 のファイルがあっても処理が止まらないこと。"""
+        from datetime import datetime
+
+        from archival_packager.core import spreadsheets
+
+        f = self._file()
+        object.__setattr__(f, "modified", datetime.fromtimestamp(0))
+        assert spreadsheets.formats([f])
+
+    def test_dfxml_and_sheet_agree(self):
+        """同じ日時が、技術メタデータと記述シートで同じ文字列になること。"""
+        from archival_packager.core import dfxml, spreadsheets
+
+        assert dfxml._iso(self._file().modified) == spreadsheets._iso(
+            self._file().modified
+        )
