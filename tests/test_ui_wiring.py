@@ -86,8 +86,10 @@ class TestEntryPoint:
         """flet build はこのファイルを起点にする。実装を置くと
         パッケージ後だけ挙動が変わる余地が生まれる。"""
         source = Path("main.py").read_text(encoding="utf-8")
-        assert "from archival_packager.ui.app import run" in source
-        assert len(source.splitlines()) < 30
+        assert "from archival_packager.ui.app import SELF_TEST_ENV, run" in source
+        # 起動の記録（包んだアプリで「入口まで来たか」を確かめる唯一の手段）を
+        # 足したぶん伸びている。実装そのものはここに置かない。
+        assert len(source.splitlines()) < 40
 
 
 class TestFletAPICompatibility:

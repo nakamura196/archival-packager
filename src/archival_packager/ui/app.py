@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 import sys
 import threading
+import time
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -830,8 +831,9 @@ def self_test(page: ft.Page) -> None:
         if report_path and report_path != "1":
             try:
                 Path(report_path).write_text("\n".join(lines) + "\n", encoding="utf-8")
-            except OSError:
-                pass
+            except OSError as exc:
+                # 書けないと「動いていない」と見分けがつかない。記録に残す。
+                applog.record("自己診断の結果を書けない", f"{report_path}: {exc}")
 
     emit("開始")
     results: list[tuple[str, str]] = []
@@ -851,21 +853,20 @@ def self_test(page: ft.Page) -> None:
         (s for s in page.services if isinstance(s, ft.Clipboard)), None
     )
 
-    async def probe() -> None:
-        # フォルダ選択。ここは利用者が選ぶまで返らないので、開いたところまでを見る。
-        # 権限が足りなければ、開く前に例外になる（それが拾いたいもの）。
-        if picker is None:
-            record("フォルダ選択", RuntimeError("FilePicker が無い"))
-        else:
-            task = asyncio.ensure_future(
-                picker.get_directory_path(dialog_title="自己診断")
-            )
-            done, _pending = await asyncio.wait({task}, timeout=8)
-            if task in done and task.exception() is not None:
-                record("フォルダ選択", task.exception())
-            else:
-                record("フォルダ選択", None)
+    finished = threading.Event()
 
+    def finish() -> None:
+        """一度だけ結果を書いて終える。"""
+        if finished.is_set():
+            return
+        finished.set()
+        failed = [f"{n}: {r}" for n, r in results if r != "OK"]
+        emit("自己診断: " + ("PASS" if not failed else "FAIL"))
+        # 画面とダイアログを握ったままなので、ここで落とす。
+        os._exit(1 if failed else 0)
+
+    async def probe() -> None:
+        # すぐ返るものから片づける。
         if clipboard is None:
             record("クリップボード", RuntimeError("Clipboard が無い"))
         else:
@@ -875,10 +876,30 @@ def self_test(page: ft.Page) -> None:
             except BaseException as exc:  # noqa: BLE001 - 何が来ても記録する
                 record("クリップボード", exc)
 
-        failed = [f"{n}: {r}" for n, r in results if r != "OK"]
-        emit("自己診断: " + ("PASS" if not failed else "FAIL"))
-        # 画面を開いたまま握っているので、ここで落とす。
-        os._exit(1 if failed else 0)
+        # フォルダ選択は最後にする。**開いたら戻ってこない。**
+        # Flet 0.86 は UI と Python を同じスレッドで動かすため、ダイアログが
+        # 出ている間は Python 側が進まない（asyncio の timeout も効かない）。
+        # ここで見たいのは「開けたかどうか」なので、別スレッドで時間を計り、
+        # 開いたまま一定時間たったら通ったものとして終える。
+        # 権限が足りない場合は、開く前に例外が返る（それが拾いたいもの）。
+        if picker is None:
+            record("フォルダ選択", RuntimeError("FilePicker が無い"))
+            finish()
+            return
+
+        def watchdog() -> None:
+            time.sleep(20)
+            if not finished.is_set():
+                record("フォルダ選択", None)
+                finish()
+
+        threading.Thread(target=watchdog, daemon=True).start()
+
+        try:
+            await picker.get_directory_path(dialog_title="自己診断")
+        except BaseException as exc:  # noqa: BLE001 - 何が来ても記録する
+            record("フォルダ選択", exc)
+        finish()
 
     page.run_task(probe)
 

@@ -233,7 +233,15 @@ jobs:
           $env:ARCHIVAL_PACKAGER_SELF_TEST = $report
           $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -PassThru `
                  -RedirectStandardOutput $out -RedirectStandardError "self-test-err.log"
-          if (-not $p.WaitForExit(180000)) { $p.Kill() }
+          # 結果ファイルに「自己診断:」の行が出るまで待つ。アプリはダイアログを
+          # 開いたまま終わらないことがあるので、時間で打ち切って構わない。
+          $deadline = (Get-Date).AddMinutes(4)
+          while ((Get-Date) -lt $deadline) {
+            if ((Test-Path $report) -and (Select-String -Path $report -Pattern "自己診断:" -Quiet)) { break }
+            if ($p.HasExited) { break }
+            Start-Sleep -Seconds 5
+          }
+          if (-not $p.HasExited) { $p.Kill() }
           foreach ($f in @($out, "self-test-err.log")) {
             if (Test-Path $f) { Write-Host "--- $f ---"; Get-Content $f | Write-Host }
           }
