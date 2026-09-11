@@ -20,20 +20,26 @@ app="${1:-build/macos/archival-packager.app}"
 bin="$app/Contents/MacOS/$(basename "$app" .app)"
 [[ -x "$bin" ]] || bin="$(find "$app/Contents/MacOS" -type f -perm -111 | head -1)"
 
-# 結果の置き場は /tmp。署名済みアプリからは、TMPDIR（/var/folders/...）にも
-# 作業ディレクトリにも書けなかった（実測）。/tmp は書けた。
-report="/tmp/archival-packager-self-test.txt"
+# 結果は、アプリが記録（errors.log）を置くのと同じ場所に出る。
+# 任意のパスを渡しても残らないことが何度もあったため（macOS の TMPDIR、
+# CI の作業ディレクトリ）、アプリが確実に書ける場所に揃えた。
+report="${XDG_DATA_HOME:-$HOME/.local/share}/ArchivalPackager/self-test.txt"
 rm -f "$report"
 
 # 前の回のアプリが残っていると、新しく起動しても何も起きない（実測）。
 # 走らせる前に必ず片づける。
-# 条件は実行ファイルのパスにする。".app" だけだと、このスクリプト自身の
-# 引数にも一致して自分を殺してしまう（実際にやった）。
-pkill -f "Contents/MacOS/archival-packager" 2>/dev/null || true
-sleep 2
+# 前の回のアプリが残っていると、新しく起動しても何も起きない（実測）。
+#
+# パターンは**自分自身に一致しない形**にする。pkill -f は呼び出し元シェルの
+# コマンド行も見るので、素直に書くと自分やこのスクリプトを殺してしまう。
+# 角かっこで 1 文字外すのは、ps | grep で昔から使われている手。
+pkill -f "MacOS/archival-pack[a]ger" 2>/dev/null || true
+# 片づけた直後に起動しても立ち上がらないことがある。少し待つ。
+sleep 8
 
 print "自己診断: $bin"
-ARCHIVAL_PACKAGER_SELF_TEST="$report" "$bin" --self-test >/dev/null 2>&1 &
+# 出力はファイルに流す。/dev/null に捨てると起動しなかった（実測）。
+ARCHIVAL_PACKAGER_SELF_TEST="$report" "$bin" --self-test > /tmp/archival-packager-self-test.log 2>&1 &
 pid=$!
 
 # Python の展開に時間がかかる。結果ファイルが出るまで待つ。

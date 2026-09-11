@@ -228,7 +228,9 @@ jobs:
           $out = Join-Path $PWD "self-test.log"
           # 引数が入口まで届かない場合があるので、環境変数で指示する。
           # 結果はファイルで受け取る（包んだアプリの標準出力は戻ってこない）。
-          $report = Join-Path $PWD "self-test-report.txt"
+          # 結果はアプリが記録を置く場所に出る（作業ディレクトリには残らなかった）。
+          $local = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { "$env:USERPROFILE\AppData\Local" }
+          $report = Join-Path $local "ArchivalPackager\self-test.txt"
           if (Test-Path $report) { Remove-Item $report }
           $env:ARCHIVAL_PACKAGER_SELF_TEST = $report
           $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -PassThru `

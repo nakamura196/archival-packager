@@ -821,19 +821,30 @@ def self_test(page: ft.Page) -> None:
     import asyncio
 
     #: 結果の書き出し先。包んだアプリでは標準出力が呼び出し元まで戻らないので、
-    #: ファイルに書く。環境変数にパスを入れて指示する（"1" ならファイルなし）。
-    report_path = os.environ.get(SELF_TEST_ENV, "")
+    #: ファイルに書く。
+    #:
+    #: **置き場は記録（errors.log）と同じ場所を既定にする。** 任意のパスを
+    #: 渡しても残らないことが何度もあった（macOS の TMPDIR、CI の作業
+    #: ディレクトリ）。記録が書けている場所なら確実に書ける。
+    #: 環境変数にパスを入れれば、そちらにも書く。
+    targets = [applog.log_path().parent / "self-test.txt"]
+    given = os.environ.get(SELF_TEST_ENV, "")
+    if given and given != "1":
+        targets.append(Path(given))
+
     lines: list[str] = ["自己診断モードで起動しました"]
 
     def emit(line: str) -> None:
         lines.append(line)
         print(line, flush=True)
-        if report_path and report_path != "1":
+        body = "\n".join(lines) + "\n"
+        for target in targets:
             try:
-                Path(report_path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(body, encoding="utf-8")
             except OSError as exc:
                 # 書けないと「動いていない」と見分けがつかない。記録に残す。
-                applog.record("自己診断の結果を書けない", f"{report_path}: {exc}")
+                applog.record("自己診断の結果を書けない", f"{target}: {exc}")
 
     emit("開始")
     results: list[tuple[str, str]] = []
