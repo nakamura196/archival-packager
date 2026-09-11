@@ -297,3 +297,36 @@ class TestProgressDoesNotFloodTheLog:
             "daily.cvd updated (version: 27000, sigs: 2000000)"
         )
 
+
+class TestLogDoesNotSlowDownAsItGrows:
+    """ログが伸びても重くならないこと。
+
+    2026-09-11、実機で「行が増えると挙動が重い」と報告された。原因は
+    ログを 1 行足すたびに page.update() を呼んでいたこと。page.update() は
+    画面全体を比較するので、行数に比例して 1 回の更新が重くなり、
+    結果として行数の二乗で遅くなる。
+    """
+
+    def test_log_updates_only_the_log_control(self):
+        source = inspect.getsource(ui_app.main)
+        body = source.split("def log(message")[1].split("def log_status(")[0]
+        assert "ui(_append, progress_log)" in body, (
+            "ログの更新は progress_log に絞ること。page 全体を更新しない"
+        )
+
+    def test_log_is_capped(self):
+        source = inspect.getsource(ui_app.main)
+        assert "LOG_MAX_LINES" in source, (
+            "行数に上限を設けること。処理の記録は report.txt に残るので、"
+            "画面は直近が見えれば足りる"
+        )
+        body = source.split("def log(message")[1].split("def log_status(")[0]
+        assert "del items[" in body, "上限を超えた古い行を捨てること"
+
+    def test_ui_helper_can_narrow_the_update(self):
+        source = inspect.getsource(ui_app.main)
+        helper = source.split("def ui(")[1].split("def log(")[0]
+        assert "(target or page).update()" in helper, (
+            "更新する範囲を指定できるようにすること"
+        )
+

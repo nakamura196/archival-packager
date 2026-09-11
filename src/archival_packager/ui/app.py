@@ -64,7 +64,13 @@ def main(page: ft.Page) -> None:
     run_button = ft.FilledButton("実行", icon=ft.Icons.PLAY_ARROW, disabled=True)
     result_panel = ft.Column(spacing=8)
 
-    def ui(mutate) -> None:
+    #: 進捗ログに残す行数の上限。処理の記録は report.txt に残るので、
+    #: 画面は「いま何をしているか」が見えれば足りる。
+    #: 上限を設けないと、数千ファイルの移管で行が数千に膨らみ、
+    #: 1 回の更新にかかる時間が行数に比例して伸びる（実際に重くなった）。
+    LOG_MAX_LINES = 300
+
+    def ui(mutate, target=None) -> None:
         """画面の変更は必ずイベントループ側で行う。
 
         ワーカースレッドから直接 controls をいじると、UI 側が木構造を比較している
@@ -74,17 +80,27 @@ def main(page: ft.Page) -> None:
         page.run_task は内部で asyncio.run_coroutine_threadsafe を使うので、
         どのスレッドから呼んでも安全にイベントループへ渡る。UI スレッドから
         呼んでも単に予約されるだけなので、呼び分けは不要。
+
+        target を渡すと、そのコントロールだけを更新する。**page.update() は
+        画面全体を比較するので、ログを 1 行足すたびに呼ぶと行数に比例して
+        遅くなる**（1000 行入ったところで目に見えて重くなった）。
+        更新する範囲は、変えた場所に絞る。
         """
 
         async def _run() -> None:
             mutate()
-            page.update()
+            (target or page).update()
 
         page.run_task(_run)
 
     def log(message: str) -> None:
-        ui(lambda: progress_log.controls.append(
-            ft.Text(message, size=12, selectable=True)))
+        def _append() -> None:
+            items = progress_log.controls
+            items.append(ft.Text(message, size=12, selectable=True))
+            if len(items) > LOG_MAX_LINES:
+                del items[: len(items) - LOG_MAX_LINES]
+
+        ui(_append, progress_log)
 
     def log_status(message: str) -> None:
         """途中経過を 1 行で書き換える。
@@ -104,7 +120,7 @@ def main(page: ft.Page) -> None:
             else:
                 items.append(text)
 
-        ui(_set)
+        ui(_set, progress_log)
 
     def clear_log() -> None:
         def _clear() -> None:
