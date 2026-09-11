@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  METS と PREMIS を一緒に読み込むためだけの入れ物。
+
+  生成物は METS の amdSec に PREMIS を埋め、xsi:type="premis:file" のように
+  PREMIS 側の型を指す。**METS のスキーマだけでは、この型を解決できない**
+  （「The type definition is absent」になる）。両方の名前空間を取り込んだ
+  スキーマに対して検証する必要がある。
+
+  公式の配布物ではなく、検証のためにこちらで用意したもの。
+-->
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <xsd:import namespace="http://www.loc.gov/METS/" schemaLocation="mets.xsd"/>
+  <xsd:import namespace="http://www.loc.gov/premis/v3" schemaLocation="premis.xsd"/>
+</xsd:schema>
