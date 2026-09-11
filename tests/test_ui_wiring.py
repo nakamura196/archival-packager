@@ -177,3 +177,92 @@ class TestVirusDatabaseControls:
     def test_missing_clamav_is_stated_rather_than_implied_clean(self):
         source = inspect.getsource(ui_app.main)
         assert "検査できません" in source
+
+
+class TestUIUpdatesGoThroughTheEventLoop:
+    """画面の変更を、ワーカースレッドから直接行っていないこと。
+
+    2026-09-11、配布版が IndexError で落ちた。進捗・結果・エラーの表示が
+    ワーカースレッドから controls を直接いじっており、UI 側が木構造を
+    比較している最中にリストが伸びて、差分計算が範囲外を見ていた
+    （flet/controls/object_patch.py の _compare_lists）。
+    """
+
+    def test_helper_uses_run_task(self):
+        source = inspect.getsource(ui_app.main)
+        helper = source.split("def ui(")[1].split("def log(")[0]
+        assert "page.run_task" in helper, "ui() はイベントループ側へ渡すこと"
+
+    def test_worker_side_functions_do_not_call_page_update(self):
+        source = inspect.getsource(ui_app.main)
+        for name, until in (
+            ("def log(", "def clear_log("),
+            ("def _show_error(", "def on_app_error("),
+        ):
+            body = source.split(name)[1].split(until)[0]
+            assert "page.update()" not in body, (
+                f"{name} はワーカースレッドから呼ばれる。page.update() を直接"
+                "呼ばず ui() を通すこと"
+            )
+
+    def test_show_result_batches_before_handing_over(self):
+        source = inspect.getsource(ui_app.main)
+        body = source.split("def show_result(")[1].split("def worker(")[0]
+        assert "result_panel.controls.append(" not in body, (
+            "show_result はワーカースレッドから呼ばれる。手元に積んでから "
+            "ui() でまとめて渡すこと"
+        )
+        assert "ui(" in body
+
+
+class TestErrorsCanBeReported:
+    """落ちたときに、利用者が報告できる形になっていること。"""
+
+    def test_unhandled_errors_are_captured(self):
+        source = inspect.getsource(ui_app.main)
+        assert "page.on_error" in source, (
+            "こちらの try/except の外で落ちると、アプリは落ちたことすら"
+            "記録しない。Flet の受け口で拾うこと"
+        )
+
+    def test_errors_are_written_to_a_file(self):
+        source = inspect.getsource(ui_app.main)
+        assert "applog.record" in source
+
+    def test_clipboard_set_is_awaited(self):
+        """Clipboard.set は coroutine。同期で呼ぶと何も起きない。"""
+        from flet.controls.services.clipboard import Clipboard
+
+        assert inspect.iscoroutinefunction(Clipboard.set), (
+            "Flet 側が同期に変わったら、app.py の await を外すこと"
+        )
+        source = inspect.getsource(ui_app.main)
+        assert "await clipboard.set(" in source
+
+
+class TestBundledToolsDoNotOpenAConsoleWindow:
+    """Windows で外部ツールを呼ぶとき、コンソール窓を出さないこと。
+
+    2026-09-11、配布版でボタンを押すたびに黒い窓が開くと報告された。
+    subprocess に CREATE_NO_WINDOW を渡していなかった。
+    """
+
+    def test_every_subprocess_call_passes_no_window(self):
+        from archival_packager.core import bundled
+
+        root = Path(bundled.__file__).parent
+        offenders = []
+        for path in sorted(root.glob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            for marker in ("subprocess.run(", "subprocess.Popen("):
+                start = 0
+                while (i := text.find(marker, start)) != -1:
+                    call = text[i : i + 600]
+                    if "no_window()" not in call:
+                        offenders.append(f"{path.name}:{text[:i].count(chr(10)) + 1}")
+                    start = i + len(marker)
+        assert not offenders, (
+            "bundled.no_window() を渡していない subprocess 呼び出し: "
+            + ", ".join(offenders)
+        )
+

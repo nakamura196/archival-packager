@@ -25,8 +25,8 @@ from pathlib import Path
 
 import flet as ft
 
-from ..core import aip_pipeline, clamav, sip_pipeline
 from ..core.aip_models import AIPOptions, AIPPipelineError, AIPResult, DescriptiveMetadata
+from ..core import aip_pipeline, applog, clamav, sip_pipeline
 from ..core.models import SIPMetadata, SIPOptions, SIPPipelineError, SIPResult
 from . import platform as plat
 
@@ -173,6 +173,9 @@ def main(page: ft.Page) -> None:
     # 0.28 系の on_result= / FilePickerResultEvent は存在しない。
     picker = ft.FilePicker()
     page.services.append(picker)
+
+    clipboard = ft.Clipboard()
+    page.services.append(clipboard)
 
     def refresh_run_enabled() -> None:
         run_button.disabled = state.input_path is None or state.output_parent is None
@@ -366,7 +369,21 @@ def main(page: ft.Page) -> None:
             ui(_done)
 
     def _show_error(message: str, detail: str = "") -> None:
-        """ワーカースレッドから呼ばれる。組み立ててから渡す（ui の説明を参照）。"""
+        """ワーカースレッドから呼ばれる。組み立ててから渡す（ui の説明を参照）。
+
+        利用者が報告できる形にする。ファイルに記録し、画面には環境と本文を出し、
+        丸ごとコピーできるようにする。書き写してもらうことは期待しない。
+        """
+        env = applog.environment()
+        saved = applog.record(message, detail)
+        report = f"{env}\n{message}" + (f"\n\n{detail}" if detail else "")
+
+        async def _copy(_e) -> None:
+            # Clipboard.set は coroutine。同期で呼ぶと何も起きないまま
+            # 「awaited されなかった」警告が出るだけになる。
+            await clipboard.set(report)
+            log("エラーの内容をコピーしました。報告に貼り付けてください。")
+
         box = (
             ft.Container(
                 ft.Column(
@@ -383,6 +400,29 @@ def main(page: ft.Page) -> None:
                             if detail
                             else []
                         ),
+                        ft.Divider(height=1),
+                        ft.Text(env, size=10, selectable=True,
+                                color=ft.Colors.ON_SURFACE_VARIANT),
+                        *(
+                            [ft.Text(f"記録: {saved}", size=10, selectable=True,
+                                     color=ft.Colors.ON_SURFACE_VARIANT)]
+                            if saved
+                            else []
+                        ),
+                        ft.Row(
+                            [
+                                ft.OutlinedButton(
+                                    "内容をコピー", icon=ft.Icons.CONTENT_COPY,
+                                    on_click=_copy,
+                                ),
+                                ft.Text(
+                                    "コピーした内容を nakamura@hi.u-tokyo.ac.jp まで"
+                                    "お送りいただけると助かります。",
+                                    size=10, color=ft.Colors.ON_SURFACE_VARIANT,
+                                ),
+                            ],
+                            spacing=8,
+                        ),
                     ],
                     spacing=4,
                 ),
@@ -393,6 +433,16 @@ def main(page: ft.Page) -> None:
             )
         )
         ui(lambda: result_panel.controls.append(box))
+
+    def on_app_error(e) -> None:
+        """想定外の落ち方を拾う。
+
+        2026-09-11 の IndexError は、こちらの try/except の外（Flet の内部）で
+        起きたため、アプリは落ちたことすら記録していなかった。ここで受ける。
+        """
+        _show_error("想定外のエラーが発生しました。", str(getattr(e, "data", e)))
+
+    page.on_error = on_app_error
 
     def on_run(_e: ft.ControlEvent) -> None:
         clear_log()
