@@ -266,9 +266,6 @@ jobs:
           } else {
             Write-Host "（フォルダ自体がありません）"
           }
-          Get-ChildItem -Path $env:USERPROFILE -Filter "self-test.txt" -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -First 5 | ForEach-Object { Write-Host "みつかった: $($_.FullName)" }
-
           if (-not (Test-Path $report)) {
             throw "自己診断が結果を残しませんでした（起動していないか、書けていない）"
           }
