@@ -162,59 +162,6 @@ def build(*, on_close: Callable[[], None]) -> ft.Control:
     )
 
     return ft.Column(
-            [ft.Text(_doc(name), size=11, font_family=_MONO, selectable=True)],
-            scroll=ft.ScrollMode.AUTO,
-        )
-
-    tabs = ft.Tabs(
-        selected_index=0,
-        expand=True,
-        tabs=[
-            ft.Tab(label="使い方", content=_panel(usage)),
-            ft.Tab(
-                label="このアプリについて",
-                content=_panel(
-                    ft.Text(applog.environment(), size=12, selectable=True),
-                    ft.Text(
-                        "デジタル資料から、国際標準 OAIS の情報パッケージを作成します。",
-                        size=12,
-                    ),
-                    ft.Text("開発: 中村 覚（東京大学）・金 甫榮（人間文化研究機構）", size=12),
-                    ft.Divider(height=1),
-                    ft.Text("連絡先", weight=ft.FontWeight.BOLD, size=13),
-                    ft.Text(CONTACT, size=12, selectable=True),
-                    ft.Text(
-                        "不具合に出会われたら、エラー画面の「内容をコピー」から"
-                        "貼り付けてお送りください。",
-                        size=11,
-                        color=ft.Colors.ON_SURFACE_VARIANT,
-                    ),
-                    ft.Row([_link("プライバシーポリシー", PRIVACY_URL),
-                            _link("Microsoft ストア", STORE_URL)], wrap=True),
-                    ft.Text(f"記録の保存先: {applog.log_path()}", size=11,
-                            selectable=True, color=ft.Colors.ON_SURFACE_VARIANT),
-                ),
-            ),
-            ft.Tab(
-                label="ライセンス",
-                content=_panel(
-                    ft.Text(
-                        "本アプリは MIT ライセンスです。同梱している第三者の"
-                        "コンポーネントには、それぞれ元のライセンスが適用されます。"
-                        "とくに ClamAV は GPL-2.0 であり、ソースコードの入手方法を"
-                        "下記に示しています。",
-                        size=12,
-                    ),
-                    ft.Divider(height=1),
-                    ft.Container(_license_view("LICENSE"), height=140),
-                    ft.Divider(height=1),
-                    ft.Container(_license_view("NOTICE"), expand=True),
-                ),
-            ),
-        ],
-    )
-
-    return ft.Column(
         [
             ft.Row(
                 [

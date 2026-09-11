@@ -378,11 +378,19 @@ class TestFormFollowsTheSelectedMode:
         assert "metadata_section.visible = makes_sip" in body
 
     def test_update_is_guarded_before_mount(self):
-        """初回は page.add より前に呼ばれる。載る前に update すると落ちる。"""
+        """初回は page.add より前に呼ばれる。載る前に update すると落ちる。
+
+        以前ここは `left.page is not None` を求めていたが、それ自体が誤りだった。
+        Flet 0.86 の Control.page は、画面に載る前に読むと None を返さず
+        RuntimeError を投げる。守っているつもりで落ちる形になっていた
+        （0.1.4 の起動失敗の 2 つめの原因）。実際に組み立てて確かめるのは
+        tests/test_ui_builds.py の役目で、ここでは書き方だけを押さえる。
+        """
         source = inspect.getsource(ui_app.main)
         body = source.split("def apply_mode(")[1].split("mode.on_change")[0]
-        assert "if left.page is not None:" in body, (
-            "画面に載る前の update を避けること"
+        assert "if state.on_page:" in body, "画面に載る前の update を避けること"
+        assert ".page is not None" not in body, (
+            "Control.page は載る前に読むと例外になる。判定に使わないこと"
         )
 
     def test_each_mode_has_an_explanation(self):

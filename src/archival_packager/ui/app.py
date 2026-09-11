@@ -48,6 +48,10 @@ class Selection:
     #: show_result はそれより前に定義されるため、ここを経由して呼ぶ。
     open_viewer: Callable[[Path], None] = lambda _p: None
 
+    #: page.add を済ませたか。Flet 0.86 の Control.page は、画面に載る前に
+    #: 読むと None ではなく RuntimeError を投げる。判定に使えないので自分で持つ。
+    on_page: bool = False
+
 
 def main(page: ft.Page) -> None:
     page.title = "Archival Packager"
@@ -236,7 +240,10 @@ def main(page: ft.Page) -> None:
             or state.output_parent is None
             or (needs_title and not (title.value or "").strip())
         )
-        page.update()
+        # 組み立ての途中（page.add より前）にも呼ばれる。まだ画面が無いうちは
+        # 送らない。
+        if state.on_page:
+            page.update()
 
     async def choose_input_dir(_e: ft.ControlEvent) -> None:
         chosen = await picker.get_directory_path(dialog_title="素材フォルダ / SIP を選ぶ")
@@ -565,7 +572,6 @@ def main(page: ft.Page) -> None:
     options_tile = ft.ExpansionTile(
         title=ft.Text("オプション", weight=ft.FontWeight.BOLD, size=13),
         subtitle=options_summary,
-        initially_expanded=False,
         controls=[
             ft.Container(
                 ft.Column(
@@ -708,7 +714,7 @@ def main(page: ft.Page) -> None:
 
         # 初回は page.add より前に呼ぶ。まだ画面に載っていないコントロールを
         # update すると RuntimeError になるので、載ってからだけ更新する。
-        if left.page is not None:
+        if state.on_page:
             left.update()
 
     title.on_change = lambda _e: refresh_run_enabled()
@@ -769,6 +775,7 @@ def main(page: ft.Page) -> None:
     )
 
     page.add(ft.Column([header, shell], expand=True, spacing=0))
+    state.on_page = True
 
 
 def run() -> None:

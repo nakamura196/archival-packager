@@ -38,7 +38,13 @@ try {
 
 $exe = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)[0].FullName
 Write-Host "起動: $exe"
-$proc = Start-Process -FilePath $exe -PassThru
+
+# 出力を拾っておく。**窓が出ただけでは起動確認にならない。**
+# 画面の組み立てで例外が出ても、Flet は自前のエラー画面をその窓に描くので、
+# 窓は出るし、プロセスも生きたままになる（0.1.4 でこれを配ってしまった）。
+$outLog = Join-Path $PWD "launch-stdout.log"
+$errLog = Join-Path $PWD "launch-stderr.log"
+$proc = Start-Process -FilePath $exe -PassThru -RedirectStandardOutput $outLog -RedirectStandardError $errLog
 
 # Flet は初回起動で Python を展開するので時間がかかる。窓が出るまで待つ。
 # 待たずに撮ると真っ黒な画像になる。
@@ -61,6 +67,20 @@ Start-Sleep -Seconds 5
 $proc.Refresh()
 if ($proc.HasExited) {
     throw "起動直後にアプリが終了しました（終了コード $($proc.ExitCode)）"
+}
+
+# 窓の中身がエラー画面になっていないか。プロセスは生きているので、
+# 出力を読むしか見分ける手がない。
+foreach ($log in @($outLog, $errLog)) {
+    if (-not (Test-Path $log)) { continue }
+    $text = Get-Content $log -Raw
+    if ([string]::IsNullOrEmpty($text)) { continue }
+    Write-Host "--- $(Split-Path $log -Leaf) ---"
+    Write-Host $text
+    if ($text -match "The application encountered an error" -or
+        $text -match "Traceback \(most recent call last\)") {
+        throw "起動はしたが、画面の組み立てで例外が出ています（上の出力を参照）"
+    }
 }
 
 # 窓の取っ手（ハンドル）は数秒で取れるが、Flet はそのあとで
