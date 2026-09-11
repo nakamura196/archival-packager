@@ -47,3 +47,102 @@ def test_main_does_not_touch_page_before_adding():
     app.main(page)
     assert "add" in calls
     assert calls.index("add") == 0 or "update" not in calls[: calls.index("add")]
+
+
+class TestRunButtonBecomesPressable:
+    """実行ボタンが押せるようになるまでを、実際に画面を動かして確かめる。
+
+    「実行ボタンを押せない」という報告を受けた。仕様どおり（素材フォルダ・
+    出力先・タイトルが揃うまで押せない）だったが、**なぜ押せないのかが
+    画面に出ていなかった**。仕様が変わったときに気づけるよう、
+    ここで順序ごと押さえる。
+    """
+
+    def _screen(self):
+        import flet as ft
+
+        page = MagicMock()
+        app.main(page)
+
+        picker = next(
+            c[0][0]
+            for c in page.services.append.call_args_list
+            if isinstance(c[0][0], ft.FilePicker)
+        )
+
+        found: list = []
+
+        def walk(control):
+            found.append(control)
+            for attr in ("controls", "content", "title", "subtitle", "leading", "trailing"):
+                value = getattr(control, attr, None)
+                if isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, ft.Control):
+                            walk(item)
+                elif isinstance(value, ft.Control):
+                    walk(value)
+
+        walk(page.add.call_args[0][0])
+        return picker, found
+
+    def test_pressable_only_after_everything_is_chosen(self, tmp_path):
+        import asyncio
+
+        from unittest.mock import AsyncMock
+
+        import flet as ft
+
+        picker, found = self._screen()
+        run = next(c for c in found if getattr(c, "content", None) == "実行")
+        choosers = [c for c in found if getattr(c, "content", None) == "フォルダを選ぶ"]
+        title = next(
+            c
+            for c in found
+            if isinstance(c, ft.TextField) and c.label and "タイトル" in c.label
+        )
+
+        assert run.disabled, "何も選んでいないのに押せる"
+
+        picker.get_directory_path = AsyncMock(return_value=str(tmp_path))
+        for chooser in choosers:
+            asyncio.run(chooser.on_click(MagicMock()))
+        assert run.disabled, "タイトルが空でも押せてしまう"
+
+        title.value = "テスト資料"
+        title.on_change(MagicMock())
+        assert not run.disabled, "すべて埋めても押せない"
+
+    def test_says_what_is_missing(self, tmp_path):
+        """押せない理由を画面に出すこと。灰色のボタンだけでは伝わらない。"""
+        import asyncio
+
+        from unittest.mock import AsyncMock
+
+        import flet as ft
+
+        picker, found = self._screen()
+        hints = [
+            c.value
+            for c in found
+            if isinstance(c, ft.Text) and c.value and "押せます" in c.value
+        ]
+        assert hints, "何が足りないのかを書いていない"
+        assert "タイトル" in hints[0] and "出力先" in hints[0]
+
+        picker.get_directory_path = AsyncMock(return_value=str(tmp_path))
+        for chooser in [c for c in found if getattr(c, "content", None) == "フォルダを選ぶ"]:
+            asyncio.run(chooser.on_click(MagicMock()))
+        title = next(
+            c for c in found
+            if isinstance(c, ft.TextField) and c.label and "タイトル" in c.label
+        )
+        title.value = "テスト資料"
+        title.on_change(MagicMock())
+
+        remaining = [
+            c.value
+            for c in found
+            if isinstance(c, ft.Text) and c.value and "押せます" in c.value
+        ]
+        assert not remaining, f"すべて埋めたのに案内が残っている: {remaining}"

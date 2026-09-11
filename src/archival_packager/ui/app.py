@@ -77,6 +77,9 @@ def main(page: ft.Page) -> None:
     progress_log = ft.ListView(expand=True, spacing=2, auto_scroll=True, padding=10)
     progress_bar = ft.ProgressBar(visible=False)
     run_button = ft.FilledButton("実行", icon=ft.Icons.PLAY_ARROW, disabled=True)
+    #: なぜ押せないのかを書く。灰色のボタンだけを見せられても、何が足りないのか
+    #: 画面から分からない（「押せない」という報告を受けた）。
+    run_hint = ft.Text("", size=11, color=ft.Colors.ON_SURFACE_VARIANT)
     result_panel = ft.Column(spacing=8)
 
     #: 進捗ログに残す行数の上限。処理の記録は report.txt に残るので、
@@ -235,11 +238,17 @@ def main(page: ft.Page) -> None:
         # できてしまう。あとから資料を探す手がかりが無くなる。
         # AIP 作成では SIP の記述を引き継ぐので、ここでは求めない。
         needs_title = mode.value in (MODE_SIP, MODE_FULL)
-        run_button.disabled = (
-            state.input_path is None
-            or state.output_parent is None
-            or (needs_title and not (title.value or "").strip())
-        )
+        missing = []
+        if state.input_path is None:
+            missing.append("素材フォルダ" if mode.value != MODE_AIP else "SIP フォルダ")
+        if state.output_parent is None:
+            missing.append("出力先")
+        if needs_title and not (title.value or "").strip():
+            missing.append("タイトル")
+        run_button.disabled = bool(missing)
+        run_hint.value = ("あと " + "・".join(missing) + " を指定すると押せます"
+                          if missing else "")
+        run_hint.visible = bool(missing)
         # 組み立ての途中（page.add より前）にも呼ばれる。まだ画面が無いうちは
         # 送らない。
         if state.on_page:
@@ -643,7 +652,10 @@ def main(page: ft.Page) -> None:
         [
             left,
             ft.Divider(height=1),
-            ft.Container(run_button, padding=ft.Padding.only(top=4, bottom=2)),
+            ft.Container(
+                ft.Column([run_button, run_hint], spacing=2),
+                padding=ft.Padding.only(top=4, bottom=2),
+            ),
         ],
         spacing=8,
         expand=True,
