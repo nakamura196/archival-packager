@@ -27,9 +27,10 @@ from pathlib import Path
 import flet as ft
 
 from ..core.aip_models import AIPOptions, AIPPipelineError, AIPResult, DescriptiveMetadata
+from .. import __version__
 from ..core import aip_pipeline, applog, clamav, sip_pipeline
 from ..core.models import SIPMetadata, SIPOptions, SIPPipelineError, SIPResult
-from . import platform as plat, viewer
+from . import about, platform as plat, viewer
 
 MODE_SIP = "sip"
 MODE_AIP = "aip"
@@ -50,6 +51,12 @@ class Selection:
 
 def main(page: ft.Page) -> None:
     page.title = "Archival Packager"
+    # 既定のままだと Flet の素の見た目になる。落ち着いた青緑を基調にし、
+    # OS のダークモードに追随させる（アーカイブズの現場は明るい部屋とは限らない）。
+    page.theme = ft.Theme(color_scheme_seed=ft.Colors.TEAL)
+    page.dark_theme = ft.Theme(color_scheme_seed=ft.Colors.TEAL)
+    page.theme_mode = ft.ThemeMode.SYSTEM
+    page.padding = 0
     page.window.width = 1000
     # 820 だと「オプション」欄が画面の下で切れ、スクロールしないと見えなかった。
     # 13 インチのノート（1440x900 や 1280x800）でも収まる範囲で高くする。
@@ -542,27 +549,47 @@ def main(page: ft.Page) -> None:
             spacing=6,
         )
 
+    #: オプションは既定のままで使えるので、閉じておく。ただし**閉じたまま
+    #: 中身が変わると気づけない**ので、有効なものを見出しに出す。
+    options_summary = ft.Text("", size=11, color=ft.Colors.ON_SURFACE_VARIANT)
+    options_tile = ft.ExpansionTile(
+        title=ft.Text("オプション", weight=ft.FontWeight.BOLD, size=13),
+        subtitle=options_summary,
+        initially_expanded=False,
+        controls=[
+            ft.Container(
+                ft.Column(
+                    [make_bag, sanitize, scan_pii, scan_virus, normalize, serialize_zip],
+                    spacing=4,
+                ),
+                padding=ft.Padding.only(left=12, right=12, bottom=8),
+            )
+        ],
+    )
+
+    metadata_section = section(
+        "記述メタデータ", identifier, title, date_note, scope_note, archivist
+    )
+    virus_section = section("ウイルス定義データベース", virus_db_status, virus_db_button)
+
+    # モードの説明。ラジオのラベルは短くせざるを得ないので、選んだものが
+    # 何をするのかを 1 行添える。
+    mode_note = ft.Text("", size=11, color=ft.Colors.ON_SURFACE_VARIANT)
+
+    zip_button = ft.OutlinedButton(
+        "ZIP を選ぶ", icon=ft.Icons.ARCHIVE, on_click=choose_input_zip,
+    )
+    input_button = ft.OutlinedButton(
+        "フォルダを選ぶ", icon=ft.Icons.FOLDER, on_click=choose_input_dir,
+    )
+
     left = ft.Column(
         [
-            section("何を作るか", mode),
+            section("何を作るか", mode, mode_note),
             ft.Divider(height=1),
             section(
                 "入力",
-                ft.Row(
-                    [
-                        ft.OutlinedButton(
-                            "フォルダを選ぶ",
-                            icon=ft.Icons.FOLDER,
-                            on_click=choose_input_dir,
-                        ),
-                        ft.OutlinedButton(
-                            "ZIP を選ぶ",
-                            icon=ft.Icons.ARCHIVE,
-                            on_click=choose_input_zip,
-                        ),
-                    ],
-                    wrap=True,
-                ),
+                ft.Row([input_button, zip_button], wrap=True),
                 input_label,
             ),
             section(
@@ -575,14 +602,11 @@ def main(page: ft.Page) -> None:
                 output_label,
             ),
             ft.Divider(height=1),
-            section("記述メタデータ", identifier, title, date_note, scope_note, archivist),
+            metadata_section,
             ft.Divider(height=1),
-            section(
-                "オプション",
-                make_bag, sanitize, scan_pii, scan_virus, normalize, serialize_zip,
-            ),
-            section("ウイルス定義データベース", virus_db_status, virus_db_button),
-            section(
+            options_tile,
+            virus_section,
+            prior_section := section(
                 "前回の受入記録（配列前後の突合）",
                 ft.OutlinedButton(
                     "accession.csv を選ぶ",
@@ -591,10 +615,21 @@ def main(page: ft.Page) -> None:
                 ),
                 prior_label,
             ),
-            ft.Container(run_button, padding=ft.Padding.only(top=8)),
         ],
         spacing=14,
         scroll=ft.ScrollMode.AUTO,
+        expand=True,
+    )
+
+    # **実行ボタンは常に見えるようにする。** 一番よく押すものが、スクロール
+    # しないと押せない状態だった。フォームだけを流し、ボタンは下に留める。
+    left = ft.Column(
+        [
+            left,
+            ft.Divider(height=1),
+            ft.Container(run_button, padding=ft.Padding.only(top=4, bottom=2)),
+        ],
+        spacing=8,
         expand=True,
     )
 
@@ -614,6 +649,61 @@ def main(page: ft.Page) -> None:
         expand=True,
         scroll=ft.ScrollMode.AUTO,
     )
+
+    # ------------------------------------------------------------------
+    # モードに応じた出し分け
+    # ------------------------------------------------------------------
+    #
+    # **関係のない項目を出さない。** 全部を常に出していたため画面が多く見え、
+    # 「AIP 作成」でも ZIP の選択や受入記録の突合が並んでいた。どれが自分に
+    # 関係するのかを利用者に判断させない。
+
+    _MODE_NOTES = {
+        MODE_SIP: "素材フォルダ（または ZIP）から受入パッケージを作ります。原本は変更しません。",
+        MODE_AIP: "既にある SIP から長期保存パッケージを作ります。記述は SIP から引き継ぎます。",
+        MODE_FULL: "素材から受入パッケージを作り、続けて長期保存パッケージまで作ります。",
+    }
+
+    def apply_mode(_e: ft.ControlEvent | None = None) -> None:
+        selected = mode.value
+        makes_sip = selected in (MODE_SIP, MODE_FULL)
+        makes_aip = selected in (MODE_AIP, MODE_FULL)
+
+        mode_note.value = _MODE_NOTES.get(selected, "")
+
+        # 入力の意味がモードで変わる。AIP 作成の入力は「素材」ではなく SIP。
+        input_button.text = "SIP のフォルダを選ぶ" if selected == MODE_AIP else "フォルダを選ぶ"
+        zip_button.visible = makes_sip          # ZIP から受け入れるのは SIP 作成のとき
+
+        # 記述メタデータは SIP を作るときに入力する。AIP 作成では SIP から読む。
+        metadata_section.visible = makes_sip
+        # 配列前後の突合は、受入記録を作る側（SIP 作成）の話。
+        prior_section.visible = makes_sip
+
+        # オプションも、効く場面でだけ出す。
+        make_bag.visible = makes_sip
+        sanitize.visible = makes_sip
+        scan_pii.visible = makes_sip
+        scan_virus.visible = makes_sip
+        normalize.visible = makes_aip
+        virus_section.visible = makes_sip and scan_virus.value
+
+        # 閉じたまま中身が変わると気づけないので、有効なものを見出しに出す。
+        on = [c.label for c in (make_bag, sanitize, scan_pii, scan_virus,
+                                normalize, serialize_zip)
+              if c.visible and c.value]
+        options_summary.value = "、".join(on) if on else "既定のまま"
+
+        # 初回は page.add より前に呼ぶ。まだ画面に載っていないコントロールを
+        # update すると RuntimeError になるので、載ってからだけ更新する。
+        if left.page is not None:
+            left.update()
+
+    mode.on_change = apply_mode
+    for _cb in (make_bag, sanitize, scan_pii, scan_virus, normalize, serialize_zip):
+        # ウイルス検査を使わないなら定義 DB の欄も要らない。見出しの更新も兼ねる。
+        _cb.on_change = apply_mode
+    apply_mode()
 
     main_view = ft.Row(
         [
@@ -637,9 +727,35 @@ def main(page: ft.Page) -> None:
         shell.content = viewer.build(path, on_close=close_viewer)
         shell.update()
 
+    def open_about(_e: ft.ControlEvent | None = None) -> None:
+        shell.content = about.build(on_close=close_viewer)
+        shell.update()
+
     state.open_viewer = open_viewer
 
-    page.add(shell)
+    # ヘッダー。アプリ名と、いつでも開ける情報ボタン。
+    # **ライセンス表示は義務**なので、起動時に一度だけ見せる形にはしない。
+    header = ft.Container(
+        ft.Row(
+            [
+                ft.Icon(ft.Icons.INVENTORY_2_OUTLINED, size=20),
+                ft.Text("Archival Packager", weight=ft.FontWeight.BOLD, size=15),
+                ft.Text(f"v{__version__}", size=11,
+                        color=ft.Colors.ON_SURFACE_VARIANT),
+                ft.Container(expand=True),
+                ft.IconButton(
+                    ft.Icons.INFO_OUTLINE,
+                    tooltip="使い方・ライセンス・連絡先",
+                    on_click=open_about,
+                ),
+            ],
+            spacing=8,
+        ),
+        padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+        bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+    )
+
+    page.add(ft.Column([header, shell], expand=True, spacing=0))
 
 
 def run() -> None:

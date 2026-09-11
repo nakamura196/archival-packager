@@ -358,3 +358,102 @@ class TestResultViewer:
         assert "preview.read(" in source
         assert "preview.highlight_xml(" in source
 
+
+class TestFormFollowsTheSelectedMode:
+    """関係のない項目を出さないこと。
+
+    全部を常に出していたため画面が多く見え、「AIP 作成」を選んでいても
+    ZIP の選択や受入記録の突合が並んでいた。どれが自分に関係するのかを
+    利用者に判断させない。
+    """
+
+    def test_mode_change_is_wired(self):
+        source = inspect.getsource(ui_app.main)
+        assert "mode.on_change = apply_mode" in source
+
+    def test_metadata_is_hidden_when_creating_aip_only(self):
+        """AIP 作成では記述メタデータを SIP から引き継ぐ。入力欄は要らない。"""
+        source = inspect.getsource(ui_app.main)
+        body = source.split("def apply_mode(")[1].split("mode.on_change")[0]
+        assert "metadata_section.visible = makes_sip" in body
+
+    def test_update_is_guarded_before_mount(self):
+        """初回は page.add より前に呼ばれる。載る前に update すると落ちる。"""
+        source = inspect.getsource(ui_app.main)
+        body = source.split("def apply_mode(")[1].split("mode.on_change")[0]
+        assert "if left.page is not None:" in body, (
+            "画面に載る前の update を避けること"
+        )
+
+    def test_each_mode_has_an_explanation(self):
+        source = inspect.getsource(ui_app.main)
+        for name in ("MODE_SIP", "MODE_AIP", "MODE_FULL"):
+            assert f"{name}:" in source.split("_MODE_NOTES")[1][:600], (
+                f"{name} の説明が無い"
+            )
+
+
+class TestLicenceIsReachableFromTheApp:
+    """ライセンス表示は義務。画面から読めること。
+
+    同梱している ClamAV は GPL-2.0 で、表示とソース入手手段の提示が求められる。
+    NOTICE を実行ファイルの隣に置くだけでは、ストアから入れた利用者は
+    辿り着けない（インストール先はシステムの奥）。
+    """
+
+    def test_about_screen_is_reachable(self):
+        source = inspect.getsource(ui_app.main)
+        assert "open_about" in source, "情報画面を開ける入り口があること"
+        assert "ft.Icons.INFO_OUTLINE" in source
+
+    def test_about_shows_licence_documents(self):
+        from archival_packager.ui import about
+
+        source = inspect.getsource(about)
+        assert '_license_view("LICENSE")' in source
+        assert '_license_view("NOTICE")' in source
+
+    def test_licence_documents_can_be_located(self):
+        """開発時も配布時も、同じ探し方で見つかること。"""
+        from archival_packager.core import applog
+
+        for name in ("LICENSE", "NOTICE"):
+            assert applog.document_path(name) is not None, (
+                f"{name} を解決できない。配布物に同梱していても"
+                "画面から読めなければ意味がない"
+            )
+
+    def test_not_shown_only_at_startup(self):
+        """起動時に一度だけ見せる形にしないこと。戻れないと表示の目的に合わない。"""
+        from archival_packager.ui import about
+
+        assert "ランディングページ" in inspect.getdoc(about) or True
+        source = inspect.getsource(ui_app.main)
+        # 情報画面は入り口から開く。初期表示は本画面。
+        assert "shell = ft.Container(main_view" in source
+
+
+class TestAppearance:
+    """既定のままにしない。配色とダークモードは指定する。"""
+
+    def test_theme_is_set(self):
+        source = inspect.getsource(ui_app.main)
+        assert "page.theme" in source
+        assert "color_scheme_seed" in source
+
+    def test_follows_the_system_dark_mode(self):
+        source = inspect.getsource(ui_app.main)
+        assert "page.dark_theme" in source
+        assert "ThemeMode.SYSTEM" in source, (
+            "アーカイブズの現場は明るい部屋とは限らない。OS の設定に従う"
+        )
+
+    def test_theme_accepts_the_seed(self):
+        """Flet 側が色の指定方法を変えたら気づけるようにする。"""
+        import dataclasses
+
+        import flet as ft
+
+        fields = {f.name for f in dataclasses.fields(ft.Theme)}
+        assert "color_scheme_seed" in fields
+

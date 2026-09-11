@@ -60,3 +60,24 @@ def record(summary: str, detail: str = "") -> Path | None:
         return path
     except OSError:
         return None
+
+def document_path(name: str) -> Path | None:
+    """配布物に同梱した文書（LICENSE / NOTICE）を探す。
+
+    **GPL-2.0 の ClamAV を同梱しているため、ライセンス表示は義務である。**
+    ファイルを exe の隣に置くだけでは、MSIX で入れた利用者は辿り着けない。
+    画面から読めるようにするために、実行時に場所を解決する。
+
+    置き場所は bundled と同じ考え方（配布物では実行ファイルの隣、
+    開発では リポジトリ直下）。
+    """
+    exe_dir = Path(sys.executable).resolve().parent
+    candidates = [exe_dir / name]
+    if sys.platform == "darwin":
+        # <App>.app/Contents/MacOS/<exe> -> <App>.app/Contents/Resources/
+        candidates.append(exe_dir.parent / "Resources" / name)
+    candidates.append(Path(__file__).resolve().parents[3] / name)
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
