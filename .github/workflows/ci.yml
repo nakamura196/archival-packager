@@ -247,6 +247,19 @@ jobs:
           foreach ($f in @($out, "self-test-err.log")) {
             if (Test-Path $f) { Write-Host "--- $f ---"; Get-Content $f | Write-Host }
           }
+          # 見つからないときに備えて、どこに何があるかを出す。
+          Write-Host "--- 探した場所: $report ---"
+          $dir = Split-Path $report
+          if (Test-Path $dir) {
+            Get-ChildItem $dir | Format-Table Name, Length, LastWriteTime | Out-String | Write-Host
+            $log = Join-Path $dir "errors.log"
+            if (Test-Path $log) { Write-Host "--- errors.log ---"; Get-Content $log | Write-Host }
+          } else {
+            Write-Host "（フォルダ自体がありません）"
+          }
+          Get-ChildItem -Path $env:USERPROFILE -Filter "self-test.txt" -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 5 | ForEach-Object { Write-Host "みつかった: $($_.FullName)" }
+
           if (-not (Test-Path $report)) {
             throw "自己診断が結果を残しませんでした（起動していないか、書けていない）"
           }
