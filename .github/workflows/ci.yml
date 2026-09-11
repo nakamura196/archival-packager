@@ -215,11 +215,20 @@ jobs:
       #
       # 撮影そのものは runner の描画環境しだいなので失敗を許すが、
       # 「窓が出たか」だけは落として止める（スクリプトが例外を投げる）。
+      - name: Launch the packaged app and take screenshots (Windows)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: pwsh -File scripts/screenshot-windows.ps1
+
       # 包んだアプリ自身に自己診断をさせる。
       #
       # Python 側のテストは Flutter の部品まで届かない。「フォルダを選ぶ」
       # 「クリップボードに入れる」は、包んで署名したあとの実物でないと
       # 確かめられない（macOS 版は entitlement 不足でここが落ちた）。
+      #
+      # **起動確認の後ろに置く。** 初回起動では Python（約 100MB）の展開に
+      # 数分かかり、その間は Python 側の処理が一切始まらない。
+      # 1 回目の起動を済ませてから走らせる。
       - name: Self-test the packaged app (Windows)
         if: matrix.target == 'windows'
         shell: pwsh
@@ -267,11 +276,6 @@ jobs:
           $text = Get-Content $report -Raw
           Write-Host $text
           if ($text -notmatch "自己診断: PASS") { throw "自己診断に落ちた項目があります" }
-
-      - name: Launch the packaged app and take screenshots (Windows)
-        if: matrix.target == 'windows'
-        shell: pwsh
-        run: pwsh -File scripts/screenshot-windows.ps1
 
       - name: Upload the screenshots (Windows)
         if: matrix.target == 'windows'

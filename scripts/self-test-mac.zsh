@@ -42,9 +42,11 @@ print "自己診断: $bin"
 ARCHIVAL_PACKAGER_SELF_TEST="$report" "$bin" --self-test > /tmp/archival-packager-self-test.log 2>&1 &
 pid=$!
 
-# Python の展開に時間がかかる。結果ファイルが出るまで待つ。
+# **初回起動は遅い。** ビルドし直した直後は Python（約 100MB）の展開から
+# 始まるので、Python 側の処理が始まるまでに数分かかる。ここで待ちきれずに
+# 打ち切ると「結果が残らない」と誤解する（CI で一度そうなった）。
 i=0
-while [ $i -lt 36 ] && kill -0 $pid 2>/dev/null; do
+while [ $i -lt 72 ] && kill -0 $pid 2>/dev/null; do
   if [[ -f "$report" ]] && grep -q "自己診断:" "$report"; then break; fi
   sleep 5
   i=$((i+1))
