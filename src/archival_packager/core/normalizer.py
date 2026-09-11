@@ -99,6 +99,7 @@ def _normalize_by_subprocess(
             encoding="utf-8",
             errors="replace",
             env=env,
+            **bundled.no_window(),
         )
     except OSError as exc:
         raise AIPPipelineError.tool_failed(rule.tool, -1, str(exc)) from exc

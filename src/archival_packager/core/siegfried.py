@@ -64,6 +64,7 @@ def identify(
             # 例外にせず置換して先へ進める（1 ファイルのために全体を止めない）。
             encoding="utf-8",
             errors="replace",
+            **bundled.no_window(),
         )
     except FileNotFoundError as exc:
         raise SIPPipelineError.tool_failed("siegfried", -1, str(exc)) from exc

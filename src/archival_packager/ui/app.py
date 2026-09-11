@@ -64,14 +64,34 @@ def main(page: ft.Page) -> None:
     run_button = ft.FilledButton("実行", icon=ft.Icons.PLAY_ARROW, disabled=True)
     result_panel = ft.Column(spacing=8)
 
+    def ui(mutate) -> None:
+        """画面の変更は必ずイベントループ側で行う。
+
+        ワーカースレッドから直接 controls をいじると、UI 側が木構造を比較している
+        最中にリストが伸び、Flet の差分計算が範囲外を見て落ちる
+        （object_patch._compare_lists で IndexError）。**配布版で実際に起きた。**
+
+        page.run_task は内部で asyncio.run_coroutine_threadsafe を使うので、
+        どのスレッドから呼んでも安全にイベントループへ渡る。UI スレッドから
+        呼んでも単に予約されるだけなので、呼び分けは不要。
+        """
+
+        async def _run() -> None:
+            mutate()
+            page.update()
+
+        page.run_task(_run)
+
     def log(message: str) -> None:
-        progress_log.controls.append(ft.Text(message, size=12, selectable=True))
-        page.update()
+        ui(lambda: progress_log.controls.append(
+            ft.Text(message, size=12, selectable=True)))
 
     def clear_log() -> None:
-        progress_log.controls.clear()
-        result_panel.controls.clear()
-        page.update()
+        def _clear() -> None:
+            progress_log.controls.clear()
+            result_panel.controls.clear()
+
+        ui(_clear)
 
     # ------------------------------------------------------------------
     # モード
@@ -196,7 +216,12 @@ def main(page: ft.Page) -> None:
     # ------------------------------------------------------------------
 
     def show_result(result: SIPResult | AIPResult) -> None:
-        """成果物と、目視確認が必要な点を出す。"""
+        """成果物と、目視確認が必要な点を出す。
+
+        ワーカースレッドから呼ばれる。いったん手元のリストに積み、
+        最後にまとめてイベントループ側へ渡す（ui の説明を参照）。
+        """
+        _items: list[ft.Control] = []
         if isinstance(result, SIPResult):
             path = result.sip_path
             headline = f"SIP を作成しました（{result.file_count} 件 / {result.total_bytes:,} バイト）"
@@ -215,10 +240,10 @@ def main(page: ft.Page) -> None:
             )
             extras = [("METS", result.mets_path), ("ZIP", result.zip_path)]
 
-        result_panel.controls.append(
+        _items.append(
             ft.Text(headline, weight=ft.FontWeight.BOLD, size=15)
         )
-        result_panel.controls.append(
+        _items.append(
             ft.Row(
                 [
                     ft.Text(str(path), size=12, selectable=True, expand=True),
@@ -234,7 +259,7 @@ def main(page: ft.Page) -> None:
         for label, candidate in extras:
             if candidate is None:
                 continue
-            result_panel.controls.append(
+            _items.append(
                 ft.Row(
                     [
                         ft.Text(f"{label}: {candidate.name}", size=12, expand=True),
@@ -246,7 +271,7 @@ def main(page: ft.Page) -> None:
             )
 
         if result.warnings:
-            result_panel.controls.append(
+            _items.append(
                 ft.Container(
                     ft.Column(
                         [
@@ -270,11 +295,10 @@ def main(page: ft.Page) -> None:
                 )
             )
         else:
-            result_panel.controls.append(
+            _items.append(
                 ft.Text("目視確認が必要な点はありません。", size=12, color=ft.Colors.GREEN_700)
             )
-
-        page.update()
+        ui(lambda: result_panel.controls.extend(_items))
 
     def worker() -> None:
         """別スレッドで走る本処理。UI を固めないため。"""
@@ -335,12 +359,15 @@ def main(page: ft.Page) -> None:
             # 想定外。詳細を出さないと現場で原因が追えない。
             _show_error(f"{type(exc).__name__}: {exc}", traceback.format_exc())
         finally:
-            progress_bar.visible = False
-            run_button.disabled = False
-            page.update()
+            def _done() -> None:
+                progress_bar.visible = False
+                run_button.disabled = False
+
+            ui(_done)
 
     def _show_error(message: str, detail: str = "") -> None:
-        result_panel.controls.append(
+        """ワーカースレッドから呼ばれる。組み立ててから渡す（ui の説明を参照）。"""
+        box = (
             ft.Container(
                 ft.Column(
                     [
@@ -365,7 +392,7 @@ def main(page: ft.Page) -> None:
                 padding=10,
             )
         )
-        page.update()
+        ui(lambda: result_panel.controls.append(box))
 
     def on_run(_e: ft.ControlEvent) -> None:
         clear_log()
@@ -386,11 +413,15 @@ def main(page: ft.Page) -> None:
         except Exception as exc:  # noqa: BLE001
             _show_error(f"{type(exc).__name__}: {exc}", traceback.format_exc())
         finally:
-            virus_db_status.value = virus_db_message()
-            virus_db_button.disabled = False
-            run_button.disabled = state.input_path is None or state.output_parent is None
-            progress_bar.visible = False
-            page.update()
+            def _done() -> None:
+                virus_db_status.value = virus_db_message()
+                virus_db_button.disabled = False
+                run_button.disabled = (
+                    state.input_path is None or state.output_parent is None
+                )
+                progress_bar.visible = False
+
+            ui(_done)
 
     def on_update_virus_db(_e: ft.ControlEvent) -> None:
         clear_log()

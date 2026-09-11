@@ -30,6 +30,9 @@ zip を経由した配置では落ちることがある（spike で実測）。�
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import os
 import platform
 import stat
@@ -37,6 +40,20 @@ import sys
 from pathlib import Path
 
 IS_WINDOWS = platform.system() == "Windows"
+
+
+def no_window() -> dict:
+    """Windows で外部ツールを呼ぶときに、コンソール窓を出さないための指定。
+
+    これを渡さないと、sf / clamscan / freshclam を起動するたびに黒い
+    コマンドプロンプトが開く。GUI アプリとしては明らかな不具合で、
+    **配布版で実際に報告された**（2026-09-11）。
+
+    macOS / Linux では何も足さない（CREATE_NO_WINDOW は Windows 専用）。
+    """
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
 
 
 def _exe_name(name: str) -> str:

@@ -144,6 +144,7 @@ def update_database(
             encoding="utf-8",
             errors="replace",
             env=_tool_environment(),
+            **bundled.no_window(),
         )
     except OSError as exc:
         raise SIPPipelineError.tool_failed("freshclam", -1, str(exc)) from exc
@@ -182,6 +183,7 @@ def scan(root: Path, *, tool: Path | None = None, database: Path | None = None) 
         proc = subprocess.run(
             args, capture_output=True, encoding="utf-8", errors="replace",
             env=_tool_environment(),
+            **bundled.no_window(),
         )
     except OSError as exc:
         raise SIPPipelineError.tool_failed("clamscan", -1, str(exc)) from exc
