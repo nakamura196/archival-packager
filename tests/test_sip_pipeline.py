@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import io
+import sys
 import zipfile
 from pathlib import Path
 
@@ -105,7 +106,18 @@ class TestEndToEnd:
 
 
 class TestOptions:
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Windows では \":\" や \"?\" を含むファイルを作れない",
+    )
     def test_sanitize_records_original_names(self, tmp_path):
+        """Windows で使えない文字を含む名前を、安全な名前に直して元名を残す。
+
+        この場面自体は現実にある（macOS/Linux で作られた資料が Windows の
+        アーカイブズへ持ち込まれる）。ただし **Windows 上では検証用のファイルを
+        作れない**ため、そこでは飛ばす。Windows での同等の確認は、ZIP 取り込み
+        経由で行うのが筋（未実装）。
+        """
         src = tmp_path / "in"
         src.mkdir()
         (src / "a:b?.txt").write_text("x", encoding="utf-8")

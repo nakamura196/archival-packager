@@ -175,14 +175,12 @@ class TestNormalizerFailures:
             normalizer.normalize(f, rule, tmp_path / "work")
         assert "変換ツールが見つかりません" in exc.value.message
 
-    def test_tool_that_produces_nothing_is_an_error(self, tmp_path):
+    def test_tool_that_produces_nothing_is_an_error(self, tmp_path, fake_tool):
         """終了コード 0 でも出力が無いことがある。
 
         存在しない派生物を PREMIS に記録してしまわないよう、ここで止める。
         """
-        fake = tmp_path / "faketool"
-        fake.write_text("#!/bin/sh\nexit 0\n")
-        fake.chmod(0o755)
+        fake = fake_tool(exit_code=0)
 
         rule = NormalizationRule(
             puid_in="fmt/11", purpose=DerivativePurpose.PRESERVATION,
@@ -196,10 +194,8 @@ class TestNormalizerFailures:
             normalizer.normalize(f, rule, tmp_path / "work")
         assert "出力が生成されませんでした" in exc.value.message
 
-    def test_failing_tool_surfaces_stderr(self, tmp_path):
-        fake = tmp_path / "faketool"
-        fake.write_text("#!/bin/sh\necho 'boom' >&2\nexit 3\n")
-        fake.chmod(0o755)
+    def test_failing_tool_surfaces_stderr(self, tmp_path, fake_tool):
+        fake = fake_tool(exit_code=3, stderr="boom")
 
         rule = NormalizationRule(
             puid_in="fmt/11", purpose=DerivativePurpose.PRESERVATION,
@@ -214,11 +210,9 @@ class TestNormalizerFailures:
         assert "code 3" in exc.value.message
         assert "boom" in exc.value.message
 
-    def test_original_is_never_modified(self, tmp_path):
-        fake = tmp_path / "faketool"
-        # 出力を作るが、入力にも書き込もうとする不作法なツールを模す。
-        fake.write_text('#!/bin/sh\nprintf out > "$2"\n')
-        fake.chmod(0o755)
+    def test_original_is_never_modified(self, tmp_path, fake_tool):
+        # 出力だけを作るツールを模す。原本に触れていないことを確かめる。
+        fake = fake_tool(output_text="out")
 
         rule = NormalizationRule(
             puid_in="fmt/11", purpose=DerivativePurpose.PRESERVATION,

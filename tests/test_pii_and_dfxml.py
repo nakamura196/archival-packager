@@ -202,5 +202,7 @@ class TestDFXML:
         assert root.findtext("fileobject/filename") == hostile
 
     def test_input_root_recorded(self):
-        root = self._root([sf("a.txt")], root=Path("/データ/移管 2026"))
-        assert root.findtext("source/image_filename") == "/データ/移管 2026"
+        # パス区切りは OS で変わる（Windows は \\）。直書きせず、渡した Path と比べる。
+        given = Path("/データ/移管 2026")
+        root = self._root([sf("a.txt")], root=given)
+        assert root.findtext("source/image_filename") == str(given)

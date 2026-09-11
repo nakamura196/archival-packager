@@ -113,5 +113,8 @@ class TestApply:
 
     def test_absolute_path_still_points_at_the_original_file(self):
         """sanitize しても絶対パスは元ファイルを指したままでなければコピーできない。"""
-        out, _ = filenames.apply([sf("a:b.txt")], normalize_nfc=True)
-        assert out[0].absolute_path == Path("/tmp/a:b.txt")
+        # Windows は ":" をドライブ区切りと解釈するため、Path("/tmp/a:b.txt") が
+        # 別物になる。元の ScannedFile が持っていた値と突き合わせる。
+        original = sf("a:b.txt")
+        out, _ = filenames.apply([original], normalize_nfc=True)
+        assert out[0].absolute_path == original.absolute_path
