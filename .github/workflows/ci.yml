@@ -2,7 +2,12 @@
 #
 # 既定では Linux でテストのみ走らせる。理由はコスト:
 #   Linux ×1 / Windows ×2 / macOS ×10（private リポジトリの課金倍率）
-# テストは OS 非依存なので Linux で足りる。
+#
+# **ただし「テストは OS 非依存」は誤りだった。** 2026-09-11、Windows 版で
+# 外部ツールを呼ぶたびにコンソール窓が開く不具合を配ってしまった。
+# CREATE_NO_WINDOW は Windows 専用の話で、Linux のテストでは原理的に捕まらない。
+# そのためビルドを行うジョブでは、その OS の上でも pytest を回す。
+# runner は既に動いているので、追加の費用は数分ぶんで済む。
 #
 # ビルドの検証（Windows）は重いので、明示的に要求されたときだけ動かす。
 # macOS のビルド・署名・公証は手元の Mac でできるので CI では行わない。
@@ -117,6 +122,16 @@ jobs:
         shell: pwsh
         run: pwsh -File scripts/fetch-binaries.ps1
 
+      - name: Fetch bundled binaries (macOS)
+        if: matrix.target == 'macos'
+        run: zsh scripts/fetch-binaries.zsh
+
+      # この OS の上でテストを回す。Linux のテストでは捕まらないものがある
+      # （実行ファイル名の付き方、subprocess のフラグ、利用者データの置き場所）。
+      # 同梱バイナリは前の手順で取得済みなので、統合テストもここで走る。
+      - name: pytest（この OS で）
+        run: uv run pytest -q
+
       - name: Build
         env:
           PYTHONIOENCODING: utf-8
@@ -194,11 +209,14 @@ jobs:
             if (-not (Test-Path (Join-Path $root $doc))) { throw "$doc が配布物に入っていません" }
           }
 
-      # Store の掲載に要るスクリーンショットを撮る。中身は scripts/screenshot-windows.ps1。
-      # 描画できるかは runner の環境しだいなので、撮れなくてもビルドは止めない。
-      - name: Take screenshots for the Store listing (Windows)
+      # **パッケージしたアプリが実際に起動するか。** ここは必須の検査にする。
+      # ビルドが通ることと、起動することは別。2026-09-11 に配った版は
+      # ビルドも同梱ツールの起動確認も通っていたが、操作すると落ちた。
+      #
+      # 撮影そのものは runner の描画環境しだいなので失敗を許すが、
+      # 「窓が出たか」だけは落として止める（スクリプトが例外を投げる）。
+      - name: Launch the packaged app and take screenshots (Windows)
         if: matrix.target == 'windows'
-        continue-on-error: true
         shell: pwsh
         run: pwsh -File scripts/screenshot-windows.ps1
 

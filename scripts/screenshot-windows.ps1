@@ -9,6 +9,7 @@
 # 使い方: pwsh -File scripts/screenshot-windows.ps1
 # 前提: build\windows にビルド済みの .exe があること。
 
+# 起動の失敗は止める（ここが本体の検査）。撮影の失敗は警告にとどめる。
 $ErrorActionPreference = "Stop"
 
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
@@ -51,7 +52,16 @@ for ($i = 1; $i -le 60; $i++) {
         break
     }
 }
-if ($handle -eq [IntPtr]::Zero) { throw "アプリの窓が出ませんでした" }
+if ($handle -eq [IntPtr]::Zero) {
+    throw "アプリの窓が出ませんでした。パッケージは作れているが起動していない"
+}
+
+# 起動直後に落ちていないか。窓が出たあとすぐ死ぬ場合がある。
+Start-Sleep -Seconds 5
+$proc.Refresh()
+if ($proc.HasExited) {
+    throw "起動直後にアプリが終了しました（終了コード $($proc.ExitCode)）"
+}
 
 # 窓の取っ手（ハンドル）は数秒で取れるが、Flet はそのあとで
 # 自分の既定の大きさ（app.py の page.window.width/height = 1000x820）を当てる。
