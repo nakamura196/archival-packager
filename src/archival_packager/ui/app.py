@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import threading
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -28,7 +29,7 @@ import flet as ft
 from ..core.aip_models import AIPOptions, AIPPipelineError, AIPResult, DescriptiveMetadata
 from ..core import aip_pipeline, applog, clamav, sip_pipeline
 from ..core.models import SIPMetadata, SIPOptions, SIPPipelineError, SIPResult
-from . import platform as plat
+from . import platform as plat, viewer
 
 MODE_SIP = "sip"
 MODE_AIP = "aip"
@@ -42,6 +43,9 @@ class Selection:
     input_path: Path | None = None
     output_parent: Path | None = None
     prior_accession: Path | None = None
+    #: ビューアを開く手続き。組み立ての順番の都合で、レイアウトを作ったあとに入れる。
+    #: show_result はそれより前に定義されるため、ここを経由して呼ぶ。
+    open_viewer: Callable[[Path], None] = lambda _p: None
 
 
 def main(page: ft.Page) -> None:
@@ -286,6 +290,13 @@ def main(page: ft.Page) -> None:
             ft.Row(
                 [
                     ft.Text(str(path), size=12, selectable=True, expand=True),
+                    # パスを出すだけでは「何ができたか」が伝わらない。
+                    # 中身を見せることが理解を助ける（大仙市での聞き取り）。
+                    ft.FilledTonalButton(
+                        "中身を見る",
+                        icon=ft.Icons.FIND_IN_PAGE_OUTLINED,
+                        on_click=lambda _e, p=path: state.open_viewer(p),
+                    ),
                     ft.OutlinedButton(
                         "場所を開く",
                         icon=ft.Icons.FOLDER_OPEN,
@@ -604,17 +615,31 @@ def main(page: ft.Page) -> None:
         scroll=ft.ScrollMode.AUTO,
     )
 
-    page.add(
-        ft.Row(
-            [
-                ft.Container(left, width=420, padding=16),
-                ft.VerticalDivider(width=1),
-                ft.Container(right, expand=True, padding=16),
-            ],
-            expand=True,
-            vertical_alignment=ft.CrossAxisAlignment.START,
-        )
+    main_view = ft.Row(
+        [
+            ft.Container(left, width=420, padding=16),
+            ft.VerticalDivider(width=1),
+            ft.Container(right, expand=True, padding=16),
+        ],
+        expand=True,
+        vertical_alignment=ft.CrossAxisAlignment.START,
     )
+
+    #: 本画面とビューアを入れ替える器。ビューアはツリーと中身に幅が要るので、
+    #: 並べて置かず、画面ごと切り替える（Swift 版も同じ作り）。
+    shell = ft.Container(main_view, expand=True)
+
+    def close_viewer() -> None:
+        shell.content = main_view
+        shell.update()
+
+    def open_viewer(path: Path) -> None:
+        shell.content = viewer.build(path, on_close=close_viewer)
+        shell.update()
+
+    state.open_viewer = open_viewer
+
+    page.add(shell)
 
 
 def run() -> None:

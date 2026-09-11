@@ -330,3 +330,31 @@ class TestLogDoesNotSlowDownAsItGrows:
             "更新する範囲を指定できるようにすること"
         )
 
+
+class TestResultViewer:
+    """生成結果の中身を見られること。
+
+    macOS 版（Swift）にはあったが、移植時に落ちていた機能。パスを出すだけでは
+    「何ができたか」が伝わらない。大仙市アーカイブズでの聞き取りでは、
+    生成された情報パッケージの中身を画面で見せたことが理解を助けた。
+    """
+
+    def test_result_offers_a_way_to_look_inside(self):
+        source = inspect.getsource(ui_app.main)
+        body = source.split("def show_result(")[1].split("def worker(")[0]
+        assert "state.open_viewer" in body, "結果から中身を開けるようにすること"
+
+    def test_viewer_replaces_the_main_view(self):
+        source = inspect.getsource(ui_app.main)
+        assert "shell.content = viewer.build(" in source
+        assert "shell.content = main_view" in source, "閉じたら本画面に戻ること"
+
+    def test_viewer_uses_the_shared_reader(self):
+        """読み取りと色分けは core 側。画面が変わっても中身の扱いは変えない。"""
+        from archival_packager.ui import viewer
+
+        source = inspect.getsource(viewer)
+        assert "preview.walk(" in source
+        assert "preview.read(" in source
+        assert "preview.highlight_xml(" in source
+
