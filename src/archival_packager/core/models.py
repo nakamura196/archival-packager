@@ -91,6 +91,9 @@ class ScannedFile:
 
     # ウイルス検査が埋める（感染時のみ。ClamAV シグネチャ名）
     virus: str | None = None
+    #: 検査を実行したか。virus=None だけでは「検出なし」と「未実施」を
+    #: 区別できない。前者を安全と読み違えられては困る。
+    scanned_for_virus: bool = False
 
 
 @dataclass(slots=True)

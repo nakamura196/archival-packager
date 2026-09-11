@@ -230,6 +230,11 @@ def _scan_virus(
         progress(f"ウイルスチェックに失敗しましたが、SIP 作成は続行します: {exc.message}")
         return f"失敗（続行）: {exc.message}"
 
+    # ここまで来たら検査は実行できた。検出の有無にかかわらず印を付ける。
+    # 「検査していない」と「検査して検出なし」を区別するため。
+    for f in files:
+        f.scanned_for_virus = True
+
     if not findings:
         progress("ウイルスは検出されませんでした。")
         return "実施（検出なし）"

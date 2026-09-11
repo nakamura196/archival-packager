@@ -51,6 +51,8 @@ class _InheritedMeta:
     puid: str | None = None
     mime: str | None = None
     sha256: str | None = None
+    #: formats.csv の「ウイルス検査」列。古い SIP には無いので None になりうる。
+    virus_state: str | None = None
     descriptive: DescriptiveMetadata | None = None
 
 
@@ -130,6 +132,7 @@ def read(sip_root: Path, *, is_bag: bool | None = None) -> ParsedSIP:
                 puid=entry.puid,
                 format_name=entry.format_name,
                 mime_type=entry.mime,
+                virus_state=entry.virus_state,
                 descriptive=entry.descriptive,
             )
         )
@@ -181,6 +184,8 @@ def _parse_formats_csv(text: str) -> dict[str, _InheritedMeta]:
 
     i_path, i_name = col("相対パス"), col("フォーマット名")
     i_puid, i_mime, i_sha = col("PRONOM"), col("MIME"), col("SHA-256")
+    # 0.1.4 で足した列。古い SIP には無いので、無ければ「不明」として扱う。
+    i_virus = col("ウイルス検査")
 
     out: dict[str, _InheritedMeta] = {}
     for fields in rows[1:]:
@@ -193,7 +198,8 @@ def _parse_formats_csv(text: str) -> dict[str, _InheritedMeta]:
         if not rel:
             continue
         out[rel] = _InheritedMeta(
-            format_name=at(i_name), puid=at(i_puid), mime=at(i_mime), sha256=at(i_sha)
+            format_name=at(i_name), puid=at(i_puid), mime=at(i_mime),
+            sha256=at(i_sha), virus_state=at(i_virus)
         )
     return out
 

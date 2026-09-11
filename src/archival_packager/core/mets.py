@@ -21,6 +21,8 @@ lxml で組めば 1 と 2 は原理的に起こらない（テキストは常に
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from lxml import etree
 
 from .aip_models import AgentKind, AIPFile, DescriptiveMetadata, PremisAgent, PremisEvent
@@ -56,6 +58,17 @@ def agent_id_type(kind: AgentKind) -> str:
     }[kind]
 
 
+@dataclass(frozen=True)
+class SubmissionDocument:
+    """提出書類の 1 件。METS の fileSec に載せるために使う。
+
+    PREMIS の object は持たない（原本でも派生物でもなく、処理の記録そのもの）。
+    """
+
+    href: str   # AIP の data/ からの相対パス
+    uuid: str
+
+
 def build_mets(
     *,
     aip_uuid: str,
@@ -63,6 +76,7 @@ def build_mets(
     agents: list[PremisAgent],
     descriptive: DescriptiveMetadata | None,
     created_iso: str,
+    submission_documentation: list[SubmissionDocument] | None = None,
 ) -> bytes:
     """METS を組み立てて UTF-8 のバイト列で返す。"""
     root = etree.Element(_q(METS_NS, "mets"), nsmap=NSMAP)
@@ -148,6 +162,25 @@ def build_mets(
     preservation = [e for e in entries if not e["original"]]
     if preservation:
         _append_file_grp(file_sec, "preservation", preservation)
+
+    # **提出書類も METS に載せる。** AIP に入れているのに fileSec に無いと、
+    # METS だけを読む側からは存在しないことになる。Archivematica も
+    # submissionDocumentation の fileGrp を持つ。
+    if submission_documentation:
+        _append_file_grp(
+            file_sec,
+            "submissionDocumentation",
+            [
+                {
+                    "original": False,
+                    "file_id": f"file-{d.uuid}",
+                    "adm_id": None,
+                    "href": d.href,
+                    "relative_path": d.href,
+                }
+                for d in submission_documentation
+            ],
+        )
 
     # structMap（原本の物理ツリー）
     _append_struct_map(
@@ -338,11 +371,14 @@ def _append_agent(parent: etree._Element, a: PremisAgent) -> None:
 
 
 def _append_file_grp(parent: etree._Element, use: str, entries: list[dict]) -> None:
+    """fileGrp を 1 つ足す。adm_id が None の項目には ADMID を付けない
+    （提出書類は PREMIS の object を持たない）。"""
     grp = etree.SubElement(parent, _q(METS_NS, "fileGrp"), USE=use)
     for e in entries:
-        f = etree.SubElement(
-            grp, _q(METS_NS, "file"), ID=str(e["file_id"]), ADMID=str(e["adm_id"])
-        )
+        attrs = {"ID": str(e["file_id"])}
+        if e.get("adm_id"):
+            attrs["ADMID"] = str(e["adm_id"])
+        f = etree.SubElement(grp, _q(METS_NS, "file"), **attrs)
         flocat = etree.SubElement(
             f, _q(METS_NS, "FLocat"), LOCTYPE="OTHER", OTHERLOCTYPE="SYSTEM"
         )

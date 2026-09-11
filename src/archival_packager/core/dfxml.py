@@ -24,11 +24,18 @@ from .models import ScannedFile
 DC_NS = "http://purl.org/dc/elements/1.1/"
 
 PROGRAM_NAME = "Archival Packager"
-PROGRAM_VERSION = "0.1.0"
+#: 版は 1 か所（archival_packager.__version__）で持つ。ここに直書きすると
+#: 版を上げたときに追随せず、**来歴記録が誤った道具名を主張する**。
+#: 実際に 0.1.2 を配ったあとも 0.1.0 と記録されていた。
+from archival_packager import __version__ as PROGRAM_VERSION
 
 
 def build(
-    files: list[ScannedFile], input_root: Path, *, start_time: datetime | None = None
+    files: list[ScannedFile],
+    input_root: Path,
+    *,
+    start_time: datetime | None = None,
+    full_source_path: bool = False,
 ) -> bytes:
     """DFXML を組み立てて UTF-8 のバイト列で返す。"""
     started = start_time or datetime.now(timezone.utc)
@@ -45,7 +52,14 @@ def build(
     etree.SubElement(env, "start_time").text = _iso(started)
 
     source = etree.SubElement(root, "source")
-    etree.SubElement(source, "image_filename").text = str(input_root)
+    # **既定ではフォルダ名だけを残す。** 絶対パスには利用者名が入る
+    #   （例: C:\Users\<名前>\Desktop\移管 2026）。
+    # AIP は外部に渡りうるもので、このアプリ自身は個人情報を検出する機能を
+    # 持っている。自分が利用者名を埋め込むのは筋が通らない。
+    # 組織の方針として完全なパスを残したい場合は full_source_path で切り替える。
+    etree.SubElement(source, "image_filename").text = (
+        str(input_root) if full_source_path else input_root.name
+    )
 
     for i, f in enumerate(files, start=1):
         obj = etree.SubElement(root, "fileobject")

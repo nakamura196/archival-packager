@@ -65,13 +65,14 @@ def a_file(rel: str, uuid: str, **kw) -> AIPFile:
     )
 
 
-def build(files, agents=None, descriptive=None) -> etree._Element:
+def build(files, agents=None, descriptive=None, submission=None) -> etree._Element:
     xml = mets.build_mets(
         aip_uuid="aip-uuid",
         files=files,
         agents=agents or [],
         descriptive=descriptive,
         created_iso="2026-09-11T00:00:00Z",
+        submission_documentation=submission,
     )
     return etree.fromstring(xml)
 
@@ -131,6 +132,37 @@ class TestGeneratedMETSValidates:
         doc = build([f], descriptive=DescriptiveMetadata(title="派生物あり"))
         assert mets_schema.validate(doc), (
             "派生物を含む METS が適合しない:\n" + _explain(mets_schema)
+        )
+
+
+    def test_submission_documentation_group_validates(self, mets_schema):
+        """提出書類の fileGrp を足しても適合すること。
+
+        ADMID を付けない file を含むため、スキーマ上許されるかを確かめる。
+        """
+        doc = build(
+            [a_file("objects/a.pdf", "u6")],
+            descriptive=DescriptiveMetadata(title="提出書類あり"),
+            submission=[
+                mets.SubmissionDocument(
+                    href="objects/submissionDocumentation/report.txt", uuid="d1"
+                )
+            ],
+        )
+        assert mets_schema.validate(doc), (
+            "提出書類を含む METS が適合しない:\n" + _explain(mets_schema)
+        )
+
+    def test_identification_and_virus_events_validate(self, mets_schema):
+        """識別・検査のイベントを足しても適合すること。"""
+        from archival_packager.core import aip_pipeline
+
+        f = a_file("objects/a.pdf", "u7", virus_state="検出なし")
+        aip_pipeline._append_identification_event(f, "2026-09-11T00:00:00Z", ["a"])
+        aip_pipeline._append_virus_event(f, "2026-09-11T00:00:00Z", ["a"])
+        doc = build([f], descriptive=DescriptiveMetadata(title="識別と検査"))
+        assert mets_schema.validate(doc), (
+            "識別・検査のイベントを含む METS が適合しない:\n" + _explain(mets_schema)
         )
 
 

@@ -202,7 +202,8 @@ class TestDFXML:
         assert root.findtext("fileobject/filename") == hostile
 
     def test_input_root_recorded(self):
-        # パス区切りは OS で変わる（Windows は \\）。直書きせず、渡した Path と比べる。
+        # **既定ではフォルダ名だけを残す。** 絶対パスには利用者名が入り、
+        # AIP は外部に渡りうる（test_provenance_record.py を参照）。
         given = Path("/データ/移管 2026")
         root = self._root([sf("a.txt")], root=given)
-        assert root.findtext("source/image_filename") == str(given)
+        assert root.findtext("source/image_filename") == "移管 2026"

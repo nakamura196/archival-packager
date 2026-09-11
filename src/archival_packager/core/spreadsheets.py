@@ -133,8 +133,10 @@ def pii_report(files: list[ScannedFile]) -> str | None:
 def formats(files: list[ScannedFile]) -> str:
     """技術インベントリ（ファイル単位）。brunnhilde の formats.csv 相当。"""
     rows: list[list[str]] = [
+        # **ウイルス検査の結果は機械で読める形で残す。** レポートの文章の中だけだと、
+        # AIP を作るときに「検査したか」を辿れず、PREMIS に記録できない。
         ["相対パス", "フォーマット名", "PRONOM", "MIME",
-         "拡張子警告", "サイズ(バイト)", "更新日時", "SHA-256"]
+         "拡張子警告", "サイズ(バイト)", "更新日時", "SHA-256", "ウイルス検査"]
     ]
     for f in files:
         rows.append(
@@ -147,9 +149,22 @@ def formats(files: list[ScannedFile]) -> str:
                 str(f.size_bytes),
                 _iso(f.modified),
                 f.sha256 or "",
+                _virus_state(f),
             ]
         )
     return _to_csv(rows)
+
+
+#: ウイルス検査の状態。「検査していない」と「検査して検出なし」を区別する。
+#: 前者を安全と読み違えられては困る。
+VIRUS_NOT_SCANNED = "未実施"
+VIRUS_CLEAN = "検出なし"
+
+
+def _virus_state(f: ScannedFile) -> str:
+    if f.virus:
+        return f"検出: {f.virus}"
+    return VIRUS_CLEAN if f.scanned_for_virus else VIRUS_NOT_SCANNED
 
 
 def metadata_template(files: list[ScannedFile]) -> str:

@@ -15,6 +15,8 @@ AIP の data/ 配下:
 
 from __future__ import annotations
 
+from .. import __version__
+
 import shutil
 import tempfile
 import uuid as _uuid
@@ -42,7 +44,8 @@ from .aip_models import (
 Progress = Callable[[str], None]
 
 APP_AGENT_ID = "archival-packager"
-APP_AGENT_NAME = "Archival Packager 0.1.0"
+#: PREMIS の agentName。版を直書きしない（dfxml.py の注を参照）。
+APP_AGENT_NAME = f"Archival Packager {__version__}"
 
 
 def run(
@@ -87,6 +90,7 @@ def run(
             agents=agents,
             descriptive=descriptive,
             created_iso=now,
+            submission_documentation=_submission_documents(parsed),
         )
 
         progress("AIP（BagIt bag）を組み立てています…")
@@ -135,6 +139,28 @@ def _agents(options: AIPOptions) -> list[PremisAgent]:
     return agents
 
 
+def _submission_documents(parsed) -> list[mets.SubmissionDocument]:
+    """AIP に継承する提出書類を、METS に載せる形で並べる。
+
+    **AIP に入れているのに fileSec に無いと、METS だけを読む側からは
+    存在しないことになる。** BagIt のマニフェストには入っていたが、
+    METS からは辿れていなかった。
+    """
+    root = parsed.submission_documentation
+    if not root or not root.is_dir():
+        return []
+    docs: list[mets.SubmissionDocument] = []
+    for path in sorted(p for p in root.rglob("*") if p.is_file()):
+        rel = path.relative_to(root).as_posix()
+        docs.append(
+            mets.SubmissionDocument(
+                href=f"objects/submissionDocumentation/{rel}",
+                uuid=str(_uuid.uuid4()),
+            )
+        )
+    return docs
+
+
 def _record_ingestion_events(
     files: list[AIPFile], status: FixityStatus, now: str, options: AIPOptions
 ) -> None:
@@ -163,6 +189,61 @@ def _record_ingestion_events(
                 outcome=outcome, agent_ids=agent_ids,
             )
         )
+        # **識別と検査も保存処理である。** 実行したのに記録していなかった。
+        # PREMIS は、いつ・何を・どの道具で行ったかを残すためにある。
+        _append_identification_event(f, now, agent_ids)
+        _append_virus_event(f, now, agent_ids)
+
+
+#: フォーマット識別に使っている道具。PREMIS の linkingAgent に出す。
+IDENTIFICATION_AGENT = "Siegfried (PRONOM)"
+
+
+def _append_identification_event(f: AIPFile, now: str, agent_ids: list[str]) -> None:
+    """フォーマット識別の event。
+
+    識別そのものは SIP を作るときに行われ、その結果が技術インベントリに
+    残っている。AIP 化にあたって、その事実を保存処理記録として書き出す。
+    """
+    if f.puid:
+        outcome = "success"
+        note = f"PRONOM {f.puid}" + (f"（{f.format_name}）" if f.format_name else "")
+    else:
+        # 識別できなかったことも記録に値する。あとから見た人が、
+        # 「識別しなかった」のか「識別できなかった」のかを区別できる。
+        outcome = "fail"
+        note = "識別できませんでした"
+    f.events.append(
+        PremisEvent(
+            type="format identification", date_time=now, detail_note=note,
+            outcome=outcome, agent_ids=[*agent_ids, IDENTIFICATION_AGENT],
+        )
+    )
+
+
+def _append_virus_event(f: AIPFile, now: str, agent_ids: list[str]) -> None:
+    """ウイルス検査の event。**実施していないときは書かない。**
+
+    「検査して検出なし」と「検査していない」を取り違えられては困る。
+    書かないことが「不明」を表す。
+    """
+    state = (f.virus_state or "").strip()
+    if not state or state.startswith("未実施"):
+        return
+    if state.startswith("検出:"):
+        outcome, note = "fail", state
+    else:
+        outcome, note = "pass", state
+    f.events.append(
+        PremisEvent(
+            type="virus check", date_time=now, detail_note=note,
+            outcome=outcome, agent_ids=[*agent_ids, VIRUS_AGENT],
+        )
+    )
+
+
+#: ウイルス検査に使っている道具。
+VIRUS_AGENT = "ClamAV"
 
 
 # 同梱していない変換ツールについて、report を読んだ人が次に何をすればよいか。

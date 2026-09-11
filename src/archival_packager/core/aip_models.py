@@ -203,6 +203,8 @@ class AIPFile:
     puid: str | None = None
     format_name: str | None = None
     mime_type: str | None = None
+    #: SIP の formats.csv にあったウイルス検査の状態。PREMIS に記録するために運ぶ。
+    virus_state: str | None = None
 
     # metadata.csv の該当行から継承する file 単位の記述メタデータ
     descriptive: DescriptiveMetadata | None = None

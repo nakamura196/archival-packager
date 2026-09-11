@@ -161,7 +161,9 @@ def main(page: ft.Page) -> None:
     # ------------------------------------------------------------------
 
     identifier = ft.TextField(label="識別子", hint_text="例: 2026-移管-総務課", dense=True)
-    title = ft.TextField(label="タイトル", hint_text="例: 総務課 一般文書", dense=True)
+    title = ft.TextField(
+        label="タイトル（必須）", hint_text="例: 総務課 一般文書", dense=True
+    )
     scope_note = ft.TextField(label="内容・範囲", multiline=True, min_lines=2, max_lines=4, dense=True)
     date_note = ft.TextField(label="年代", hint_text="例: 2024–2025", dense=True)
     archivist = ft.TextField(
@@ -225,7 +227,15 @@ def main(page: ft.Page) -> None:
     page.services.append(clipboard)
 
     def refresh_run_enabled() -> None:
-        run_button.disabled = state.input_path is None or state.output_parent is None
+        # **タイトルは必須。** 空のまま出力できると、記述の無い情報パッケージが
+        # できてしまう。あとから資料を探す手がかりが無くなる。
+        # AIP 作成では SIP の記述を引き継ぐので、ここでは求めない。
+        needs_title = mode.value in (MODE_SIP, MODE_FULL)
+        run_button.disabled = (
+            state.input_path is None
+            or state.output_parent is None
+            or (needs_title and not (title.value or "").strip())
+        )
         page.update()
 
     async def choose_input_dir(_e: ft.ControlEvent) -> None:
@@ -694,11 +704,14 @@ def main(page: ft.Page) -> None:
               if c.visible and c.value]
         options_summary.value = "、".join(on) if on else "既定のまま"
 
+        refresh_run_enabled()
+
         # 初回は page.add より前に呼ぶ。まだ画面に載っていないコントロールを
         # update すると RuntimeError になるので、載ってからだけ更新する。
         if left.page is not None:
             left.update()
 
+    title.on_change = lambda _e: refresh_run_enabled()
     mode.on_change = apply_mode
     for _cb in (make_bag, sanitize, scan_pii, scan_virus, normalize, serialize_zip):
         # ウイルス検査を使わないなら定義 DB の欄も要らない。見出しの更新も兼ねる。
