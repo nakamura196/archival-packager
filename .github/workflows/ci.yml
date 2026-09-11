@@ -226,6 +226,8 @@ jobs:
         run: |
           $exe = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)[0].FullName
           $out = Join-Path $PWD "self-test.log"
+          # 引数が入口まで届かない場合があるので、環境変数でも指示する。
+          $env:ARCHIVAL_PACKAGER_SELF_TEST = "1"
           $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -PassThru `
                  -RedirectStandardOutput $out -RedirectStandardError "self-test-err.log"
           if (-not $p.WaitForExit(180000)) {

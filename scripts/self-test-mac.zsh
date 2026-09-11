@@ -19,7 +19,7 @@ bin="$app/Contents/MacOS/$(basename "$app" .app)"
 
 print "自己診断: $bin"
 log="$(mktemp)"
-"$bin" --self-test > "$log" 2>&1 &
+ARCHIVAL_PACKAGER_SELF_TEST=1 "$bin" --self-test > "$log" 2>&1 &
 pid=$!
 
 i=0

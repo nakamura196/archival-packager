@@ -815,6 +815,7 @@ def self_test(page: ft.Page) -> None:
     """
     import asyncio
 
+    print("自己診断モードで起動しました", flush=True)
     results: list[tuple[str, str]] = []
 
     def record(name: str, error: BaseException | None) -> None:
@@ -865,7 +866,9 @@ def self_test(page: ft.Page) -> None:
 
 
 def run() -> None:
-    if "--self-test" in sys.argv or os.environ.get("ARCHIVAL_PACKAGER_SELF_TEST") == "1":
+    # 包んだアプリでは、渡したはずの引数が Flet の入口まで届かないことがある
+    # （実際 macOS の .app では届かなかった）。環境変数を主、引数を従にする。
+    if os.environ.get("ARCHIVAL_PACKAGER_SELF_TEST") == "1" or "--self-test" in sys.argv:
         ft.run(self_test)
         return
     ft.run(main)
