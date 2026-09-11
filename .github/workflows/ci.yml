@@ -232,8 +232,9 @@ jobs:
       # MSIX（Microsoft Store が扱う配布形式）に包む。
       #
       # Store に MSIX で出すと Microsoft が署名し直すので、こちらで証明書を
-      # 買う必要がなくなる。ここで作るのは「包める形になっているか」の確認用で、
-      # Identity は Partner Center の値ではないため、このままでは提出できない。
+      # 買う必要がなくなる。Identity は Partner Center が発行した値を
+      # packaging/windows/AppxManifest.xml.in に入れてあるので、ここで出る
+      # MSIX はそのまま Partner Center にアップロードできる。
       - name: Package as MSIX (Windows)
         if: matrix.target == 'windows'
         shell: pwsh
