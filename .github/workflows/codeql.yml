@@ -1,0 +1,42 @@
+# 外部の静的解析（CodeQL）。公開リポジトリなら無料で使える。
+#
+# **なぜ要るか:** このアプリの検証は、これまで自分たちで書いたテストだけだった。
+# 差分検証の相手も同じ設計者が書いた Swift 版なので、外の目が入っていない。
+# CodeQL は Microsoft/GitHub が保守する規則で見るので、**自分たちの思い込みの
+# 外側**を見てくれる。資料を預かる道具である以上、この一段は入れておく。
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 依存も規則も後から更新される。週 1 で回し直す。
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: github/codeql-action/init@faaca9a8f6edddba5725ffe5adefdab6669a2eca # v3.38.0
+        with:
+          languages: python
+          # 既定より広い規則。誤検出は増えるが、見落とすより良い。
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@faaca9a8f6edddba5725ffe5adefdab6669a2eca # v3.38.0
+        with:
+          category: /language:python
