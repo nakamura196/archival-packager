@@ -169,13 +169,13 @@ class TestVirusStateIsMachineReadable:
         return list(csv.reader(io.StringIO(text, newline="")))[1]
 
     def _scanned(self, **kw) -> ScannedFile:
-        from datetime import datetime
+        from datetime import UTC, datetime
 
         return ScannedFile(
             relative_path="a.txt",
             absolute_path=Path("/x/a.txt"),
             size_bytes=1,
-            modified=datetime.fromtimestamp(0),
+            modified=datetime.fromtimestamp(0, UTC),
             **kw,
         )
 

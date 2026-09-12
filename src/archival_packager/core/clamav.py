@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import subprocess
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from . import bundled
@@ -102,7 +102,7 @@ def database_status(directory: Path | None = None) -> str:
         return "ウイルス定義: 未取得（検査はスキップされます）"
 
     newest = max(p.stat().st_mtime for p in present)
-    when = datetime.fromtimestamp(newest).strftime("%Y-%m-%d %H:%M")
+    when = datetime.fromtimestamp(newest, UTC).astimezone().strftime("%Y-%m-%d %H:%M")
     return f"ウイルス定義: 取得済み（{len(present)} ファイル / 更新 {when}）"
 
 

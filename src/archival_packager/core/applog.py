@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import platform
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 _DIR_NAME = "ArchivalPackager"
@@ -52,7 +52,7 @@ def record(summary: str, detail: str = "") -> Path | None:
         if path.is_file() and path.stat().st_size > _MAX_BYTES:
             path.unlink()
         with path.open("a", encoding="utf-8") as f:
-            f.write(f"\n===== {datetime.now().isoformat(timespec='seconds')} =====\n")
+            f.write(f"\n===== {datetime.now(UTC).astimezone().isoformat(timespec='seconds')} =====\n")
             f.write(environment() + "\n")
             f.write(summary + "\n")
             if detail:

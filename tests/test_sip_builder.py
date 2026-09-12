@@ -8,7 +8,7 @@ bag は自前実装ではなく bagit（米国議会図書館のリファレン�
 from __future__ import annotations
 
 import unicodedata
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -53,7 +53,7 @@ def payload(tmp_path: Path) -> tuple[Path, list[ScannedFile]]:
                 relative_path=rel,
                 absolute_path=abs_path,
                 size_bytes=abs_path.stat().st_size,
-                modified=datetime.fromtimestamp(abs_path.stat().st_mtime),
+                modified=datetime.fromtimestamp(abs_path.stat().st_mtime, UTC),
                 sha256=sha256_of(abs_path),
                 puid="fmt/111",
             )
@@ -228,11 +228,11 @@ class TestBagLayout:
 class TestWarnings:
     def test_collects_points_needing_review(self):
         files = [
-            ScannedFile("v.txt", Path("/x/v.txt"), 1, datetime.fromtimestamp(0), virus="Eicar"),
-            ScannedFile("p.txt", Path("/x/p.txt"), 1, datetime.fromtimestamp(0), puid="fmt/1",
+            ScannedFile("v.txt", Path("/x/v.txt"), 1, datetime.fromtimestamp(0, UTC), virus="Eicar"),
+            ScannedFile("p.txt", Path("/x/p.txt"), 1, datetime.fromtimestamp(0, UTC), puid="fmt/1",
                         pii=[PIIFinding(kind="email", masked="a***@b")]),
-            ScannedFile("u.bin", Path("/x/u.bin"), 1, datetime.fromtimestamp(0)),
-            ScannedFile("m.txt", Path("/x/m.txt"), 1, datetime.fromtimestamp(0), puid="fmt/2",
+            ScannedFile("u.bin", Path("/x/u.bin"), 1, datetime.fromtimestamp(0, UTC)),
+            ScannedFile("m.txt", Path("/x/m.txt"), 1, datetime.fromtimestamp(0, UTC), puid="fmt/2",
                         format_warning="extension mismatch"),
         ]
         w = "\n".join(sip_builder.collect_warnings(files))
@@ -242,7 +242,7 @@ class TestWarnings:
         assert "拡張子不一致: m.txt" in w
 
     def test_identified_clean_file_produces_no_warning(self):
-        f = ScannedFile("ok.txt", Path("/x/ok.txt"), 1, datetime.fromtimestamp(0), puid="fmt/1")
+        f = ScannedFile("ok.txt", Path("/x/ok.txt"), 1, datetime.fromtimestamp(0, UTC), puid="fmt/1")
         assert sip_builder.collect_warnings([f]) == []
 
 
@@ -278,7 +278,7 @@ class TestUnicodeNormalizationCheck:
     NFC = unicodedata.normalize("NFC", "が.txt")  # 合成形
 
     def _file(self, rel):
-        return ScannedFile(rel, Path("/x") / rel, 1, datetime.fromtimestamp(0))
+        return ScannedFile(rel, Path("/x") / rel, 1, datetime.fromtimestamp(0, UTC))
 
     def test_decomposed_name_is_flagged(self):
         warnings = sip_builder.check_unicode_normalization(

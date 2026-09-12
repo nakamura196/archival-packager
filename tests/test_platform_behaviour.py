@@ -118,7 +118,7 @@ class TestNaiveTimestampsDoNotCrash:
             relative_path="a.txt",
             absolute_path=Path("/x/a.txt"),
             size_bytes=1,
-            modified=datetime(1970, 1, 1, 0, 0, 0),
+            modified=datetime(1970, 1, 1, 0, 0, 0),  # noqa: DTZ001 — tz 無しが試験の目的
         )
 
     def test_description_sheet(self):
@@ -133,7 +133,7 @@ class TestNaiveTimestampsDoNotCrash:
         from archival_packager.core import spreadsheets
 
         f = self._file()
-        object.__setattr__(f, "modified", datetime.fromtimestamp(0))
+        object.__setattr__(f, "modified", datetime.fromtimestamp(0))  # noqa: DTZ006
         assert spreadsheets.formats([f])
 
     def test_dfxml_and_sheet_agree(self):

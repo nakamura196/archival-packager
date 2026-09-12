@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -21,7 +21,7 @@ def sf(rel: str) -> ScannedFile:
         relative_path=rel,
         absolute_path=Path("/tmp") / rel,
         size_bytes=1,
-        modified=datetime.fromtimestamp(0),
+        modified=datetime.fromtimestamp(0, UTC),
     )
 
 

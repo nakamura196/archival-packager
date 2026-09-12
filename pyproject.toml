@@ -64,6 +64,9 @@ line-length = 110
 
 [tool.ruff.lint]
 # E/F: 素の誤り。I: import 順。UP: 古い書き方。B: 壊れやすい書き方。
-# DTZ（naive な datetime）は入れたいが、既存の違反が多く別途整理する。
-# Windows で実際に事故を起こした種類なので、TODO として README に残す。
-select = ["E", "F", "I", "UP", "B"]
+# DTZ: tz を持たない datetime。2026-09-12 に有効化した（14 件を整理）。
+# **これは見た目の問題ではない。** Windows で `spreadsheets._iso` が
+# OSError で落ちた事故が、まさにこの型だった（tz 無しの値を astimezone に
+# 渡すと 1970-01-01 前後で失敗する）。この規則があれば気づけていた。
+# 意図して tz 無しにしている試験は 2 か所あり、`# noqa: DTZ00x` を付けてある。
+select = ["E", "F", "I", "UP", "B", "DTZ"]

@@ -482,9 +482,8 @@ class TestReportContents:
     def test_html_says_so_when_nothing_needs_review(self):
         import datetime
 
-        files = [
-            ScannedFile("ok.txt", Path("/x/ok.txt"), 1, datetime.datetime(2026, 7, 25), puid="fmt/1")
-        ]
+        when = datetime.datetime(2026, 7, 25, tzinfo=datetime.UTC)
+        files = [ScannedFile("ok.txt", Path("/x/ok.txt"), 1, when, puid="fmt/1")]
         out = report.html_report(files, SIPMetadata("id", "t"), SIPOptions(), virus_status="未実施")
         assert "目視確認が必要な点はありません" in out
 
