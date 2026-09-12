@@ -1,7 +1,17 @@
-"""生成結果のビューア。左にツリー、右に中身。
+"""生成結果のビューア。
 
-Swift 版（nakamura196/archival-packager）の ResultViewer.swift に対応する。
-**読み取りと色分けは core/preview.py にある。** ここは並べ方だけを持つ。
+**ファイルを開くのは Finder / エクスプローラーに任せる。**
+ここが見せるのは、それらでは見えないもの＝ METS と PREMIS の中身。
+原本は PDF や Word や画像なので、どのみちアプリの中では開けない。
+ファイルを並べるだけなら OS の方が便利で、それと張り合っても意味がない。
+
+  概要     何がいくつ入っているか
+  処理の記録  いつ・何を・どのツールで行い、結果はどうだったか（PREMIS）
+  ファイル   フォーマット・PRONOM・サイズ・SHA-256・ウイルス検査
+  生データ   XML や CSV をそのまま読みたいとき（従来の表示）
+
+読み取りは core/package_report.py、色分けは core/preview.py にある。
+ここは並べ方だけを持つ。
 
 大仙市アーカイブズでの聞き取りでは、生成された情報パッケージの中身を
 画面上で見せたことが理解を助けた。パスを出すだけでは、何ができたのかが
@@ -15,7 +25,8 @@ from pathlib import Path
 
 import flet as ft
 
-from ..core import preview
+from ..core import package_report, preview
+from . import platform as plat
 
 #: 役割ごとの色。配色は表示の領分なので、ここで決める。
 _COLORS = {
@@ -55,8 +66,8 @@ def _human_size(n: int) -> str:
     return f"{n} バイト"
 
 
-def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
-    """ビューアを組み立てて返す。"""
+def _raw_browser(root: Path) -> ft.Control:
+    """従来の表示（左にツリー、右に中身）。XML や CSV を直接読みたいとき用。"""
     body = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=0)
     tree = ft.ListView(expand=True, spacing=0, padding=6)
     selected: dict[str, Path | None] = {"path": None}
@@ -162,6 +173,248 @@ def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
         )
     )
 
+    return ft.Row(
+        [
+            ft.Container(tree, width=340),
+            ft.VerticalDivider(width=1),
+            ft.Container(body, expand=True, padding=10),
+        ],
+        expand=True,
+        spacing=0,
+    )
+
+
+# --------------------------------------------------------------------------
+# METS / PREMIS を読んで見せる側
+# --------------------------------------------------------------------------
+
+_LABEL_COLOR = ft.Colors.ON_SURFACE_VARIANT
+
+
+def _pair(label: str, value: str) -> ft.Control:
+    return ft.Row(
+        [
+            ft.Container(ft.Text(label, size=12, color=_LABEL_COLOR), width=120),
+            ft.Text(value or "（未記入）", size=12, selectable=True),
+        ],
+        spacing=8,
+    )
+
+
+def _table(columns: list[tuple[str, int]], rows: list[list[ft.Control]]) -> ft.Control:
+    """横に長くなるので、表そのものを横スクロールさせる。"""
+    table = ft.DataTable(
+        columns=[ft.DataColumn(ft.Text(name, size=12, weight=ft.FontWeight.BOLD))
+                 for name, _w in columns],
+        rows=[ft.DataRow(cells=[ft.DataCell(c) for c in cells]) for cells in rows],
+        heading_row_height=36,
+        data_row_min_height=32,
+        data_row_max_height=48,
+        column_spacing=18,
+    )
+    return ft.Row([table], scroll=ft.ScrollMode.AUTO, expand=True)
+
+
+def _mono(text: str, size: int = 11) -> ft.Control:
+    return ft.Text(text, size=size, font_family=_MONO, selectable=True)
+
+
+def _overview_tab(report: package_report.PackageReport) -> ft.Control:
+    o = report.overview
+    items: list[ft.Control] = [
+        ft.Text(o.title or report.root.name, size=16, weight=ft.FontWeight.BOLD),
+        ft.Text(
+            {"AIP": "保存用情報パッケージ（AIP）",
+             "SIP": "提出用情報パッケージ（SIP）"}.get(o.kind, o.kind),
+            size=12, color=_LABEL_COLOR,
+        ),
+        ft.Divider(height=16),
+        _pair("識別子", o.identifier),
+        _pair("作成日時", o.created),
+        _pair(
+            "ファイル数",
+            f"原本 {o.original_count} 件"
+            + (f"（ほかに {o.file_count - o.original_count} 件）"
+               if o.file_count > o.original_count else ""),
+        ),
+        _pair("合計サイズ", package_report.human_bytes(o.total_bytes)),
+        _pair("置き場所", str(report.root)),
+    ]
+    if report.mets_path is not None:
+        items.append(_pair("METS", report.mets_path.name))
+    if o.note:
+        items.append(
+            ft.Container(
+                ft.Text(o.note, size=12, color=ft.Colors.ERROR),
+                padding=ft.Padding.only(top=12),
+            )
+        )
+    items.append(
+        ft.Container(
+            ft.Row(
+                [
+                    ft.OutlinedButton(
+                        "フォルダを開く",
+                        icon=ft.Icons.FOLDER_OPEN,
+                        on_click=lambda _e: plat.reveal_in_file_manager(report.root),
+                    ),
+                ],
+                spacing=8,
+            ),
+            padding=ft.Padding.only(top=20),
+        )
+    )
+    return ft.Container(
+        ft.Column(items, spacing=6, scroll=ft.ScrollMode.AUTO),
+        padding=20,
+        expand=True,
+    )
+
+
+def _events_tab(report: package_report.PackageReport) -> ft.Control:
+    if not report.events:
+        return _empty(
+            "処理の記録がありません",
+            "AIP には PREMIS の記録が入ります。SIP の段階では作られません。",
+        )
+
+    rows = [
+        [
+            _mono(e.date_time),
+            ft.Text(e.type_label, size=12, weight=ft.FontWeight.W_500),
+            ft.Text(e.outcome, size=12),
+            ft.Text(e.agent, size=12, color=_LABEL_COLOR),
+            _mono(e.target or "パッケージ全体"),
+            ft.Text(e.detail, size=11, color=_LABEL_COLOR),
+        ]
+        for e in report.events
+    ]
+    head = ft.Container(
+        ft.Text(
+            f"{len(report.events)} 件の記録。担当者が別に作業記録を書く必要はありません。",
+            size=12, color=_LABEL_COLOR,
+        ),
+        padding=ft.Padding.only(left=16, top=12, bottom=4),
+    )
+    return ft.Column(
+        [head, _table(
+            [("日時", 160), ("処理", 120), ("結果", 80), ("実行したもの", 140),
+             ("対象", 200), ("詳細", 240)],
+            rows,
+        )],
+        expand=True,
+        spacing=0,
+    )
+
+
+def _files_tab(report: package_report.PackageReport) -> ft.Control:
+    if not report.files:
+        return _empty("ファイルの一覧を読めませんでした", report.overview.note)
+
+    def open_row(path: str):
+        def handler(_e: ft.ControlEvent) -> None:
+            target = report.root / path
+            if not target.exists():
+                target = report.root / "data" / path
+            if target.exists():
+                plat.reveal_in_file_manager(target)
+        return handler
+
+    rows = []
+    for f in report.files:
+        warning = ft.Text("", size=11)
+        if f.warning and f.warning not in ("", "-", "なし"):
+            warning = ft.Row(
+                [
+                    ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=14,
+                            color=ft.Colors.ORANGE_700),
+                    ft.Text(f.warning, size=11, color=ft.Colors.ORANGE_800),
+                ],
+                spacing=4,
+            )
+        rows.append([
+            ft.Text(f.use, size=11, color=_LABEL_COLOR),
+            _mono(f.path, 12),
+            ft.Text(f.format_name or "不明", size=12),
+            _mono(f.puid),
+            ft.Text(package_report.human_bytes(f.size), size=12),
+            ft.Text(f.virus or "-", size=11, color=_LABEL_COLOR),
+            warning,
+            _mono((f.sha256[:12] + "…") if f.sha256 else ""),
+            ft.IconButton(
+                ft.Icons.FOLDER_OPEN, icon_size=16, tooltip="場所を開く",
+                on_click=open_row(f.path),
+            ),
+        ])
+
+    head = ft.Container(
+        ft.Text(
+            f"{len(report.files)} 件。中身を見るときは、右端のボタンで"
+            "ファイルの場所を開きます。",
+            size=12, color=_LABEL_COLOR,
+        ),
+        padding=ft.Padding.only(left=16, top=12, bottom=4),
+    )
+    return ft.Column(
+        [head, _table(
+            [("区分", 70), ("相対パス", 260), ("フォーマット", 160), ("PRONOM", 90),
+             ("サイズ", 80), ("ウイルス検査", 90), ("警告", 120),
+             ("SHA-256", 120), ("", 40)],
+            rows,
+        )],
+        expand=True,
+        spacing=0,
+    )
+
+
+def _empty(title: str, note: str = "") -> ft.Control:
+    return ft.Container(
+        ft.Column(
+            [
+                ft.Icon(ft.Icons.INFO_OUTLINE, size=32, color=_LABEL_COLOR),
+                ft.Text(title, size=13),
+                ft.Text(note, size=11, color=_LABEL_COLOR),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=8,
+        ),
+        alignment=ft.Alignment.CENTER,
+        expand=True,
+    )
+
+
+def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
+    """ビューアを組み立てて返す。"""
+    report = package_report.read(root)
+
+    tabs = ft.Tabs(
+        length=4,
+        selected_index=0,
+        expand=True,
+        content=ft.Column(
+            expand=True,
+            controls=[
+                ft.TabBar(
+                    tabs=[
+                        ft.Tab(label="概要", icon=ft.Icons.INVENTORY_2_OUTLINED),
+                        ft.Tab(label="処理の記録", icon=ft.Icons.HISTORY),
+                        ft.Tab(label="ファイル", icon=ft.Icons.LIST_ALT_OUTLINED),
+                        ft.Tab(label="生データ", icon=ft.Icons.CODE),
+                    ]
+                ),
+                ft.TabBarView(
+                    expand=True,
+                    controls=[
+                        _overview_tab(report),
+                        _events_tab(report),
+                        _files_tab(report),
+                        _raw_browser(root),
+                    ],
+                ),
+            ],
+        ),
+    )
+
     return ft.Column(
         [
             ft.Row(
@@ -175,15 +428,7 @@ def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
                 spacing=8,
             ),
             ft.Divider(height=1),
-            ft.Row(
-                [
-                    ft.Container(tree, width=340),
-                    ft.VerticalDivider(width=1),
-                    ft.Container(body, expand=True, padding=10),
-                ],
-                expand=True,
-                spacing=0,
-            ),
+            tabs,
         ],
         expand=True,
         spacing=8,
