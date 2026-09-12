@@ -27,6 +27,7 @@ import flet as ft
 import flet.canvas as cv
 
 from ..core import package_report, preview
+from ..i18n import raw, t
 from . import platform as plat
 
 #: 役割ごとの色。配色は表示の領分なので、ここで決める。
@@ -60,11 +61,13 @@ def _icon_for(name: str) -> str:
 
 
 def _human_size(n: int) -> str:
-    for unit in ("バイト", "KB", "MB", "GB"):
+    # 1000 未満の単位だけが言語で変わる（kB 以上はラテン文字のまま）。
+    small = t("バイト")
+    for unit in (small, "KB", "MB", "GB"):
         if n < 1024 or unit == "GB":
-            return f"{n:,.0f} {unit}" if unit == "バイト" else f"{n:,.1f} {unit}"
+            return f"{n:,.0f} {unit}" if unit == small else f"{n:,.1f} {unit}"
         n /= 1024.0
-    return f"{n} バイト"
+    return f"{n} {small}"
 
 
 def _raw_browser(root: Path) -> ft.Control:
@@ -79,7 +82,9 @@ def _raw_browser(root: Path) -> ft.Control:
         try:
             content = preview.read(path)
         except OSError as exc:
-            body.controls.append(ft.Text(f"読み取れませんでした: {exc}", size=12))
+            body.controls.append(
+                ft.Text(t("読み取れませんでした: {error}", error=exc), size=12)
+            )
             body.update()
             return
 
@@ -88,10 +93,11 @@ def _raw_browser(root: Path) -> ft.Control:
                 ft.Column(
                     [
                         ft.Text(path.name, weight=ft.FontWeight.BOLD),
-                        ft.Text("テキストとして表示できない形式です", size=12,
+                        ft.Text(t("テキストとして表示できない形式です"), size=12,
                                 color=ft.Colors.ON_SURFACE_VARIANT),
-                        ft.Text(f"サイズ: {_human_size(content.size_bytes)}", size=12),
-                        ft.Text(f"先頭バイト: {content.head_hex}", size=11,
+                        ft.Text(t("サイズ: {size}",
+                                  size=_human_size(content.size_bytes)), size=12),
+                        ft.Text(t("先頭バイト: {head}", head=content.head_hex), size=11,
                                 font_family=_MONO,
                                 color=ft.Colors.ON_SURFACE_VARIANT),
                     ],
@@ -115,8 +121,9 @@ def _raw_browser(root: Path) -> ft.Control:
             if content.truncated:
                 items.append(
                     ft.Text(
-                        f"※ 先頭 {_human_size(preview.MAX_BYTES)} のみ表示しています。"
-                        "全体はファイルを直接お開きください。",
+                        t("※ 先頭 {size} のみ表示しています。"
+                          "全体はファイルを直接お開きください。",
+                          size=_human_size(preview.MAX_BYTES)),
                         size=11, color=ft.Colors.ON_SURFACE_VARIANT,
                     )
                 )
@@ -166,7 +173,7 @@ def _raw_browser(root: Path) -> ft.Control:
             [
                 ft.Icon(ft.Icons.FIND_IN_PAGE_OUTLINED, size=36,
                         color=ft.Colors.ON_SURFACE_VARIANT),
-                ft.Text("左のファイルを選ぶと内容を表示します", size=12,
+                ft.Text(t("左のファイルを選ぶと内容を表示します"), size=12,
                         color=ft.Colors.ON_SURFACE_VARIANT),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -196,7 +203,7 @@ def _pair(label: str, value: str) -> ft.Control:
     return ft.Row(
         [
             ft.Container(ft.Text(label, size=12, color=_LABEL_COLOR), width=120),
-            ft.Text(value or "（未記入）", size=12, selectable=True),
+            ft.Text(value or t("（未記入）"), size=12, selectable=True),
         ],
         spacing=8,
     )
@@ -237,7 +244,8 @@ def _slices(formats: list[tuple[str, int]]) -> list[tuple[str, int, str]]:
     out = [(name, n, _SLICE_COLORS[i % len(_SLICE_COLORS)])
            for i, (name, n) in enumerate(head)]
     if rest:
-        out.append((f"その他 {len(rest)} 種", sum(n for _name, n in rest), _OTHER_COLOR))
+        out.append((t("その他 {count} 種", count=len(rest)),
+                    sum(n for _name, n in rest), _OTHER_COLOR))
     return out
 
 
@@ -273,7 +281,7 @@ def _pie(formats: list[tuple[str, int]], size: int = 160) -> ft.Control:
                 ft.Column(
                     [
                         ft.Text(str(total), size=20, weight=ft.FontWeight.BOLD),
-                        ft.Text("原本", size=11, color=_LABEL_COLOR),
+                        ft.Text(t("原本"), size=11, color=_LABEL_COLOR),
                     ],
                     spacing=0,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -293,7 +301,7 @@ def _legend(formats: list[tuple[str, int]]) -> ft.Control:
                 [
                     ft.Container(width=10, height=10, bgcolor=color, border_radius=2),
                     ft.Text(name, size=12, expand=True),
-                    ft.Text(f"{count} 件", size=12, color=_LABEL_COLOR),
+                    ft.Text(t("{count} 件", count=count), size=12, color=_LABEL_COLOR),
                 ],
                 spacing=8,
             )
@@ -326,17 +334,22 @@ def _breakdown(report: package_report.PackageReport) -> ft.Control:
         return ft.Container()
 
     stats = [
-        _stat("保存用に変換", f"{summary.normalized} 件"),
-        _stat("ウイルス検査済", f"{summary.virus_scanned} 件"),
+        _stat(t("保存用に変換"), t("{count} 件", count=summary.normalized)),
+        _stat(t("ウイルス検査済"), t("{count} 件", count=summary.virus_scanned)),
     ]
     if summary.unidentified:
-        stats.append(_stat("未識別", f"{summary.unidentified} 件", warn=True))
+        stats.append(
+            _stat(t("未識別"), t("{count} 件", count=summary.unidentified), warn=True)
+        )
     if summary.extension_warnings:
-        stats.append(_stat("拡張子が不一致", f"{summary.extension_warnings} 件", warn=True))
+        stats.append(
+            _stat(t("拡張子が不一致"),
+                  t("{count} 件", count=summary.extension_warnings), warn=True)
+        )
 
     return ft.Column(
         [
-            ft.Text("内訳", size=13, weight=ft.FontWeight.BOLD),
+            ft.Text(t("内訳"), size=13, weight=ft.FontWeight.BOLD),
             ft.Row(
                 [
                     _pie(summary.formats),
@@ -357,21 +370,21 @@ def _overview_tab(report: package_report.PackageReport) -> ft.Control:
     items: list[ft.Control] = [
         ft.Text(o.title or report.root.name, size=16, weight=ft.FontWeight.BOLD),
         ft.Text(
-            {"AIP": "保存用情報パッケージ（AIP）",
-             "SIP": "提出用情報パッケージ（SIP）"}.get(o.kind, o.kind),
+            {"AIP": t("保存用情報パッケージ（AIP）"),
+             "SIP": t("提出用情報パッケージ（SIP）")}.get(o.kind, o.kind),
             size=12, color=_LABEL_COLOR,
         ),
         ft.Divider(height=16),
-        _pair("識別子", o.identifier),
-        _pair("作成日時", o.created),
+        _pair(t("識別子"), o.identifier),
+        _pair(t("作成日時"), o.created),
         _pair(
-            "ファイル数",
-            f"原本 {o.original_count} 件"
-            + (f"（ほかに {o.file_count - o.original_count} 件）"
+            t("ファイル数"),
+            t("原本 {count} 件", count=o.original_count)
+            + (t("（ほかに {count} 件）", count=o.file_count - o.original_count)
                if o.file_count > o.original_count else ""),
         ),
-        _pair("合計サイズ", package_report.human_bytes(o.total_bytes)),
-        _pair("置き場所", str(report.root)),
+        _pair(t("合計サイズ"), package_report.human_bytes(o.total_bytes)),
+        _pair(t("置き場所"), str(report.root)),
     ]
     if report.mets_path is not None:
         items.append(_pair("METS", report.mets_path.name))
@@ -388,7 +401,7 @@ def _overview_tab(report: package_report.PackageReport) -> ft.Control:
             ft.Row(
                 [
                     ft.OutlinedButton(
-                        "フォルダを開く",
+                        t("フォルダを開く"),
                         icon=ft.Icons.FOLDER_OPEN,
                         on_click=lambda _e: plat.reveal_in_file_manager(report.root),
                     ),
@@ -408,8 +421,8 @@ def _overview_tab(report: package_report.PackageReport) -> ft.Control:
 def _events_tab(report: package_report.PackageReport) -> ft.Control:
     if not report.events:
         return _empty(
-            "処理の記録がありません",
-            "AIP には PREMIS の記録が入ります。SIP の段階では作られません。",
+            t("処理の記録がありません"),
+            t("AIP には PREMIS の記録が入ります。SIP の段階では作られません。"),
         )
 
     rows = [
@@ -418,18 +431,19 @@ def _events_tab(report: package_report.PackageReport) -> ft.Control:
             ft.Text(e.type_label, size=12, weight=ft.FontWeight.W_500),
             ft.Text(e.outcome, size=12),
             ft.Text(e.agent, size=12, color=_LABEL_COLOR),
-            _mono(e.target or "パッケージ全体"),
+            _mono(e.target or t("パッケージ全体")),
             ft.Text(e.detail, size=11, color=_LABEL_COLOR),
         ]
         for e in report.events
     ]
-    kinds = "、".join(f"{name} {n}" for name, n in report.summary.events)
+    # 事象の名前（name）は PREMIS の記録そのものなので訳さない。区切りだけ訳す。
+    kinds = t("、").join(f"{name} {n}" for name, n in report.summary.events)
     head = ft.Container(
         ft.Column(
             [
                 ft.Text(
-                    f"{len(report.events)} 件の記録。"
-                    "担当者が別に作業記録を書く必要はありません。",
+                    t("{count} 件の記録。担当者が別に作業記録を書く必要はありません。",
+                      count=len(report.events)),
                     size=12, color=_LABEL_COLOR,
                 ),
                 ft.Text(kinds, size=11, color=_LABEL_COLOR),
@@ -440,8 +454,8 @@ def _events_tab(report: package_report.PackageReport) -> ft.Control:
     )
     return ft.Column(
         [head, _table(
-            [("日時", 160), ("処理", 120), ("結果", 80), ("実行したもの", 140),
-             ("対象", 200), ("詳細", 240)],
+            [(t("日時"), 160), (t("処理"), 120), (t("結果"), 80), (t("実行したもの"), 140),
+             (t("対象"), 200), (t("詳細"), 240)],
             rows,
         )],
         expand=True,
@@ -451,7 +465,7 @@ def _events_tab(report: package_report.PackageReport) -> ft.Control:
 
 def _files_tab(report: package_report.PackageReport) -> ft.Control:
     if not report.files:
-        return _empty("ファイルの一覧を読めませんでした", report.overview.note)
+        return _empty(t("ファイルの一覧を読めませんでした"), report.overview.note)
 
     def open_row(path: str):
         def handler(_e: ft.ControlEvent) -> None:
@@ -465,7 +479,8 @@ def _files_tab(report: package_report.PackageReport) -> ft.Control:
     rows = []
     for f in report.files:
         warning = ft.Text("", size=11)
-        if f.warning and f.warning not in ("", "-", "なし"):
+        # 比べている相手は core が CSV に書いた値。ここを訳すと突合が外れる。
+        if f.warning and f.warning not in ("", "-", raw("なし")):
             warning = ft.Row(
                 [
                     ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=14,
@@ -477,30 +492,30 @@ def _files_tab(report: package_report.PackageReport) -> ft.Control:
         rows.append([
             ft.Text(f.use, size=11, color=_LABEL_COLOR),
             _mono(f.path, 12),
-            ft.Text(f.format_name or "不明", size=12),
+            ft.Text(f.format_name or t("不明"), size=12),
             _mono(f.puid),
             ft.Text(package_report.human_bytes(f.size), size=12),
             ft.Text(f.virus or "-", size=11, color=_LABEL_COLOR),
             warning,
             _mono((f.sha256[:12] + "…") if f.sha256 else ""),
             ft.IconButton(
-                ft.Icons.FOLDER_OPEN, icon_size=16, tooltip="場所を開く",
+                ft.Icons.FOLDER_OPEN, icon_size=16, tooltip=t("場所を開く"),
                 on_click=open_row(f.path),
             ),
         ])
 
     head = ft.Container(
         ft.Text(
-            f"{len(report.files)} 件。中身を見るときは、右端のボタンで"
-            "ファイルの場所を開きます。",
+            t("{count} 件。中身を見るときは、右端のボタンでファイルの場所を開きます。",
+              count=len(report.files)),
             size=12, color=_LABEL_COLOR,
         ),
         padding=ft.Padding.only(left=16, top=12, bottom=4),
     )
     return ft.Column(
         [head, _table(
-            [("区分", 70), ("相対パス", 260), ("フォーマット", 160), ("PRONOM", 90),
-             ("サイズ", 80), ("ウイルス検査", 90), ("警告", 120),
+            [(t("区分"), 70), (t("相対パス"), 260), (t("フォーマット"), 160), ("PRONOM", 90),
+             (t("サイズ"), 80), (t("ウイルス検査"), 90), (t("警告"), 120),
              ("SHA-256", 120), ("", 40)],
             rows,
         )],
@@ -538,10 +553,10 @@ def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
             controls=[
                 ft.TabBar(
                     tabs=[
-                        ft.Tab(label="概要", icon=ft.Icons.INVENTORY_2_OUTLINED),
-                        ft.Tab(label="処理の記録", icon=ft.Icons.HISTORY),
-                        ft.Tab(label="ファイル", icon=ft.Icons.LIST_ALT_OUTLINED),
-                        ft.Tab(label="生データ", icon=ft.Icons.CODE),
+                        ft.Tab(label=t("概要"), icon=ft.Icons.INVENTORY_2_OUTLINED),
+                        ft.Tab(label=t("処理の記録"), icon=ft.Icons.HISTORY),
+                        ft.Tab(label=t("ファイル"), icon=ft.Icons.LIST_ALT_OUTLINED),
+                        ft.Tab(label=t("生データ"), icon=ft.Icons.CODE),
                     ]
                 ),
                 ft.TabBarView(
@@ -562,9 +577,10 @@ def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
             ft.Row(
                 [
                     ft.Icon(ft.Icons.INVENTORY_2_OUTLINED, size=18),
-                    ft.Text(f"生成結果: {root.name}", weight=ft.FontWeight.BOLD),
+                    ft.Text(t("生成結果: {name}", name=root.name),
+                            weight=ft.FontWeight.BOLD),
                     ft.Container(expand=True),
-                    ft.TextButton("閉じる", icon=ft.Icons.CLOSE,
+                    ft.TextButton(t("閉じる"), icon=ft.Icons.CLOSE,
                                   on_click=lambda _e: on_close()),
                 ],
                 spacing=8,

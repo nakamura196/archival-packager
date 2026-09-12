@@ -16,6 +16,7 @@ from collections.abc import Callable
 import flet as ft
 
 from ..core import applog
+from ..i18n import t
 
 _MONO = "Menlo, Consolas, monospace"
 
@@ -23,32 +24,39 @@ PRIVACY_URL = "https://nakamura196.github.io/archival-packager/privacy-policy.ht
 STORE_URL = "https://apps.microsoft.com/detail/9N6XJD7THHPZ"
 CONTACT = "nakamura@hi.u-tokyo.ac.jp"
 
-_USAGE = [
-    ("1. 何を作るかを選ぶ",
-     "受入パッケージ（SIP）だけを作るか、長期保存パッケージ（AIP）まで作るかを選びます。"),
-    ("2. 入力と出力先を選ぶ",
-     "素材のフォルダ（または ZIP）と、成果物を置くフォルダを指定します。"
-     "原本は読み取るだけで、変更しません。"),
-    ("3. 記述メタデータを入れる",
-     "タイトルなどを入力します。ここで入れた内容が、受入記録として"
-     "パッケージに残ります。"),
-    ("4. 実行する",
-     "フォーマットの識別、チェックサムの算出、必要なら検査を行い、"
-     "情報パッケージを作ります。"),
-    ("5. 中身を確かめる",
-     "できあがったら「中身を見る」で、生成された構造とファイルの内容を"
-     "そのまま読めます。"),
-]
+
+def _usage() -> list[tuple[str, str]]:
+    """使い方の各段。
+
+    定数ではなく関数にしてある。モジュールを読み込んだ時点で訳すと、
+    そのあと言語を切り替えても、ここだけ最初の言語のまま残ってしまう。
+    """
+    return [
+        (t("1. 何を作るかを選ぶ"),
+         t("受入パッケージ（SIP）だけを作るか、長期保存パッケージ（AIP）まで作るかを選びます。")),
+        (t("2. 入力と出力先を選ぶ"),
+         t("素材のフォルダ（または ZIP）と、成果物を置くフォルダを指定します。"
+           "原本は読み取るだけで、変更しません。")),
+        (t("3. 記述メタデータを入れる"),
+         t("タイトルなどを入力します。ここで入れた内容が、受入記録として"
+           "パッケージに残ります。")),
+        (t("4. 実行する"),
+         t("フォーマットの識別、チェックサムの算出、必要なら検査を行い、"
+           "情報パッケージを作ります。")),
+        (t("5. 中身を確かめる"),
+         t("できあがったら「中身を見る」で、生成された構造とファイルの内容を"
+           "そのまま読めます。")),
+    ]
 
 
 def _doc(name: str) -> str:
     path = applog.document_path(name)
     if path is None:
-        return f"（{name} が見つかりませんでした）"
+        return t("（{name} が見つかりませんでした）", name=name)
     try:
         return path.read_text(encoding="utf-8")
     except OSError as exc:
-        return f"（{name} を読めませんでした: {exc}）"
+        return t("（{name} を読めませんでした: {error}）", name=name, error=exc)
 
 
 def _link(label: str, url: str) -> ft.Control:
@@ -77,7 +85,7 @@ def build(*, on_close: Callable[[], None]) -> ft.Control:
                 ],
                 spacing=2,
             )
-            for heading, body in _USAGE
+            for heading, body in _usage()
         ],
         spacing=12,
         scroll=ft.ScrollMode.AUTO,
@@ -100,9 +108,9 @@ def build(*, on_close: Callable[[], None]) -> ft.Control:
             controls=[
                 ft.TabBar(
                     tabs=[
-                        ft.Tab(label="使い方", icon=ft.Icons.HELP_OUTLINE),
-                        ft.Tab(label="このアプリについて", icon=ft.Icons.INFO_OUTLINE),
-                        ft.Tab(label="ライセンス", icon=ft.Icons.GAVEL),
+                        ft.Tab(label=t("使い方"), icon=ft.Icons.HELP_OUTLINE),
+                        ft.Tab(label=t("このアプリについて"), icon=ft.Icons.INFO_OUTLINE),
+                        ft.Tab(label=t("ライセンス"), icon=ft.Icons.GAVEL),
                     ]
                 ),
                 ft.TabBarView(
@@ -112,42 +120,42 @@ def build(*, on_close: Callable[[], None]) -> ft.Control:
                         _panel(
                             ft.Text(applog.environment(), size=12, selectable=True),
                             ft.Text(
-                                "デジタル資料から、国際標準 OAIS の情報パッケージを"
-                                "作成します。",
+                                t("デジタル資料から、国際標準 OAIS の情報パッケージを"
+                                  "作成します。"),
                                 size=12,
                             ),
                             ft.Text(
-                                "開発: 中村 覚（東京大学）・金 甫榮（人間文化研究機構）",
+                                t("開発: 中村 覚（東京大学）・金 甫榮（人間文化研究機構）"),
                                 size=12,
                             ),
                             ft.Divider(height=1),
-                            ft.Text("連絡先", weight=ft.FontWeight.BOLD, size=13),
+                            ft.Text(t("連絡先"), weight=ft.FontWeight.BOLD, size=13),
                             ft.Text(CONTACT, size=12, selectable=True),
                             ft.Text(
-                                "不具合に出会われたら、エラー画面の「内容をコピー」から"
-                                "貼り付けてお送りください。",
+                                t("不具合に出会われたら、エラー画面の「内容をコピー」から"
+                                  "貼り付けてお送りください。"),
                                 size=11,
                                 color=ft.Colors.ON_SURFACE_VARIANT,
                             ),
                             ft.Row(
                                 [
-                                    _link("プライバシーポリシー", PRIVACY_URL),
-                                    _link("Microsoft ストア", STORE_URL),
+                                    _link(t("プライバシーポリシー"), PRIVACY_URL),
+                                    _link(t("Microsoft ストア"), STORE_URL),
                                 ],
                                 wrap=True,
                             ),
                             ft.Text(
-                                f"記録の保存先: {applog.log_path()}",
+                                t("記録の保存先: {path}", path=applog.log_path()),
                                 size=11, selectable=True,
                                 color=ft.Colors.ON_SURFACE_VARIANT,
                             ),
                         ),
                         _panel(
                             ft.Text(
-                                "本アプリは MIT ライセンスです。同梱している第三者の"
-                                "コンポーネントには、それぞれ元のライセンスが適用されます。"
-                                "とくに ClamAV は GPL-2.0 であり、ソースコードの入手方法を"
-                                "下記に示しています。",
+                                t("本アプリは MIT ライセンスです。同梱している第三者の"
+                                  "コンポーネントには、それぞれ元のライセンスが適用されます。"
+                                  "とくに ClamAV は GPL-2.0 であり、ソースコードの入手方法を"
+                                  "下記に示しています。"),
                                 size=12,
                             ),
                             ft.Divider(height=1),
@@ -166,9 +174,9 @@ def build(*, on_close: Callable[[], None]) -> ft.Control:
             ft.Row(
                 [
                     ft.Icon(ft.Icons.INFO_OUTLINE, size=18),
-                    ft.Text("情報", weight=ft.FontWeight.BOLD),
+                    ft.Text(t("情報"), weight=ft.FontWeight.BOLD),
                     ft.Container(expand=True),
-                    ft.TextButton("閉じる", icon=ft.Icons.CLOSE,
+                    ft.TextButton(t("閉じる"), icon=ft.Icons.CLOSE,
                                   on_click=lambda _e: on_close()),
                 ],
                 spacing=8,

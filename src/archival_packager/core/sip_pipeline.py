@@ -315,13 +315,20 @@ def _build_documents(
             except OSError:
                 provided = None
 
+    if provided is not None:
+        # 中身はそのまま、filename 列の基点だけ bag / 非 bag に合わせ直す。
+        # bag のとき "objects/…" のままだと、Archivematica から見て転送内に
+        # 実体の無いパスになり、記入済みの記述がどのファイルにも紐づかない。
+        provided = spreadsheets.rebase_metadata_csv(provided, bagged=options.make_bag)
+
     arrangement_map = _arrangement_map(files, options, progress)
 
     return SubmissionDocs(
         description_csv=spreadsheets.description(files, metadata),
+        atom_import_csv=spreadsheets.atom_import(files, metadata),
         formats_csv=spreadsheets.formats(files),
         accession_csv=spreadsheets.accession(files),
-        metadata_csv=provided or spreadsheets.metadata_template(files),
+        metadata_csv=provided or spreadsheets.metadata_template(files, bagged=options.make_bag),
         dfxml_xml=dfxml.build(files, scan_root).decode("utf-8"),
         report_text=report.text_report(
             files, metadata, options, virus_status=virus_status,

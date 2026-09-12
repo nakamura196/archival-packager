@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,10 +12,24 @@ from archival_packager.core.aip_models import (
     AIPFile,
     AIPPipelineError,
     DerivativePurpose,
+    Executor,
     FixityOutcome,
     NormalizationRule,
+    RuleSource,
 )
 from archival_packager.core.checksums import sha256_of
+
+
+@pytest.fixture(autouse=True)
+def builtin_rules_only(tmp_path):
+    """開発機に置いてある本物の rules.toml でテストの通り方が変わらないようにする。
+
+    規則表は利用者の環境から読む。テストが環境に左右されると、落ちたときに
+    アプリの不具合なのか手元の設定なのかを切り分けられない。
+    """
+    conversion_registry.reload(tmp_path / "no-such-rules.toml")
+    yield
+    conversion_registry.reload(tmp_path / "no-such-rules.toml")
 
 
 def make_plain_sip(root: Path, files: dict[str, bytes], *, corrupt: str | None = None) -> Path:
@@ -143,6 +158,140 @@ class TestConversionRegistry:
 
     def test_access_purpose_not_supported_yet(self):
         assert conversion_registry.rule_for("fmt/11", DerivativePurpose.ACCESS) is None
+
+    def test_every_rule_carries_an_identifier(self):
+        """表に載る規則には必ず識別子を付けること。
+
+        識別子は PREMIS の eventDetail にそのまま書かれる（Archivematica の
+        FPRCommandID に相当する）。付け忘れると、その AIP だけ
+        「どの規則で作られたか」が空欄のまま世に出る。**出てしまってからでは
+        直せない**（作り直さない限り、その AIP の記録は欠けたまま）。
+        """
+        for puid in ("fmt/11", "fmt/41", "fmt/3", "fmt/116", "fmt/124", "fmt/122"):
+            rule = conversion_registry.rule_for(puid, DerivativePurpose.PRESERVATION)
+            assert rule is not None and rule.rule_id, f"{puid} の規則に識別子が無い"
+
+    def test_identifiers_do_not_change(self):
+        """**値を書き換えないこと。** 過去に作った AIP の PREMIS には、
+        ここに書かれている文字列がそのまま入っている。改名すると、その AIP を
+        読んだ人が今の規則表と突き合わせられなくなる。
+
+        リテラルで書くのは、定数の中身を書き換えたときにここが落ちるため
+        （定数どうしを比べても、一緒に変わってしまえば気づけない）。
+        """
+        assert (
+            conversion_registry.rule_for("fmt/11", DerivativePurpose.PRESERVATION).rule_id
+            == "image-to-tiff"
+        )
+        assert (
+            conversion_registry.rule_for("fmt/124", DerivativePurpose.PRESERVATION).rule_id
+            == "postscript-to-pdf"
+        )
+
+
+class TestRuleSourceIsRecorded:
+    """組み込みの規則か、利用者が足した規則かが、記録から分かること。
+
+    **同じ資料から別の組織が別の AIP を作ったとき、違いの原因が
+    「表を足したから」なのかどうかを、後から見た人が判断できる必要がある。**
+    """
+
+    def test_builtin_rules_say_so(self, tmp_path):
+        from PIL import Image
+
+        src = tmp_path / "a.png"
+        Image.new("RGB", (4, 4)).save(src)
+        f = AIPFile("a.png", src, src.stat().st_size, "u1")
+        rule = conversion_registry.rule_for("fmt/11", DerivativePurpose.PRESERVATION)
+        derivative = normalizer.normalize(f, rule, tmp_path / "work")
+
+        assert derivative.rule_source == "builtin"
+        assert 'ruleSource="builtin"' in normalizer.event_detail(derivative)
+
+    def test_user_rules_say_so(self, tmp_path, fake_tool, monkeypatch):
+        fake = fake_tool(name="conv", output_text="out")
+        (tmp_path / "rules.toml").write_text(
+            """
+[[rule]]
+id = "png-to-jp2"
+puid_in = ["fmt/11"]
+executor = "command"
+tool = "conv"
+args = ["{in}", "{out}"]
+out_extension = "jp2"
+""",
+            encoding="utf-8",
+        )
+        conversion_registry.reload(tmp_path / "rules.toml")
+        monkeypatch.setattr(normalizer, "locate", lambda tool: fake)
+
+        src = tmp_path / "a.png"
+        src.write_bytes(b"x")
+        f = AIPFile("a.png", src, 1, "u1")
+        rule = conversion_registry.rule_for("fmt/11", DerivativePurpose.PRESERVATION)
+        assert rule.rule_id == "png-to-jp2", "利用者の規則が組み込みを上書きする"
+
+        derivative = normalizer.normalize(f, rule, tmp_path / "work")
+        detail = normalizer.event_detail(derivative)
+        assert derivative.rule_source == "user"
+        assert 'ruleSource="user"' in detail
+        # 識別子そのものは飾らない。過去の AIP に書かれた値と突き合わせるため。
+        assert 'rule="png-to-jp2"' in detail
+
+    def test_the_identifier_is_not_decorated(self, tmp_path):
+        """rule="image-to-tiff(builtin)" のように識別子へ混ぜない。
+
+        識別子は過去の AIP にそのまま書き込まれている文字列で、後年それと
+        突き合わせるためにある。装飾を足すと、同じ規則で作った古い AIP と
+        新しい AIP で値が食い違う。
+        """
+        from PIL import Image
+
+        src = tmp_path / "a.png"
+        Image.new("RGB", (4, 4)).save(src)
+        f = AIPFile("a.png", src, src.stat().st_size, "u1")
+        rule = conversion_registry.rule_for("fmt/11", DerivativePurpose.PRESERVATION)
+        detail = normalizer.event_detail(normalizer.normalize(f, rule, tmp_path / "work"))
+        assert 'rule="image-to-tiff"' in detail
+
+
+class TestBuiltinProcessingIsNotReachableFromTheTable:
+    def test_dispatch_is_by_executor_not_by_tool_name(self, tmp_path, fake_tool, monkeypatch):
+        """利用者が tool = "pillow" と書いた外部コマンドの規則を、
+        アプリ内蔵の画像変換と取り違えないこと。
+
+        道具の名前で分岐していると、名前が一致しただけで内蔵処理が動く。
+        内蔵処理を呼ぶ道は executor = "builtin" だけにする。
+        """
+        fake = fake_tool(name="pillow", output_text="out")
+        monkeypatch.setattr(normalizer, "locate", lambda tool: fake)
+
+        rule = NormalizationRule(
+            puid_in="fmt/11", purpose=DerivativePurpose.PRESERVATION,
+            tool=image_normalize.TOOL, args=["{in}", "{out}"], out_extension="tiff",
+            executor=Executor.COMMAND, source=RuleSource.USER,
+        )
+        src = tmp_path / "a.png"
+        src.write_bytes(b"not a png at all")  # 内蔵変換なら壊れた画像として失敗する
+        f = AIPFile("a.png", src, src.stat().st_size, "u1")
+
+        derivative = normalizer.normalize(f, rule, tmp_path / "work")
+        assert derivative.path.read_bytes().strip() == b"out", "外部コマンドが動いていない"
+
+    def test_builtin_executor_accepts_only_the_processing_it_knows(self, tmp_path):
+        """組み込みの表にしか現れない道なので、ここに来るのはアプリの不具合。
+
+        黙って画像変換にかけると、規則が言っていない変換が行われる。
+        """
+        rule = NormalizationRule(
+            puid_in="fmt/141", purpose=DerivativePurpose.PRESERVATION,
+            tool="something-else", args=[], out_extension="tiff",
+            executor=Executor.BUILTIN,
+        )
+        src = tmp_path / "a.wav"
+        src.write_bytes(b"x")
+        with pytest.raises(AIPPipelineError):
+            normalizer.normalize(AIPFile("a.wav", src, 1, "u1"), rule, tmp_path / "work")
 
 
 class TestDerivativeNaming:
@@ -342,6 +491,145 @@ class TestImageNormalization:
 
         assert derivative.relative_path == "a-preservation.tiff"
         assert derivative.puid_out == conversion_registry.TIFF_PUID
-        assert "Pillow" in derivative.tool_name
+        # 道具の呼び名と版は別の欄に持つ。eventDetail で
+        # program="pillow"; version="Pillow ..." と書き分けるため。
+        assert derivative.tool_name == image_normalize.TOOL
+        assert "Pillow" in derivative.tool_version
+        assert "libtiff" in derivative.tool_version
         assert derivative.sha256 == sha256_of(derivative.path)
         assert src.read_bytes(), "原本は残っている"
+
+    def test_event_detail_carries_rule_program_and_version(self, tmp_path):
+        """アプリ内変換でも、規則・道具・版の 3 つが揃うこと。
+
+        同梱している Pillow は版が分かりきっていると思いがちだが、
+        **AIP を読む人はアプリの配布物を持っていない。** METS だけで
+        判断できる必要がある。
+        """
+        src = self._png(tmp_path / "a.png")
+        f = AIPFile("a.png", src, src.stat().st_size, "u1")
+        rule = conversion_registry.rule_for("fmt/11", DerivativePurpose.PRESERVATION)
+        detail = normalizer.event_detail(normalizer.normalize(f, rule, tmp_path / "work"))
+
+        assert 'rule="image-to-tiff"' in detail
+        assert 'program="pillow"' in detail
+        assert 'version="Pillow' in detail
+        assert detail.count("Pillow") == 1, "同じ版が 2 度出ると別物の話に見える"
+
+
+class TestToolVersionIsRecorded:
+    """外部ツールの版を保存処理記録に残す。
+
+    Ghostscript は AGPL のため同梱しておらず、**利用者の環境にあるものが動く。**
+    つまり配布物からは版が決まらない。版を記録していないと、あとから
+    「この PDF は何で作られたのか」「同じものを作り直せるのか」を判断できない。
+    画像変換（Pillow）は版まで記録していたのに、いちばん記録すべき gs だけが
+    抜けていた。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_cache(self):
+        # 版は 1 回だけ聞いて使い回す（モジュールに溜める）。
+        # テスト間で持ち越すと、別のテストが仕込んだ版を見てしまう。
+        normalizer._version_cache.clear()
+        yield
+        normalizer._version_cache.clear()
+
+    def _ps_rule(self):
+        return conversion_registry.rule_for("fmt/124", DerivativePurpose.PRESERVATION)
+
+    def _fake_gs(self, monkeypatch, tmp_path, *, version_stdout="9.99.9", version_fails=False):
+        """gs の代わりに、版を答えて PDF らしきものを書く偽物を仕込む。
+
+        本物の gs があるかどうかでテストの通り方が変わってはいけない
+        （CI にも開発機にも無いことがある）。呼ばれた引数も記録して返す。
+        """
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, **_kw):
+            calls.append(list(cmd))
+            if "--version" in cmd:
+                if version_fails:
+                    raise OSError("gs が起動できない")
+                return SimpleNamespace(returncode=0, stdout=version_stdout, stderr="")
+            out = next(a.split("=", 1)[1] for a in cmd if a.startswith("-sOutputFile="))
+            Path(out).write_bytes(b"%PDF-1.7\n")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(normalizer, "locate", lambda tool: tmp_path / "fake-gs")
+        monkeypatch.setattr(normalizer.bundled, "ensure_executable", lambda _p: None)
+        monkeypatch.setattr(normalizer.subprocess, "run", fake_run)
+        return calls
+
+    def _run(self, tmp_path):
+        src = tmp_path / "a.ps"
+        src.write_bytes(b"%!PS\n")
+        f = AIPFile("a.ps", src, src.stat().st_size, "u1")
+        return src, normalizer.normalize(f, self._ps_rule(), tmp_path / "work")
+
+    def test_ghostscript_version_reaches_the_event_detail(self, tmp_path, monkeypatch):
+        self._fake_gs(monkeypatch, tmp_path)
+        _src, derivative = self._run(tmp_path)
+
+        assert derivative.tool_version == "Ghostscript 9.99.9", (
+            "gs は版だけを返すので、何の版かを添えて記録する"
+        )
+        assert 'version="Ghostscript 9.99.9"' in normalizer.event_detail(derivative)
+
+    def test_missing_version_does_not_stop_the_conversion(self, tmp_path, monkeypatch):
+        """版を聞けないことは変換の失敗ではない。
+
+        gs が古くて --version を解さない、起動はするが壊れている、という
+        事情で AIP が作れなくなっては本末転倒。記録が薄くなるだけにする。
+        """
+        self._fake_gs(monkeypatch, tmp_path, version_fails=True)
+        _src, derivative = self._run(tmp_path)
+
+        assert derivative.path.is_file(), "変換自体は行われる"
+        assert derivative.tool_version == ""
+        assert 'version="unknown"' in normalizer.event_detail(derivative), (
+            "空欄だと「聞き忘れた」のか「答えなかった」のか読み取れない"
+        )
+
+    def test_version_is_asked_only_once(self, tmp_path, monkeypatch):
+        """1 回の移管で何十件も変換する。そのたびにプロセスを起こさない。"""
+        calls = self._fake_gs(monkeypatch, tmp_path)
+        for n in range(3):
+            src = tmp_path / f"{n}.ps"
+            src.write_bytes(b"%!PS\n")
+            normalizer.normalize(
+                AIPFile(f"{n}.ps", src, 5, f"u{n}"), self._ps_rule(), tmp_path / "work"
+            )
+
+        assert sum(1 for c in calls if "--version" in c) == 1
+        assert sum(1 for c in calls if "--version" not in c) == 3
+
+    def test_absent_gs_is_still_a_clean_failure(self, tmp_path, monkeypatch):
+        """gs がそもそも無い環境でも、版を聞きに行って落ちたりしないこと。"""
+        monkeypatch.setattr(normalizer, "locate", lambda tool: None)
+        src = tmp_path / "a.ps"
+        src.write_bytes(b"%!PS\n")
+        with pytest.raises(AIPPipelineError) as exc:
+            normalizer.normalize(
+                AIPFile("a.ps", src, 5, "u1"), self._ps_rule(), tmp_path / "work"
+            )
+        assert "変換ツールが見つかりません" in exc.value.message
+
+    def test_the_original_is_untouched(self, tmp_path, monkeypatch):
+        """**このアプリの最重要の性質。** 版を聞く処理を足したあとも、
+        原本には一切書き込まないこと。"""
+        self._fake_gs(monkeypatch, tmp_path)
+        src = tmp_path / "a.ps"
+        src.write_bytes(b"%!PS original bytes\n")
+        before = sha256_of(src)
+        mtime = src.stat().st_mtime
+
+        derivative = normalizer.normalize(
+            AIPFile("a.ps", src, src.stat().st_size, "u1"),
+            self._ps_rule(),
+            tmp_path / "work",
+        )
+
+        assert sha256_of(src) == before, "原本のバイト列が変わっている"
+        assert src.stat().st_mtime == mtime, "原本に書き込んでいる"
+        assert derivative.path != src

@@ -21,6 +21,7 @@ from .aip_models import (
     AIPPipelineError,
     Derivative,
     DerivativePurpose,
+    Executor,
     NormalizationRule,
 )
 from .checksums import sha256_of
@@ -40,13 +41,114 @@ def locate(tool: str) -> Path | None:
     return Path(which) if which else None
 
 
+#: 版を聞ける外部ツールと、そのための引数。
+#:
+#: **同梱していないツールだけを相手にする。** gs は利用者の環境から来るので、
+#: どの版が動いたかは配布物からは決まらない。記録しておかないと、あとから
+#: 「この PDF は何で作られたのか」を追う手がかりが残らない。同梱しているものは
+#: アプリの版から辿れるので、わざわざプロセスを起こして聞かない。
+#:
+#: 知らないツールを勝手に `--version` で叩かないのは、引数の意味が分からない
+#: 相手に何をさせることになるか分からないため（変換対象を上書きしかねない）。
+_VERSION_PROBES: dict[str, list[str]] = {"gs": ["--version"]}
+
+#: 版の表示名。`gs --version` は "10.07.1" としか答えないので、何の版かを添える。
+_VERSION_LABELS: dict[str, str] = {"gs": "Ghostscript"}
+
+#: 1 回聞いた版を使い回す入れ物。1 回の移管で何十件も変換するのに、
+#: そのたびにプロセスを起こす理由がない。キーは解決したパス
+#: （同じ "gs" でも同梱版と PATH 上の版で中身が違う）。
+_version_cache: dict[str, str] = {}
+
+
+def tool_version(tool: str, tool_path: Path) -> str:
+    """外部ツールの版を返す。聞けなければ空文字。
+
+    **版が取れないことは変換の失敗ではない。** ここで例外を投げると、
+    記録が少し薄くなるだけの事情で AIP が作れなくなる。gs が古くて
+    `--version` を解さない、実行はできるが壊れている、といった場合も
+    黙って空を返し、変換そのものは試す。
+    """
+    probe = _VERSION_PROBES.get(tool)
+    if probe is None:
+        return ""
+
+    key = str(tool_path)
+    if key in _version_cache:
+        return _version_cache[key]
+
+    version = _probe_version(tool_path, probe)
+    if version:
+        version = f"{_VERSION_LABELS.get(tool, tool)} {version}"
+    _version_cache[key] = version
+    return version
+
+
+def _probe_version(tool_path: Path, probe: list[str]) -> str:
+    try:
+        proc = subprocess.run(
+            [str(tool_path), *probe],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            # 応答しないツールでパイプライン全体を止めない。版を聞くだけなので
+            # 待つ意味も無い。
+            timeout=15,
+            **bundled.no_window(),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+    if proc.returncode != 0:
+        return ""
+
+    # gs は版だけを 1 行返すが、他のツールが複数行返しても困らないようにする。
+    lines = [line.strip() for line in (proc.stdout or "").splitlines() if line.strip()]
+    return lines[0] if lines else ""
+
+
+def event_detail(derivative: Derivative) -> str:
+    """PREMIS の eventDetail に入れる 1 行を組む。
+
+    Archivematica は
+
+        ArchivematicaFPRCommandID="a34ddc9b-..."; program="convert"; version="ImageMagick 6.9.7-4"
+
+    のように「どの規則が・どの道具の・どの版で」動いたかを書く。同じ形にする。
+    3 つのどれが欠けても、**この派生物を別の環境で作り直せるかどうかを
+    後から判断できない**（規則が分からなければ何をしたか分からず、版が
+    分からなければ同じバイト列になるか分からない）。
+    """
+    version = derivative.tool_version or "unknown"  # 空欄だと「聞き忘れ」と読めてしまう
+    parts = [f'rule="{derivative.rule_id}"']
+    # 規則が組み込みか、利用者が足したものかを別の属性で書く。
+    # **rule="image-to-tiff(user)" のように識別子へ混ぜない。** 識別子は過去の
+    # AIP にそのまま書き込まれている文字列で、後年それと突き合わせるためにある。
+    # 装飾を足すと、同じ規則で作った古い AIP と新しい AIP で値が食い違い、
+    # 突き合わせに文字列の加工が要るようになる。属性を 1 つ増やす方が、
+    # 既存の読み手（rule= だけを見る側）も壊さない。
+    if derivative.rule_source:
+        parts.append(f'ruleSource="{derivative.rule_source}"')
+    parts += [
+        f'program="{derivative.tool_name}"',
+        f'version="{version}"',
+    ]
+    if derivative.command_line:
+        parts.append(derivative.command_line)
+    return "; ".join(parts)
+
+
 def normalize(file: AIPFile, rule: NormalizationRule, work_dir: Path) -> Derivative:
     """ルールを適用して派生物を返す。
 
     ツールが見つからない/変換失敗時は送出する（呼び出し側で警告にして
     AIP 化自体は続行する。1 ファイルの変換失敗で移管全体を止めない）。
     """
-    if rule.tool == image_normalize.TOOL:
+    # **tool の名前で分岐しない。** 利用者が tool = "pillow" という外部コマンドの
+    # 規則を書いたときに、アプリ内蔵の画像変換が代わりに動いてはならない。
+    # 内蔵処理を呼ぶ道は executor = "builtin" だけで、それは利用者の表からは
+    # 指定できない（rule_table.validate が拒む）。
+    if rule.executor is Executor.BUILTIN:
         return _normalize_in_process(file, rule, work_dir)
     return _normalize_by_subprocess(file, rule, work_dir)
 
@@ -59,6 +161,11 @@ def _normalize_in_process(
     同梱バイナリの探索も PATH も要らないので、配布先で「ツールが無くて変換
     されなかった」が起きない。
     """
+    if rule.tool != image_normalize.TOOL:
+        # 組み込みの表にしか現れない道なので、ここに来るのはアプリの不具合。
+        # 黙って画像変換にかけると、規則が言っていない変換が行われる。
+        raise AIPPipelineError.tool_not_found(rule.tool)
+
     derivative_uuid = str(_uuid.uuid4())
     out_path = work_dir / f"{derivative_uuid}.{rule.out_extension}"
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -69,8 +176,12 @@ def _normalize_in_process(
         # 壊れた画像・未対応のサブフォーマットはここに来る。落とさず警告にする。
         raise AIPPipelineError.tool_failed(rule.tool, -1, str(exc)) from exc
 
+    # 版は tool_version に持たせるので、説明文の先頭に付いている版は外す。
+    # eventDetail に同じ版が 2 度出ると、読む側が「別の版の話か」と迷う。
+    version = image_normalize.version_note()
     return _derivative(file, rule, out_path, derivative_uuid,
-                       tool_name=image_normalize.version_note(), command_line=detail)
+                       tool_name=rule.tool, tool_version=version,
+                       command_line=detail.removeprefix(f"{version}: "))
 
 
 def _normalize_by_subprocess(
@@ -80,6 +191,7 @@ def _normalize_by_subprocess(
     if tool_path is None:
         raise AIPPipelineError.tool_not_found(rule.tool)
     bundled.ensure_executable(tool_path)
+    version = tool_version(rule.tool, tool_path)
 
     derivative_uuid = str(_uuid.uuid4())
     out_path = work_dir / f"{derivative_uuid}.{rule.out_extension}"
@@ -113,7 +225,8 @@ def _normalize_by_subprocess(
         raise AIPPipelineError.tool_failed(rule.tool, 0, "出力が生成されませんでした")
 
     return _derivative(file, rule, out_path, derivative_uuid,
-                       tool_name=rule.tool, command_line=" ".join([rule.tool, *args]))
+                       tool_name=rule.tool, tool_version=version,
+                       command_line=" ".join([rule.tool, *args]))
 
 
 def _derivative(
@@ -124,6 +237,7 @@ def _derivative(
     *,
     tool_name: str,
     command_line: str,
+    tool_version: str = "",
 ) -> Derivative:
     if not out_path.is_file():
         raise AIPPipelineError.tool_failed(rule.tool, 0, "出力が生成されませんでした")
@@ -135,6 +249,9 @@ def _derivative(
         size_bytes=out_path.stat().st_size,
         uuid=derivative_uuid,
         tool_name=tool_name,
+        tool_version=tool_version,
+        rule_id=rule.rule_id,
+        rule_source=rule.source.value,
         command_line=command_line,
         sha256=sha256_of(out_path),
         puid_out=rule.puid_out,

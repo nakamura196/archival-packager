@@ -1,0 +1,119 @@
+{"id": "mn-001", "text": "個人番号 123456789018 （本人確認書類の写し）", "expect": ["マイナンバー"], "category": "positive", "note": "素の 12 桁", "deliberate_miss": false}
+{"id": "mn-002", "text": "マイナンバー：987654321093", "expect": ["マイナンバー"], "category": "positive", "note": "コロン区切り", "deliberate_miss": false}
+{"id": "mn-003", "text": "個人番号　1234-5678-9018", "expect": ["マイナンバー"], "category": "positive", "note": "ハイフン 4-4-4 区切り", "deliberate_miss": false}
+{"id": "mn-004", "text": "個人番号 9876 5432 1093", "expect": ["マイナンバー"], "category": "positive", "note": "スペース区切り", "deliberate_miss": false}
+{"id": "mn-005", "text": "個人番号　５１２３４５６７８９０６", "expect": ["マイナンバー"], "category": "positive", "note": "全角数字", "deliberate_miss": false}
+{"id": "mn-006", "text": "個人番号 １２３４－５６７８－９０１８", "expect": ["マイナンバー"], "category": "positive", "note": "全角数字＋全角ハイフン", "deliberate_miss": false}
+{"id": "mn-007", "text": "個人番号 2026ー1234ー5670", "expect": ["マイナンバー"], "category": "positive", "note": "縦書き OCR で長音符に化けた区切り", "deliberate_miss": false}
+{"id": "mn-008", "text": "個人番号 1234‐5678‐9018", "expect": ["マイナンバー"], "category": "positive", "note": "OCR で U+2010 ハイフンに化けた区切り", "deliberate_miss": false}
+{"id": "mn-009", "text": "（別紙）扶養親族 個人番号 512345678906 生年月日 昭和四十五年三月三日", "expect": ["マイナンバー"], "category": "positive", "note": "文中", "deliberate_miss": false}
+{"id": "mn-010", "text": "甲 123456789018／乙 987654321093", "expect": ["マイナンバー", "マイナンバー"], "category": "positive", "note": "1 行に 2 件", "deliberate_miss": false}
+{"id": "cc-001", "text": "カード番号 4242-4242-4242-4242", "expect": ["クレジットカード番号"], "category": "positive", "note": "Visa 試験番号（4-4-4-4）", "deliberate_miss": false}
+{"id": "cc-002", "text": "会費引落 4111111111111111 期限 12/28", "expect": ["クレジットカード番号"], "category": "positive", "note": "区切り無し 16 桁", "deliberate_miss": false}
+{"id": "cc-003", "text": "5555 5555 5555 4444", "expect": ["クレジットカード番号"], "category": "positive", "note": "Mastercard 試験番号・スペース区切り", "deliberate_miss": false}
+{"id": "cc-004", "text": "JCB 3530-1113-3330-0000", "expect": ["クレジットカード番号"], "category": "positive", "note": "JCB 試験番号", "deliberate_miss": false}
+{"id": "cc-005", "text": "American Express 3782 822463 10005", "expect": ["クレジットカード番号"], "category": "positive", "note": "Amex 15 桁・3-6-6 区切り", "deliberate_miss": false}
+{"id": "cc-006", "text": "Diners 3622 720627 1667", "expect": ["クレジットカード番号"], "category": "positive", "note": "Diners 14 桁", "deliberate_miss": false}
+{"id": "cc-007", "text": "カード番号 ４２４２４２４２４２４２４２４２", "expect": ["クレジットカード番号"], "category": "positive", "note": "全角数字 16 桁", "deliberate_miss": false}
+{"id": "cc-008", "text": "決済カード 6011-1111-1111-1117", "expect": ["クレジットカード番号"], "category": "positive", "note": "Discover 試験番号", "deliberate_miss": false}
+{"id": "cc-009", "text": "（領収控）5105-1051-0510-5100 で決済済", "expect": ["クレジットカード番号"], "category": "positive", "note": "文中", "deliberate_miss": false}
+{"id": "cc-010", "text": "旧カード 4242424242424242 新カード 5555555555554444", "expect": ["クレジットカード番号", "クレジットカード番号"], "category": "positive", "note": "1 行に 2 件", "deliberate_miss": false}
+{"id": "em-001", "text": "連絡先は taro.yamada@example.co.jp です", "expect": ["メールアドレス"], "category": "positive", "note": "素", "deliberate_miss": false}
+{"id": "em-002", "text": "メール：hanako_suzuki@example.ne.jp", "expect": ["メールアドレス"], "category": "positive", "note": "全角コロンの直後", "deliberate_miss": false}
+{"id": "em-003", "text": "（ARCHIVE-Taro@Example.Co.Jp）", "expect": ["メールアドレス"], "category": "positive", "note": "大文字混じり・括弧内", "deliberate_miss": false}
+{"id": "em-004", "text": "申込 info+kenkyu@example.org 宛", "expect": ["メールアドレス"], "category": "positive", "note": "プラス付きローカル部", "deliberate_miss": false}
+{"id": "em-005", "text": "旧 a@example.jp から 新 b.c@example.jp へ変更", "expect": ["メールアドレス", "メールアドレス"], "category": "positive", "note": "1 行に 2 件", "deliberate_miss": false}
+{"id": "em-006", "text": "yamada＠example.jp", "expect": ["メールアドレス"], "category": "positive", "note": "全角＠・全角英字", "deliberate_miss": false}
+{"id": "em-007", "text": "e-mail: k-tanaka@sub.example.ac.jp（研究室）", "expect": ["メールアドレス"], "category": "positive", "note": "ハイフン入り・サブドメイン", "deliberate_miss": false}
+{"id": "ph-001", "text": "電話 03-1234-5678", "expect": ["電話番号"], "category": "positive", "note": "市外局番 2 桁", "deliberate_miss": false}
+{"id": "ph-002", "text": "携帯 090-1234-5678", "expect": ["電話番号"], "category": "positive", "note": "携帯 11 桁", "deliberate_miss": false}
+{"id": "ph-003", "text": "TEL 0463-12-3456", "expect": ["電話番号"], "category": "positive", "note": "市外局番 4 桁", "deliberate_miss": false}
+{"id": "ph-004", "text": "問合せ 0120-123-456", "expect": ["電話番号"], "category": "positive", "note": "フリーダイヤル（末尾 3 桁）", "deliberate_miss": false}
+{"id": "ph-005", "text": "FAX ０３－５８４１－１６１５", "expect": ["電話番号"], "category": "positive", "note": "全角数字＋全角ハイフン", "deliberate_miss": false}
+{"id": "ph-006", "text": "電話（03）1234-5678", "expect": ["電話番号"], "category": "positive", "note": "市外局番を括弧で括る書式", "deliberate_miss": false}
+{"id": "ph-007", "text": "電話 03(1234)5678", "expect": ["電話番号"], "category": "positive", "note": "局番を括弧で括る書式", "deliberate_miss": false}
+{"id": "ph-008", "text": "自宅 06ー6543ー2109 まで", "expect": ["電話番号"], "category": "positive", "note": "OCR で長音符に化けた区切り", "deliberate_miss": false}
+{"id": "ph-009", "text": "連絡先 03-1234-5678／090-8765-4321", "expect": ["電話番号", "電話番号"], "category": "positive", "note": "1 行に 2 件", "deliberate_miss": false}
+{"id": "ph-010", "text": "電話 09012345678", "expect": ["電話番号"], "category": "positive", "note": "区切り無し 11 桁", "deliberate_miss": true}
+{"id": "ph-011", "text": "℡ 0332345678", "expect": ["電話番号"], "category": "positive", "note": "区切り無し 10 桁", "deliberate_miss": true}
+{"id": "pc-001", "text": "〒113-0033 東京都文京区本郷7-3-1", "expect": ["郵便番号"], "category": "positive", "note": "〒付き", "deliberate_miss": false}
+{"id": "pc-002", "text": "住所 113-0033 東京都文京区", "expect": ["郵便番号"], "category": "positive", "note": "〒無し", "deliberate_miss": false}
+{"id": "pc-003", "text": "〒１１３－００３３", "expect": ["郵便番号"], "category": "positive", "note": "全角数字＋全角ハイフン", "deliberate_miss": false}
+{"id": "pc-004", "text": "〒 060‐0808 札幌市北区北八条西", "expect": ["郵便番号"], "category": "positive", "note": "OCR で U+2010 に化けた区切り", "deliberate_miss": false}
+{"id": "pc-005", "text": "〒1130033 東京都文京区", "expect": ["郵便番号"], "category": "positive", "note": "〒付き・ハイフン無し 7 桁", "deliberate_miss": false}
+{"id": "mix-001", "text": "山田太郎 〒113-0033 東京都文京区本郷 電話 03-1234-5678 taro@example.jp", "expect": ["郵便番号", "電話番号", "メールアドレス"], "category": "positive", "note": "差出人欄を想定", "deliberate_miss": false}
+{"id": "mix-002", "text": "申請者 個人番号 987654321093 電話 090-1234-5678 メール h.s@example.ne.jp", "expect": ["マイナンバー", "電話番号", "メールアドレス"], "category": "positive", "note": "申請書を想定", "deliberate_miss": false}
+{"id": "neg-001", "text": "整理番号 111111111111", "expect": [], "category": "negative", "note": "12 桁だが検査用数字が合わない連番", "deliberate_miss": false}
+{"id": "neg-002", "text": "資料 ID 202600000123", "expect": [], "category": "negative", "note": "年度＋連番の 12 桁", "deliberate_miss": false}
+{"id": "neg-003", "text": "請求記号 A-123-4567", "expect": [], "category": "negative", "note": "英字付き請求記号", "deliberate_miss": false}
+{"id": "neg-004", "text": "文書番号 0123-4567-8901", "expect": [], "category": "negative", "note": "電話に見える 12 桁の枝番", "deliberate_miss": false}
+{"id": "neg-005", "text": "ISBN 978-4-00-000000-0", "expect": [], "category": "negative", "note": "ISBN-13（ハイフン付き）", "deliberate_miss": false}
+{"id": "neg-006", "text": "ISBN9784000000000", "expect": [], "category": "negative", "note": "ISBN-13（Luhn を偶然通る番号）", "deliberate_miss": false}
+{"id": "neg-007", "text": "マイクロフィルム リール 0123-4567", "expect": [], "category": "negative", "note": "郵便番号に見えるリール番号（既知の誤検出源）", "deliberate_miss": false}
+{"id": "neg-008", "text": "明治元年（1868）から大正十五年（1926）まで", "expect": [], "category": "negative", "note": "年の羅列", "deliberate_miss": false}
+{"id": "neg-009", "text": "受入 2026-09-12／点検 2026-09-30", "expect": [], "category": "negative", "note": "日付の羅列", "deliberate_miss": false}
+{"id": "neg-010", "text": "内線 21615", "expect": [], "category": "negative", "note": "内線番号", "deliberate_miss": false}
+{"id": "neg-011", "text": "簿冊 第1234号 第5678号 第9012号", "expect": [], "category": "negative", "note": "号数の羅列", "deliberate_miss": false}
+{"id": "neg-012", "text": "写真 1234 5678 9012 3456 7890 1234 番の裏書", "expect": [], "category": "negative", "note": "長い数字列（24 桁）", "deliberate_miss": false}
+{"id": "neg-013", "text": "口座 普通 1234567 名義 ヤマダ", "expect": [], "category": "negative", "note": "7 桁の口座番号", "deliberate_miss": false}
+{"id": "neg-014", "text": "法人番号 1234567890123", "expect": [], "category": "negative", "note": "13 桁だが Luhn 不成立", "deliberate_miss": false}
+{"id": "neg-015", "text": "目録 p.113-0033 行", "expect": [], "category": "negative", "note": "頁範囲の表記", "deliberate_miss": false}
+{"id": "neg-016", "text": "経度 135-0 緯度 35-0 の地点", "expect": [], "category": "negative", "note": "座標の断片", "deliberate_miss": false}
+{"id": "neg-017", "text": "データーベース構築に関する覚書", "expect": [], "category": "negative", "note": "長音符を含む普通の日本語", "deliberate_miss": false}
+{"id": "neg-018", "text": "これは普通の文章です。数字は 42 個。", "expect": [], "category": "negative", "note": "数字を含む平文", "deliberate_miss": false}
+{"id": "neg-019", "text": "件名：令和8年度 第003-0045号 通知", "expect": [], "category": "negative", "note": "3-4 桁だが通知番号", "deliberate_miss": false}
+{"id": "neg-020", "text": "寸法 1200-3400 ミリ", "expect": [], "category": "negative", "note": "寸法の範囲", "deliberate_miss": false}
+{"id": "neg-021", "text": "昭和45年度 収蔵品 0001-0002 番", "expect": [], "category": "negative", "note": "4-4 桁の連番", "deliberate_miss": false}
+{"id": "neg-022", "text": "電子メールの利用に関する規程 第3条", "expect": [], "category": "negative", "note": "メールという語のみ", "deliberate_miss": false}
+{"id": "neg-023", "text": "版面 21.0cm×14.8cm、丁数 113 丁", "expect": [], "category": "negative", "note": "計測値", "deliberate_miss": false}
+{"id": "neg-024", "text": "受入番号 2026-0001", "expect": [], "category": "negative", "note": "年度＋連番（4-4 だが 8 桁）", "deliberate_miss": false}
+{"id": "neg-025", "text": "電話帳（昭和30年版）の複製", "expect": [], "category": "negative", "note": "電話という語のみ", "deliberate_miss": false}
+{"id": "adv-001", "text": "整理番号 111111111118", "expect": [], "category": "adversarial", "note": "12 桁・検査用数字を偶然通る連番（原理的に区別不能）", "deliberate_miss": false}
+{"id": "adv-002", "text": "資料 ID 202600000006", "expect": [], "category": "adversarial", "note": "年度＋連番で検査用数字を偶然通る", "deliberate_miss": false}
+{"id": "adv-003", "text": "商品コード 9780000000008", "expect": [], "category": "negative", "note": "Luhn を偶然通る 13 桁だが先頭 978 はカードに無い", "deliberate_miss": false}
+{"id": "un-001", "text": "住所 東京都文京区本郷七丁目3番1号", "expect": [], "category": "unsupported", "note": "住所は検出対象外", "deliberate_miss": false}
+{"id": "un-002", "text": "現住所 神奈川県横浜市中区日本大通3-1", "expect": [], "category": "unsupported", "note": "住所は検出対象外", "deliberate_miss": false}
+{"id": "un-003", "text": "生年月日 昭和45年3月3日", "expect": [], "category": "unsupported", "note": "生年月日は検出対象外", "deliberate_miss": false}
+{"id": "un-004", "text": "生年月日 1970/03/03", "expect": [], "category": "unsupported", "note": "生年月日は検出対象外", "deliberate_miss": false}
+{"id": "un-005", "text": "氏名 山田太郎（やまだ たろう）", "expect": [], "category": "unsupported", "note": "氏名は検出対象外", "deliberate_miss": false}
+{"id": "un-006", "text": "旅券番号 TR1234567", "expect": [], "category": "unsupported", "note": "旅券番号は検出対象外", "deliberate_miss": false}
+{"id": "un-007", "text": "運転免許証番号 123456789012 と記載あり", "expect": [], "category": "unsupported", "note": "免許証番号は 12 桁。検査用数字が合えばマイナンバーとして拾われうる", "deliberate_miss": false}
+{"id": "un-008", "text": "被保険者番号 12345678", "expect": [], "category": "unsupported", "note": "健康保険の記号番号は検出対象外", "deliberate_miss": false}
+{"id": "b2-001", "text": "電話（０３）１２３４－５６７８", "expect": ["電話番号"], "category": "positive", "note": "全角括弧＋全角数字の電話", "deliberate_miss": false}
+{"id": "b2-002", "text": "yamada＠example．jp", "expect": ["メールアドレス"], "category": "positive", "note": "全角＠＋全角ピリオド", "deliberate_miss": false}
+{"id": "b2-003", "text": "1\t山田\t03-1234-5678\t113-0033", "expect": ["電話番号", "郵便番号"], "category": "positive", "note": "タブ区切りの台帳行", "deliberate_miss": false}
+{"id": "b2-004", "text": "TEL:03-1234-5678(内線21)", "expect": ["電話番号"], "category": "positive", "note": "内線が続く電話", "deliberate_miss": false}
+{"id": "b2-005", "text": "銀聯 6221-2600-0000-0000-001", "expect": ["クレジットカード番号"], "category": "positive", "note": "19 桁のカード番号", "deliberate_miss": false}
+{"id": "b2-006", "text": "個人番号　987654 321093", "expect": ["マイナンバー"], "category": "positive", "note": "6-6 桁のスペース区切り", "deliberate_miss": false}
+{"id": "b2-007", "text": "受取人 〒060-0808 札幌市／差出人 〒113-0033 東京都", "expect": ["郵便番号", "郵便番号"], "category": "positive", "note": "1 行に 2 件", "deliberate_miss": false}
+{"id": "b2-008", "text": "TEL 03-1234-5678、FAX 03-1234-5679", "expect": ["電話番号", "電話番号"], "category": "positive", "note": "読点区切りの 2 件", "deliberate_miss": false}
+{"id": "b2-009", "text": "Email: ARCHIVES@example.ac.jp", "expect": ["メールアドレス"], "category": "positive", "note": "全部大文字のローカル部", "deliberate_miss": false}
+{"id": "b2-010", "text": "電話 〇三-一二三四-五六七八", "expect": ["電話番号"], "category": "positive", "note": "漢数字の電話番号", "deliberate_miss": true}
+{"id": "b2-011", "text": "電話 03 - 1234 - 5678", "expect": ["電話番号"], "category": "positive", "note": "ハイフンの前後に空白", "deliberate_miss": false}
+{"id": "b2-012", "text": "| 4242 | 4242 | 4242 | 4242 |", "expect": ["クレジットカード番号"], "category": "positive", "note": "表のセルに分割されたカード番号", "deliberate_miss": true}
+{"id": "b2-013", "text": "整理 12 4242424242424242", "expect": ["クレジットカード番号"], "category": "positive", "note": "長い数字列に埋もれたカード番号", "deliberate_miss": true}
+{"id": "b2-014", "text": "個人番号 1234.5678.9018", "expect": ["マイナンバー"], "category": "positive", "note": "ピリオド区切り", "deliberate_miss": true}
+{"id": "b2-101", "text": "問合せは info@ まで", "expect": [], "category": "negative", "note": "@ で終わる断片", "deliberate_miss": false}
+{"id": "b2-102", "text": "公式アカウント @archives_jp", "expect": [], "category": "negative", "note": "SNS のハンドル名", "deliberate_miss": false}
+{"id": "b2-103", "text": "https://example.jp/list?p=2026", "expect": [], "category": "negative", "note": "URL", "deliberate_miss": false}
+{"id": "b2-104", "text": "支出 1,234,567 円", "expect": [], "category": "negative", "note": "3 桁区切りの金額", "deliberate_miss": false}
+{"id": "b2-105", "text": "車両 品川 500 あ 12-34", "expect": [], "category": "negative", "note": "自動車登録番号", "deliberate_miss": false}
+{"id": "b2-106", "text": "NDC 210.5／請求記号 K/210.5/Y", "expect": [], "category": "negative", "note": "分類記号", "deliberate_miss": false}
+{"id": "b2-107", "text": "令和8年9月12日 受入", "expect": [], "category": "negative", "note": "和暦の日付", "deliberate_miss": false}
+{"id": "b2-108", "text": "ゆうちょ 記号 12345 番号 12345678", "expect": [], "category": "negative", "note": "口座の記号番号", "deliberate_miss": false}
+{"id": "b2-109", "text": "統計表 113 0033 の欄", "expect": [], "category": "negative", "note": "空白区切りの郵便番号風", "deliberate_miss": false}
+{"id": "b2-110", "text": "ISO 3166-2:JP に準拠", "expect": [], "category": "negative", "note": "規格番号", "deliberate_miss": false}
+{"id": "b2-111", "text": "第 003-0045 号 及び 第 003-0046 号", "expect": [], "category": "negative", "note": "3-4 桁の文書番号（2 件）", "deliberate_miss": false}
+{"id": "b2-112", "text": "架番号 A-1234-5678-9012", "expect": [], "category": "negative", "note": "英字付き 12 桁の架番号", "deliberate_miss": false}
+{"id": "b2-113", "text": "頁 113-0033 参照", "expect": [], "category": "negative", "note": "頁範囲", "deliberate_miss": false}
+{"id": "b2-114", "text": "郵便に関する〒の記号について", "expect": [], "category": "negative", "note": "〒 の語のみ", "deliberate_miss": false}
+{"id": "b2-115", "text": "0120 の番号は使えません", "expect": [], "category": "negative", "note": "局番だけ", "deliberate_miss": false}
+{"id": "b2-116", "text": "電話加入権 台帳 全 1234 件", "expect": [], "category": "negative", "note": "件数", "deliberate_miss": false}
+{"id": "b2-117", "text": "西暦 1868 1869 1870 1871 1872 1873", "expect": [], "category": "negative", "note": "年の並び（24 桁の数字列）", "deliberate_miss": false}
+{"id": "b2-118", "text": "図面 No.2026-09-12-0001", "expect": [], "category": "negative", "note": "日付入りの図面番号", "deliberate_miss": false}
+{"id": "b2-201", "text": "JAN コード 4901234567894", "expect": [], "category": "adversarial", "note": "13 桁・Luhn を偶然通る JAN コード", "deliberate_miss": false}
+{"id": "b2-202", "text": "法人番号 5000000000005", "expect": [], "category": "adversarial", "note": "13 桁・Luhn を偶然通る法人番号風", "deliberate_miss": false}
+{"id": "b2-203", "text": "伝票番号 4900000000007", "expect": [], "category": "adversarial", "note": "先頭 4 で Luhn を通る 13 桁", "deliberate_miss": false}
+{"id": "b2-301", "text": "本籍 東京都文京区本郷七丁目", "expect": [], "category": "unsupported", "note": "本籍・住所は検出対象外", "deliberate_miss": false}
+{"id": "b2-302", "text": "明治三十五年二月十日生", "expect": [], "category": "unsupported", "note": "生年月日（漢数字）は検出対象外", "deliberate_miss": false}
+{"id": "b2-303", "text": "口座 三井住友銀行 本店 普通 1234567 山田太郎", "expect": [], "category": "unsupported", "note": "口座情報は検出対象外", "deliberate_miss": false}

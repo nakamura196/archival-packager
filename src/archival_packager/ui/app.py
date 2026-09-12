@@ -29,10 +29,11 @@ from pathlib import Path
 
 import flet as ft
 
-from .. import __version__
+from .. import __version__, i18n
 from ..core import aip_pipeline, applog, clamav, sip_pipeline
 from ..core.aip_models import AIPOptions, AIPPipelineError, AIPResult, DescriptiveMetadata
 from ..core.models import SIPMetadata, SIPOptions, SIPPipelineError, SIPResult
+from ..i18n import t
 from . import about, viewer
 from . import platform as plat
 
@@ -80,7 +81,7 @@ def main(page: ft.Page) -> None:
 
     progress_log = ft.ListView(expand=True, spacing=2, auto_scroll=True, padding=10)
     progress_bar = ft.ProgressBar(visible=False)
-    run_button = ft.FilledButton("実行", icon=ft.Icons.PLAY_ARROW, disabled=True)
+    run_button = ft.FilledButton(t("実行"), icon=ft.Icons.PLAY_ARROW, disabled=True)
     #: なぜ押せないのかを書く。灰色のボタンだけを見せられても、何が足りないのか
     #: 画面から分からない（「押せない」という報告を受けた）。
     run_hint = ft.Text("", size=11, color=ft.Colors.ON_SURFACE_VARIANT)
@@ -159,9 +160,10 @@ def main(page: ft.Page) -> None:
         value=MODE_SIP,
         content=ft.Column(
             [
-                ft.Radio(value=MODE_SIP, label="SIP 作成（素材フォルダ／ZIP から受入パッケージ）"),
-                ft.Radio(value=MODE_AIP, label="AIP 作成（SIP から長期保存パッケージ）"),
-                ft.Radio(value=MODE_FULL, label="素材から AIP まで一気通貫"),
+                ft.Radio(value=MODE_SIP,
+                         label=t("SIP 作成（素材フォルダ／ZIP から受入パッケージ）")),
+                ft.Radio(value=MODE_AIP, label=t("AIP 作成（SIP から長期保存パッケージ）")),
+                ft.Radio(value=MODE_FULL, label=t("素材から AIP まで一気通貫")),
             ],
             spacing=2,
         ),
@@ -171,15 +173,17 @@ def main(page: ft.Page) -> None:
     # 記述メタデータ
     # ------------------------------------------------------------------
 
-    identifier = ft.TextField(label="識別子", hint_text="例: 2026-移管-総務課", dense=True)
+    identifier = ft.TextField(label=t("識別子"), hint_text=t("例: 2026-移管-総務課"), dense=True)
     title = ft.TextField(
-        label="タイトル（必須）", hint_text="例: 総務課 一般文書", dense=True
+        label=t("タイトル（必須）"), hint_text=t("例: 総務課 一般文書"), dense=True
     )
-    scope_note = ft.TextField(label="内容・範囲", multiline=True, min_lines=2, max_lines=4, dense=True)
-    date_note = ft.TextField(label="年代", hint_text="例: 2024–2025", dense=True)
+    scope_note = ft.TextField(
+        label=t("内容・範囲"), multiline=True, min_lines=2, max_lines=4, dense=True
+    )
+    date_note = ft.TextField(label=t("年代"), hint_text=t("例: 2024–2025"), dense=True)
     archivist = ft.TextField(
-        label="担当者名",
-        hint_text="PREMIS に保存処理の実施者として記録されます",
+        label=t("担当者名"),
+        hint_text=t("PREMIS に保存処理の実施者として記録されます"),
         dense=True,
     )
 
@@ -187,14 +191,14 @@ def main(page: ft.Page) -> None:
     # オプション
     # ------------------------------------------------------------------
 
-    make_bag = ft.Checkbox(label="BagIt bag として梱包する", value=False)
-    scan_pii = ft.Checkbox(label="個人情報(PII)を走査する", value=False)
-    scan_virus = ft.Checkbox(label="ウイルス検査を行う（定義 DB が必要）", value=False)
+    make_bag = ft.Checkbox(label=t("BagIt bag として梱包する"), value=False)
+    scan_pii = ft.Checkbox(label=t("個人情報(PII)を走査する"), value=False)
+    scan_virus = ft.Checkbox(label=t("ウイルス検査を行う（定義 DB が必要）"), value=False)
     sanitize = ft.Checkbox(
-        label="ファイル名を安全化する（元名は accession.csv に残ります）", value=False
+        label=t("ファイル名を安全化する（元名は accession.csv に残ります）"), value=False
     )
-    serialize_zip = ft.Checkbox(label="成果物を ZIP（無圧縮）に固める", value=False)
-    normalize = ft.Checkbox(label="保存用フォーマットへ変換する（AIP）", value=True)
+    serialize_zip = ft.Checkbox(label=t("成果物を ZIP（無圧縮）に固める"), value=False)
+    normalize = ft.Checkbox(label=t("保存用フォーマットへ変換する（AIP）"), value=True)
 
     # ------------------------------------------------------------------
     # ウイルス定義データベース
@@ -208,14 +212,14 @@ def main(page: ft.Page) -> None:
 
     def virus_db_message() -> str:
         if clamav.find_tool() is None:
-            return "ウイルス定義: ClamAV が同梱されていないため検査できません"
+            return t("ウイルス定義: ClamAV が同梱されていないため検査できません")
         return clamav.database_status()
 
     virus_db_status = ft.Text(
         virus_db_message(), size=12, color=ft.Colors.ON_SURFACE_VARIANT
     )
     virus_db_button = ft.OutlinedButton(
-        "定義を取得 / 更新",
+        t("定義を取得 / 更新"),
         icon=ft.Icons.CLOUD_DOWNLOAD,
         disabled=clamav.find_updater() is None,
     )
@@ -224,9 +228,9 @@ def main(page: ft.Page) -> None:
     # ファイル選択
     # ------------------------------------------------------------------
 
-    input_label = ft.Text("未選択", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
-    output_label = ft.Text("未選択", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
-    prior_label = ft.Text("未選択（任意）", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
+    input_label = ft.Text(t("未選択"), size=12, color=ft.Colors.ON_SURFACE_VARIANT)
+    output_label = ft.Text(t("未選択"), size=12, color=ft.Colors.ON_SURFACE_VARIANT)
+    prior_label = ft.Text(t("未選択（任意）"), size=12, color=ft.Colors.ON_SURFACE_VARIANT)
 
     # FilePicker は「サービス」として page.services に登録し、選択結果は
     # コールバックではなく await の戻り値で受け取る（Flet 0.86 の API）。
@@ -244,13 +248,14 @@ def main(page: ft.Page) -> None:
         needs_title = mode.value in (MODE_SIP, MODE_FULL)
         missing = []
         if state.input_path is None:
-            missing.append("素材フォルダ" if mode.value != MODE_AIP else "SIP フォルダ")
+            missing.append(t("素材フォルダ") if mode.value != MODE_AIP else t("SIP フォルダ"))
         if state.output_parent is None:
-            missing.append("出力先")
+            missing.append(t("出力先"))
         if needs_title and not (title.value or "").strip():
-            missing.append("タイトル")
+            missing.append(t("タイトル"))
         run_button.disabled = bool(missing)
-        run_hint.value = ("あと " + "・".join(missing) + " を指定すると押せます"
+        # 区切りも訳の対象。日本語の中黒をそのまま英語に出すと読めない。
+        run_hint.value = (t("あと {items} を指定すると押せます", items=t("・").join(missing))
                           if missing else "")
         run_hint.visible = bool(missing)
         # 組み立ての途中（page.add より前）にも呼ばれる。まだ画面が無いうちは
@@ -259,7 +264,7 @@ def main(page: ft.Page) -> None:
             page.update()
 
     async def choose_input_dir(_e: ft.ControlEvent) -> None:
-        chosen = await picker.get_directory_path(dialog_title="素材フォルダ / SIP を選ぶ")
+        chosen = await picker.get_directory_path(dialog_title=t("素材フォルダ / SIP を選ぶ"))
         if chosen:
             state.input_path = Path(chosen)
             input_label.value = chosen
@@ -267,7 +272,7 @@ def main(page: ft.Page) -> None:
 
     async def choose_input_zip(_e: ft.ControlEvent) -> None:
         files = await picker.pick_files(
-            dialog_title="受入 ZIP を選ぶ", allowed_extensions=["zip"], allow_multiple=False
+            dialog_title=t("受入 ZIP を選ぶ"), allowed_extensions=["zip"], allow_multiple=False
         )
         if files:
             state.input_path = Path(files[0].path)
@@ -275,7 +280,7 @@ def main(page: ft.Page) -> None:
         refresh_run_enabled()
 
     async def choose_output(_e: ft.ControlEvent) -> None:
-        chosen = await picker.get_directory_path(dialog_title="出力先フォルダを選ぶ")
+        chosen = await picker.get_directory_path(dialog_title=t("出力先フォルダを選ぶ"))
         if chosen:
             state.output_parent = Path(chosen)
             output_label.value = chosen
@@ -283,7 +288,7 @@ def main(page: ft.Page) -> None:
 
     async def choose_prior(_e: ft.ControlEvent) -> None:
         files = await picker.pick_files(
-            dialog_title="前回の accession.csv を選ぶ",
+            dialog_title=t("前回の accession.csv を選ぶ"),
             allowed_extensions=["csv"], allow_multiple=False,
         )
         if files:
@@ -304,19 +309,22 @@ def main(page: ft.Page) -> None:
         _items: list[ft.Control] = []
         if isinstance(result, SIPResult):
             path = result.sip_path
-            headline = f"SIP を作成しました（{result.file_count} 件 / {result.total_bytes:,} バイト）"
+            headline = t(
+                "SIP を作成しました（{count} 件 / {size} バイト）",
+                count=result.file_count, size=f"{result.total_bytes:,}",
+            )
             extras = [
-                ("記述スプレッドシート", result.spreadsheet_path),
-                ("レポート", result.report_path),
-                ("PII レポート", result.pii_report_path),
-                ("配列前後の対応表", result.arrangement_map_path),
+                (t("記述スプレッドシート"), result.spreadsheet_path),
+                (t("レポート"), result.report_path),
+                (t("PII レポート"), result.pii_report_path),
+                (t("配列前後の対応表"), result.arrangement_map_path),
                 ("ZIP", result.zip_path),
             ]
         else:
             path = result.aip_path
-            headline = (
-                f"AIP を作成しました（原本 {result.original_count} 件 / "
-                f"派生物 {result.derivative_count} 件）"
+            headline = t(
+                "AIP を作成しました（原本 {originals} 件 / 派生物 {derivatives} 件）",
+                originals=result.original_count, derivatives=result.derivative_count,
             )
             extras = [("METS", result.mets_path), ("ZIP", result.zip_path)]
 
@@ -330,12 +338,12 @@ def main(page: ft.Page) -> None:
                     # パスを出すだけでは「何ができたか」が伝わらない。
                     # 中身を見せることが理解を助ける（大仙市での聞き取り）。
                     ft.FilledTonalButton(
-                        "中身を見る",
+                        t("中身を見る"),
                         icon=ft.Icons.FIND_IN_PAGE_OUTLINED,
                         on_click=lambda _e, p=path: state.open_viewer(p),
                     ),
                     ft.OutlinedButton(
-                        "場所を開く",
+                        t("場所を開く"),
                         icon=ft.Icons.FOLDER_OPEN,
                         on_click=lambda _e, p=path: plat.reveal_in_file_manager(p),
                     ),
@@ -351,7 +359,7 @@ def main(page: ft.Page) -> None:
                     [
                         ft.Text(f"{label}: {candidate.name}", size=12, expand=True),
                         ft.TextButton(
-                            "開く", on_click=lambda _e, p=candidate: plat.open_path(p)
+                            t("開く"), on_click=lambda _e, p=candidate: plat.open_path(p)
                         ),
                     ]
                 )
@@ -363,12 +371,14 @@ def main(page: ft.Page) -> None:
                     ft.Column(
                         [
                             ft.Text(
-                                f"目視確認が必要な点: {len(result.warnings)} 件",
+                                t("目視確認が必要な点: {count} 件", count=len(result.warnings)),
                                 weight=ft.FontWeight.BOLD,
                             ),
-                            *[ft.Text(f"・{w}", size=12) for w in result.warnings[:50]],
+                            *[ft.Text(t("・{warning}", warning=w), size=12)
+                              for w in result.warnings[:50]],
                             *(
-                                [ft.Text(f"（他 {len(result.warnings) - 50} 件）", size=12)]
+                                [ft.Text(t("（他 {count} 件）",
+                                           count=len(result.warnings) - 50), size=12)]
                                 if len(result.warnings) > 50
                                 else []
                             ),
@@ -383,7 +393,8 @@ def main(page: ft.Page) -> None:
             )
         else:
             _items.append(
-                ft.Text("目視確認が必要な点はありません。", size=12, color=ft.Colors.GREEN_700)
+                ft.Text(t("目視確認が必要な点はありません。"), size=12,
+                        color=ft.Colors.GREEN_700)
             )
         ui(lambda: result_panel.controls.extend(_items))
 
@@ -420,7 +431,7 @@ def main(page: ft.Page) -> None:
             if selected in (MODE_AIP, MODE_FULL):
                 # 一気通貫では、いま作った SIP をそのまま入力にする。
                 aip_input = sip_result.sip_path if sip_result else state.input_path
-                log("――― AIP 作成 ―――")
+                log(t("――― AIP 作成 ―――"))
                 aip_result = aip_pipeline.run(
                     sip_root=aip_input,
                     output_parent=state.output_parent,
@@ -466,13 +477,13 @@ def main(page: ft.Page) -> None:
             # Clipboard.set は coroutine。同期で呼ぶと何も起きないまま
             # 「awaited されなかった」警告が出るだけになる。
             await clipboard.set(report)
-            log("エラーの内容をコピーしました。報告に貼り付けてください。")
+            log(t("エラーの内容をコピーしました。報告に貼り付けてください。"))
 
         box = (
             ft.Container(
                 ft.Column(
                     [
-                        ft.Text("処理を完了できませんでした", weight=ft.FontWeight.BOLD),
+                        ft.Text(t("処理を完了できませんでした"), weight=ft.FontWeight.BOLD),
                         ft.Text(message, size=12, selectable=True),
                         *(
                             [
@@ -488,7 +499,7 @@ def main(page: ft.Page) -> None:
                         ft.Text(env, size=10, selectable=True,
                                 color=ft.Colors.ON_SURFACE_VARIANT),
                         *(
-                            [ft.Text(f"記録: {saved}", size=10, selectable=True,
+                            [ft.Text(t("記録: {path}", path=saved), size=10, selectable=True,
                                      color=ft.Colors.ON_SURFACE_VARIANT)]
                             if saved
                             else []
@@ -496,12 +507,12 @@ def main(page: ft.Page) -> None:
                         ft.Row(
                             [
                                 ft.OutlinedButton(
-                                    "内容をコピー", icon=ft.Icons.CONTENT_COPY,
+                                    t("内容をコピー"), icon=ft.Icons.CONTENT_COPY,
                                     on_click=_copy,
                                 ),
                                 ft.Text(
-                                    "コピーした内容を nakamura@hi.u-tokyo.ac.jp まで"
-                                    "お送りいただけると助かります。",
+                                    t("コピーした内容を nakamura@hi.u-tokyo.ac.jp まで"
+                                      "お送りいただけると助かります。"),
                                     size=10, color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
@@ -524,7 +535,7 @@ def main(page: ft.Page) -> None:
         2026-09-11 の IndexError は、こちらの try/except の外（Flet の内部）で
         起きたため、アプリは落ちたことすら記録していなかった。ここで受ける。
         """
-        _show_error("想定外のエラーが発生しました。", str(getattr(e, "data", e)))
+        _show_error(t("想定外のエラーが発生しました。"), str(getattr(e, "data", e)))
 
     page.on_error = on_app_error
 
@@ -541,7 +552,7 @@ def main(page: ft.Page) -> None:
         """freshclam を別スレッドで走らせる。数百 MB のダウンロードなので。"""
         try:
             clamav.update_database(progress=log, status=log_status)
-            log("ウイルス定義の更新が完了しました。")
+            log(t("ウイルス定義の更新が完了しました。"))
         except (SIPPipelineError, AIPPipelineError) as exc:
             _show_error(exc.message)
         except Exception as exc:  # noqa: BLE001
@@ -559,7 +570,7 @@ def main(page: ft.Page) -> None:
 
     def on_update_virus_db(_e: ft.ControlEvent) -> None:
         clear_log()
-        log("ウイルス定義を取得しています（数百 MB あります）…")
+        log(t("ウイルス定義を取得しています（数百 MB あります）…"))
         virus_db_button.disabled = True
         # 更新中に本処理を始めると、途中の DB で検査してしまう。
         run_button.disabled = True
@@ -583,7 +594,7 @@ def main(page: ft.Page) -> None:
     #: 中身が変わると気づけない**ので、有効なものを見出しに出す。
     options_summary = ft.Text("", size=11, color=ft.Colors.ON_SURFACE_VARIANT)
     options_tile = ft.ExpansionTile(
-        title=ft.Text("オプション", weight=ft.FontWeight.BOLD, size=13),
+        title=ft.Text(t("オプション"), weight=ft.FontWeight.BOLD, size=13),
         subtitle=options_summary,
         controls=[
             ft.Container(
@@ -597,34 +608,34 @@ def main(page: ft.Page) -> None:
     )
 
     metadata_section = section(
-        "記述メタデータ", identifier, title, date_note, scope_note, archivist
+        t("記述メタデータ"), identifier, title, date_note, scope_note, archivist
     )
-    virus_section = section("ウイルス定義データベース", virus_db_status, virus_db_button)
+    virus_section = section(t("ウイルス定義データベース"), virus_db_status, virus_db_button)
 
     # モードの説明。ラジオのラベルは短くせざるを得ないので、選んだものが
     # 何をするのかを 1 行添える。
     mode_note = ft.Text("", size=11, color=ft.Colors.ON_SURFACE_VARIANT)
 
     zip_button = ft.OutlinedButton(
-        "ZIP を選ぶ", icon=ft.Icons.ARCHIVE, on_click=choose_input_zip,
+        t("ZIP を選ぶ"), icon=ft.Icons.ARCHIVE, on_click=choose_input_zip,
     )
     input_button = ft.OutlinedButton(
-        "フォルダを選ぶ", icon=ft.Icons.FOLDER, on_click=choose_input_dir,
+        t("フォルダを選ぶ"), icon=ft.Icons.FOLDER, on_click=choose_input_dir,
     )
 
     left = ft.Column(
         [
-            section("何を作るか", mode, mode_note),
+            section(t("何を作るか"), mode, mode_note),
             ft.Divider(height=1),
             section(
-                "入力",
+                t("入力"),
                 ft.Row([input_button, zip_button], wrap=True),
                 input_label,
             ),
             section(
-                "出力先",
+                t("出力先"),
                 ft.OutlinedButton(
-                    "フォルダを選ぶ",
+                    t("フォルダを選ぶ"),
                     icon=ft.Icons.FOLDER,
                     on_click=choose_output,
                 ),
@@ -636,9 +647,9 @@ def main(page: ft.Page) -> None:
             options_tile,
             virus_section,
             prior_section := section(
-                "前回の受入記録（配列前後の突合）",
+                t("前回の受入記録（配列前後の突合）"),
                 ft.OutlinedButton(
-                    "accession.csv を選ぶ",
+                    t("accession.csv を選ぶ"),
                     icon=ft.Icons.UPLOAD_FILE,
                     on_click=choose_prior,
                 ),
@@ -667,7 +678,7 @@ def main(page: ft.Page) -> None:
 
     right = ft.Column(
         [
-            ft.Text("進捗", weight=ft.FontWeight.BOLD, size=13),
+            ft.Text(t("進捗"), weight=ft.FontWeight.BOLD, size=13),
             progress_bar,
             ft.Container(
                 progress_log,
@@ -691,9 +702,9 @@ def main(page: ft.Page) -> None:
     # 関係するのかを利用者に判断させない。
 
     _MODE_NOTES = {
-        MODE_SIP: "素材フォルダ（または ZIP）から受入パッケージを作ります。原本は変更しません。",
-        MODE_AIP: "既にある SIP から長期保存パッケージを作ります。記述は SIP から引き継ぎます。",
-        MODE_FULL: "素材から受入パッケージを作り、続けて長期保存パッケージまで作ります。",
+        MODE_SIP: t("素材フォルダ（または ZIP）から受入パッケージを作ります。原本は変更しません。"),
+        MODE_AIP: t("既にある SIP から長期保存パッケージを作ります。記述は SIP から引き継ぎます。"),
+        MODE_FULL: t("素材から受入パッケージを作り、続けて長期保存パッケージまで作ります。"),
     }
 
     def apply_mode(_e: ft.ControlEvent | None = None) -> None:
@@ -704,7 +715,7 @@ def main(page: ft.Page) -> None:
         mode_note.value = _MODE_NOTES.get(selected, "")
 
         # 入力の意味がモードで変わる。AIP 作成の入力は「素材」ではなく SIP。
-        input_button.text = "SIP のフォルダを選ぶ" if selected == MODE_AIP else "フォルダを選ぶ"
+        input_button.text = t("SIP のフォルダを選ぶ") if selected == MODE_AIP else t("フォルダを選ぶ")
         zip_button.visible = makes_sip          # ZIP から受け入れるのは SIP 作成のとき
 
         # 記述メタデータは SIP を作るときに入力する。AIP 作成では SIP から読む。
@@ -724,7 +735,7 @@ def main(page: ft.Page) -> None:
         on = [c.label for c in (make_bag, sanitize, scan_pii, scan_virus,
                                 normalize, serialize_zip)
               if c.visible and c.value]
-        options_summary.value = "、".join(on) if on else "既定のまま"
+        options_summary.value = t("、").join(on) if on else t("既定のまま")
 
         refresh_run_enabled()
 
@@ -768,7 +779,40 @@ def main(page: ft.Page) -> None:
 
     state.open_viewer = open_viewer
 
-    # ヘッダー。アプリ名と、いつでも開ける情報ボタン。
+    def on_language(_e: ft.ControlEvent) -> None:
+        """表示言語を切り替える。
+
+        **文字はコントロールを作るときに決まる**（label も text も、あとから
+        全部を差し替える手立てが無い）ので、画面ごと組み立て直す。
+        入力済みの内容は失われるが、言語を選ぶのは作業を始める前なので、
+        個々の値を持ち回る仕掛けを足すより、作り直すほうが壊れにくい。
+        """
+        chosen = language.value or i18n.current_language()
+        if chosen == i18n.current_language():
+            return
+        i18n.set_language(chosen)  # 次に起動したときも同じ言語で出す
+        # 作り直す前に、前の画面が page に付けたものを外す。残したまま main を
+        # 呼ぶと FilePicker とクリップボードが二重に登録される。
+        page.controls.clear()
+        page.services.clear()
+        main(page)
+        page.update()
+
+    #: 言語の切り替え。**上端に置く。** 英語しか読めない利用者は、
+    #: 日本語の画面の中からこれを探すことになるので、見出しの高さに出す。
+    language = ft.Dropdown(
+        value=i18n.current_language(),
+        options=[ft.DropdownOption(key=code, text=name)
+                 for code, name in i18n.AVAILABLE.items()],
+        on_select=on_language,
+        width=150,
+        dense=True,
+        text_size=12,
+        leading_icon=ft.Icons.TRANSLATE,
+        tooltip=t("表示言語"),
+    )
+
+    # ヘッダー。アプリ名と、言語の切り替えと、いつでも開ける情報ボタン。
     # **ライセンス表示は義務**なので、起動時に一度だけ見せる形にはしない。
     header = ft.Container(
         ft.Row(
@@ -778,9 +822,10 @@ def main(page: ft.Page) -> None:
                 ft.Text(f"v{__version__}", size=11,
                         color=ft.Colors.ON_SURFACE_VARIANT),
                 ft.Container(expand=True),
+                language,
                 ft.IconButton(
                     ft.Icons.INFO_OUTLINE,
-                    tooltip="使い方・ライセンス・連絡先",
+                    tooltip=t("使い方・ライセンス・連絡先"),
                     on_click=open_about,
                 ),
             ],

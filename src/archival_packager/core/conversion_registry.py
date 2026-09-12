@@ -1,7 +1,17 @@
-"""正規化ルール表（Archivematica FPR の極小版）。
+"""正規化ルールの引き当て口（Archivematica FPR の極小版）。
 
 現行 Swift 実装の `Sources/AIP/ConversionRegistry.swift` に対応する。
 PUID をキーに「保存用の派生物をどのツールでどう作るか」を引く。
+
+## 規則そのものは rule_table.py に移した
+
+以前はここに Python で直書きしていた。**利用者が規則を 1 件も足せなかった**ため、
+Archivematica の FPR に倣って TOML の表に出した。組み込みの 2 規則も、利用者が
+書くのとまったく同じ TOML で書いてある（rule_table.BUILTIN_TOML）。
+組み込みが別の道を通ると、利用者向けの道は誰も使わないまま壊れるため。
+
+このモジュールは、その表を 1 回だけ読んで覚えておく係。外から見た
+`rule_for(puid, purpose)` の振る舞いは変えていない。
 
 ## sips をやめて Pillow に統一した
 
@@ -21,36 +31,52 @@ gs が無い環境では変換されず、原本がそのまま保存され repo
 
 from __future__ import annotations
 
-from . import image_normalize
+from pathlib import Path
+
+from . import rule_table
 from .aip_models import DerivativePurpose, NormalizationRule
-
-# ImageMagick で TIFF 化する画像フォーマット。
-_IMAGE_TO_TIFF: frozenset[str] = frozenset(
-    {
-        "fmt/11", "fmt/12", "fmt/13", "fmt/935",            # PNG
-        "fmt/41", "fmt/42", "fmt/43", "fmt/44",             # JPEG
-        "x-fmt/398", "x-fmt/390", "x-fmt/391",              # JPEG (旧)
-        "fmt/3", "fmt/4",                                   # GIF
-        "fmt/116", "fmt/117", "fmt/119", "x-fmt/270",       # BMP
-    }
-)
-
-# Ghostscript で PDF 化する PostScript/EPS フォーマット。
-_POSTSCRIPT_TO_PDF: frozenset[str] = frozenset(
-    {
-        "fmt/124", "fmt/501",                               # PostScript
-        "x-fmt/91", "x-fmt/406", "x-fmt/407", "x-fmt/408",  # PostScript (旧)
-        "fmt/122", "fmt/123",                               # EPS
-    }
-)
 
 TIFF_PUID = "fmt/353"
 PDF_PUID = "fmt/276"  # PDF 1.7（PDF/A 化は将来 -dPDFA=2）
+
+#: 規則の識別子。Archivematica が PREMIS の eventDetail に書く
+#: `ArchivematicaFPRCommandID="a34ddc9b-..."` に相当する。
+#:
+#: **一度出した値は変えない。** 過去に作った AIP の PREMIS にはこの文字列が
+#: 書き込まれている。改名すると、その AIP を後から読んだ人が「どの規則で
+#: 作られたか」を今の表と突き合わせられなくなる。ルールの中身（使うツール、
+#: 引数、出力形式）を差し替えても識別子は据え置く。
+#:
+#: UUID ではなく人が読める文字列にしたのは、METS を直接開いた人がその場で
+#: 意味を取れるようにするため。識別子として要るのは一意性と不変性であって、
+#: 乱数であることではない。
+IMAGE_TO_TIFF_RULE = "image-to-tiff"
+POSTSCRIPT_TO_PDF_RULE = "postscript-to-pdf"
 
 #: 出力フォーマットの名前（PRONOM の表記に合わせる）。
 #: 名前を付けないと METS には "unknown" と入り、画面上は未識別に見える。
 TIFF_NAME = "Tagged Image File Format"
 PDF_NAME = "Acrobat PDF 1.7 - Portable Document Format"
+
+#: 読み込んだ表。**1 回の移管の途中で表が変わらないようにする。**
+#: ファイルを毎回読み直すと、変換の途中で利用者が rules.toml を保存した場合に
+#: 前半と後半で違う規則が効き、1 つの AIP の中で説明の付かない差が生まれる。
+_table: rule_table.RuleTable | None = None
+
+
+def table(user_path: Path | None = None) -> rule_table.RuleTable:
+    """有効な規則表を返す（初回だけ読み、あとは覚えておく）。"""
+    global _table
+    if _table is None:
+        _table = rule_table.load(user_path)
+    return _table
+
+
+def reload(user_path: Path | None = None) -> rule_table.RuleTable:
+    """表を読み直す。利用者が rules.toml を書き換えたときと、テストで使う。"""
+    global _table
+    _table = rule_table.load(user_path)
+    return _table
 
 
 def rule_for(puid: str | None, purpose: DerivativePurpose) -> NormalizationRule | None:
@@ -58,37 +84,18 @@ def rule_for(puid: str | None, purpose: DerivativePurpose) -> NormalizationRule 
 
     既に保存に適した形式（TIFF/PDF 等）や未知の PUID は None を返し、原本のまま保存する。
     """
-    if purpose is not DerivativePurpose.PRESERVATION or not puid:
-        return None
+    return table().rule_for(puid, purpose)
 
-    if puid in _IMAGE_TO_TIFF:
-        return NormalizationRule(
-            puid_in=puid,
-            purpose=DerivativePurpose.PRESERVATION,
-            # アプリ内で実行するので args は使わない（image_normalize が判断する）。
-            tool=image_normalize.TOOL,
-            args=[],
-            puid_out=TIFF_PUID,
-            format_name_out=TIFF_NAME,
-            out_extension="tiff",
-        )
 
-    if puid in _POSTSCRIPT_TO_PDF:
-        return NormalizationRule(
-            puid_in=puid,
-            purpose=DerivativePurpose.PRESERVATION,
-            tool="gs",
-            args=[
-                "-dNOPAUSE",
-                "-dBATCH",
-                "-dSAFER",
-                "-sDEVICE=pdfwrite",
-                "-sOutputFile={out}",
-                "{in}",
-            ],
-            puid_out=PDF_PUID,
-            format_name_out=PDF_NAME,
-            out_extension="pdf",
-        )
+def warnings() -> list[str]:
+    """規則表で読めなかったものの理由。**起動は妨げない。**
 
-    return None
+    表の不備は利用者にしか直せない。黙って捨てると、書いたはずの規則が
+    効かない理由が誰にも分からなくなる。report に出して伝える。
+    """
+    return list(table().warnings)
+
+
+def document() -> str:
+    """AIP に同梱する、実際に効いていた表そのもの（TOML）。"""
+    return table().document

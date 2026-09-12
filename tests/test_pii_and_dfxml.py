@@ -128,6 +128,62 @@ class TestFalsePositives:
         assert pii.scan("これは普通の文章です。数字は 42 個。") == []
 
 
+class TestNormalizationAndGuards:
+    """精度測定（test_pii_accuracy.py）で見つかった穴をふさいだ分の単体テスト。
+
+    表記のゆれで丸ごと取りこぼす／目録の番号で毎回警告が出る、という
+    2 つの実害に直結する箇所なので、しきい値とは別に個別に固定する。
+    """
+
+    def test_fullwidth_digits_and_at_sign(self):
+        """日本語の申請書は数字も＠も全角で書かれていることがある。"""
+        found = pii.scan("電話 ０３－１２３４－５６７８　ｙａｍａｄａ＠ｅｘａｍｐｌｅ．ｊｐ")
+        assert {f.kind for f in found} == {pii.KIND_PHONE, pii.KIND_EMAIL}
+
+    def test_ocr_dash_variants(self):
+        """縦書き資料の OCR では区切りが長音符や別種のダッシュになって出てくる。"""
+        assert [f.kind for f in pii.scan("自宅 06ー6543ー2109")] == [pii.KIND_PHONE]
+        assert [f.kind for f in pii.scan("〒 060‐0808 札幌市")] == [pii.KIND_POSTAL_CODE]
+
+    def test_isbn_is_not_a_card(self):
+        """ISBN-13 は 978/979 始まり。Luhn は 10 回に 1 回偶然通るので先頭桁で落とす。"""
+        assert pii.scan("ISBN9784000000000") == []
+
+    def test_card_prefix_required(self):
+        assert not pii.has_card_prefix("9784000000000")
+        assert pii.has_card_prefix("4242424242424242")
+        assert pii.has_card_prefix("2221000000000009"), "Mastercard の 2 シリーズ"
+
+    def test_phone_requires_ten_or_eleven_digits(self):
+        """日本の電話番号は 10 桁か 11 桁。12 桁の枝番を電話として拾わない。"""
+        assert [f for f in pii.scan("文書番号 0123-4567-8901") if f.kind == pii.KIND_PHONE] == []
+        assert [f.kind for f in pii.scan("問合せ 0120-123-456")] == [pii.KIND_PHONE]
+
+    def test_phone_in_parentheses(self):
+        """便箋・封筒の印刷では市外局番を括弧で括る書式が多い。"""
+        assert [f.kind for f in pii.scan("電話（03）1234-5678")] == [pii.KIND_PHONE]
+        assert [f.kind for f in pii.scan("電話 03(1234)5678")] == [pii.KIND_PHONE]
+
+    def test_document_number_is_not_a_postal_code(self):
+        """「第 003-0045 号」「頁 113-0033」は目録に頻出する。郵便番号と同じ形。"""
+        assert pii.scan("第 003-0045 号") == []
+        assert pii.scan("頁 113-0033 参照") == []
+        assert [f.kind for f in pii.scan("〒113-0033 東京都")] == [pii.KIND_POSTAL_CODE]
+
+    def test_postal_without_hyphen_needs_the_marker(self):
+        """〒 が付いていれば 7 桁続きでも郵便番号と見なしてよい。無ければ番号と区別できない。"""
+        assert [f.kind for f in pii.scan("〒1130033 東京都")] == [pii.KIND_POSTAL_CODE]
+        assert pii.scan("整理 1130033 番") == []
+
+    def test_long_digit_run_is_not_sliced_into_a_card(self):
+        """24 桁の数字列の先頭 16 桁が偶然 Luhn を通る、という切り出し方をしない。"""
+        assert pii.scan("写真 1234 5678 9012 3456 7890 1234 番") == []
+
+    def test_card_digits_inside_a_longer_run_are_missed_on_purpose(self):
+        """逆に、長い数字列に埋もれたカード番号は取れない（docs/pii-accuracy.md に記載）。"""
+        assert pii.scan("整理 12 4242424242424242") == []
+
+
 class TestPlainTextExtraction:
     def test_utf8(self, tmp_path):
         p = tmp_path / "a.txt"

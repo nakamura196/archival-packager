@@ -170,12 +170,143 @@ class TestMetadataTemplate:
     def test_has_whole_sip_row_first(self):
         rows = parse_csv(spreadsheets.metadata_template([sf("a.txt")]))
         assert rows[0][0] == "filename"
-        assert rows[1][0] == "objects/", "SIP 全体行"
+        assert rows[1][0] == "objects", "SIP 全体行"
         assert rows[2][0] == "objects/a.txt"
+
+    def test_whole_row_has_no_trailing_slash(self):
+        """Archivematica の例に「末尾スラッシュだけ」の形は無い。
+
+        以前は "objects/" と書いていた。転送内にその名前の実体が無いため、
+        対応先が見つからず行ごと落ちる。ディレクトリを指す例
+        （objects/CoastNews-1964-01-02）に倣い、スラッシュを付けない。
+        """
+        rows = parse_csv(spreadsheets.metadata_template([sf("a.txt")]))
+        assert not rows[1][0].endswith("/")
+
+    def test_bagged_paths_begin_with_data(self):
+        """bag では filename が data で始まらなければならない。
+
+        「the filename path must always begin with ``data``」（import-metadata）。
+        bag のペイロードは data/ の中にあるので、objects/a.txt という行に
+        対応する実体は転送内に存在しない。**bag と非 bag で同じ文字列を書くと、
+        bag のときファイル単位の記述が 1 件も紐づかない。**
+        """
+        rows = parse_csv(spreadsheets.metadata_template([sf("a.txt")], bagged=True))
+        assert rows[1][0] == "data/objects"
+        assert rows[2][0] == "data/objects/a.txt"
+        assert all(r[0].startswith("data") for r in rows[1:])
 
     def test_dc_columns_are_blank_for_filling_in(self):
         rows = parse_csv(spreadsheets.metadata_template([sf("a.txt")]))
         assert all(v == "" for v in rows[2][1:])
+
+
+class TestRebaseMetadataCsv:
+    """記入済み metadata.csv の filename 列を bag / 非 bag に合わせ直す。"""
+
+    def test_adds_data_prefix_for_bags(self):
+        text = "filename,dc.title\r\nobjects,全体\r\nobjects/a.txt,記入済み\r\n"
+        rows = parse_csv(spreadsheets.rebase_metadata_csv(text, bagged=True))
+        assert [r[0] for r in rows[1:]] == ["data/objects", "data/objects/a.txt"]
+
+    def test_removes_data_prefix_for_plain(self):
+        text = "filename,dc.title\r\ndata/objects,全体\r\ndata/objects/a.txt,記入済み\r\n"
+        rows = parse_csv(spreadsheets.rebase_metadata_csv(text, bagged=False))
+        assert [r[0] for r in rows[1:]] == ["objects", "objects/a.txt"]
+
+    def test_keeps_the_descriptions_untouched(self):
+        """担当者が書いた中身には触らない。直すのは filename 列だけ。"""
+        text = "filename,dc.title\r\nobjects/a.txt,記入済みタイトル\r\n"
+        rows = parse_csv(spreadsheets.rebase_metadata_csv(text, bagged=True))
+        assert rows[1][1] == "記入済みタイトル"
+
+    def test_normalizes_the_legacy_trailing_slash_row(self):
+        """旧版が書いた "objects/" も、ここで仕様どおりの形に直す。"""
+        text = "filename,dc.title\r\nobjects/,全体\r\n"
+        rows = parse_csv(spreadsheets.rebase_metadata_csv(text, bagged=False))
+        assert rows[1][0] == "objects"
+
+    def test_leaves_unrelated_csv_alone(self):
+        """filename 列が無いものは Archivematica 用ではない。触らない。"""
+        text = "何か,別の列\r\n値,値\r\n"
+        assert spreadsheets.rebase_metadata_csv(text, bagged=True) == text
+
+
+class TestAtomImport:
+    """AtoM の csv:import にそのまま渡す CSV。
+
+    description.csv は人が書き込むシートなので列名を変えられない
+    （変えると過去の SIP を読み戻せなくなる）。機械に渡す分をこちらに分けている。
+    """
+
+    def test_columns_are_atom_machine_names(self):
+        rows = parse_csv(spreadsheets.atom_import([sf("a.txt")], SIPMetadata("id", "t")))
+        assert rows[0] == list(spreadsheets.ATOM_IMPORT_HEADERS)
+        assert rows[0][0] == "legacyId"
+        # 人間向けラベルが 1 つも残っていないこと。残っていれば黙って捨てられる。
+        assert not set(rows[0]) & set(spreadsheets.ATOM_HEADERS)
+
+    def test_machine_columns_line_up_with_the_human_labels(self):
+        """2 つの並びが位置で対応していること。ずれると値が別の列に入る。"""
+        assert len(spreadsheets.ATOM_MACHINE_COLUMNS) == len(spreadsheets.ATOM_HEADERS)
+        assert len(set(spreadsheets.ATOM_MACHINE_COLUMNS)) == 26
+
+    def test_legacy_id_is_emitted_for_every_row(self):
+        """legacyId が無いと、CSV を直して入れ直したとき重複レコードになる。"""
+        files = [sf("a.txt"), sf("文書/b.txt")]
+        rows = parse_csv(spreadsheets.atom_import(files, SIPMetadata("2026-移管", "総務課")))
+        ids = [r[0] for r in rows[1:]]
+        assert ids == ["2026-移管", "2026-移管/a.txt", "2026-移管/文書/b.txt"]
+        assert len(set(ids)) == len(ids), "legacyId は CSV 内で一意でなければならない"
+
+    def test_files_hang_under_the_whole_sip_row(self):
+        """階層は parentId が親の legacyId を指すことで作る。"""
+        rows = parse_csv(spreadsheets.atom_import([sf("a.txt")], SIPMetadata("2026-移管", "総務課")))
+        header = rows[0]
+        whole, item = rows[1], rows[2]
+        assert whole[header.index("parentId")] == "", "全体行に親は無い"
+        assert item[header.index("parentId")] == whole[0]
+        assert whole[header.index("levelOfDescription")] == "File"
+        assert item[header.index("levelOfDescription")] == "Item"
+
+    def test_parent_row_comes_before_its_children(self):
+        """AtoM は上から 1 行ずつ取り込む。親が下にあるとインポートが失敗する。"""
+        rows = parse_csv(spreadsheets.atom_import([sf("a.txt")], SIPMetadata("id", "t")))
+        legacy_ids = [r[0] for r in rows[1:]]
+        for row in rows[2:]:
+            parent = row[rows[0].index("parentId")]
+            assert legacy_ids.index(parent) < legacy_ids.index(row[0])
+
+    def test_whole_row_matches_the_human_sheet(self):
+        """2 つのシートで同じ値が出ること。別々に組むと片方だけ直って食い違う。"""
+        meta = SIPMetadata(identifier="2026-移管", title="総務課文書", date_note="2024–2025")
+        files = [sf("a.txt", size_bytes=1500)]
+        human = parse_csv(spreadsheets.description(files, meta))
+        machine = parse_csv(spreadsheets.atom_import(files, meta))
+        for label, name in zip(
+            spreadsheets.ATOM_HEADERS, spreadsheets.ATOM_MACHINE_COLUMNS, strict=True
+        ):
+            assert human[1][human[0].index(label)] == machine[1][machine[0].index(name)], name
+
+    def test_item_rows_carry_format_information(self):
+        """将来その資料を開けるかどうかは、フォーマットが分からないと判断できない。"""
+        files = [sf("a.pdf", format_name="PDF 1.5", puid="fmt/19")]
+        rows = parse_csv(spreadsheets.atom_import(files, SIPMetadata("id", "t")))
+        assert rows[2][rows[0].index("physicalCharacteristics")] == "PDF 1.5 / fmt/19"
+
+    def test_unix_line_breaks(self):
+        """AtoM は「Unix-style line breaks (\\n)」を期待する。
+
+        CRLF は CSV validation が「unintended blank rows」の原因として
+        名指ししている。description.csv（Excel 用に CRLF）とは事情が違う。
+        """
+        out = spreadsheets.atom_import([sf("a.txt")], SIPMetadata("id", "t"))
+        assert "\r" not in out
+        assert out.endswith("\n")
+
+    def test_hostile_filenames_round_trip(self):
+        rows = parse_csv(spreadsheets.atom_import([sf('quote"and,comma.txt')], SIPMetadata("i", "t")))
+        assert rows[2][rows[0].index("identifier")] == 'quote"and,comma.txt'
 
 
 class TestAccessionParsing:

@@ -181,11 +181,25 @@ class Derivative:
     relative_path: str  # 入力 objects/ ルートからの相対パス
     size_bytes: int
     uuid: str
-    tool_name: str  # 生成に使ったツール（PREMIS event / agent 用）
+    tool_name: str  # 生成に使ったツールの呼び名（"pillow" / "gs"）
     command_line: str
     sha256: str | None = None
     puid_out: str | None = None
     format_name_out: str | None = None
+    #: どの正規化ルールが動いたか（NormalizationRule.rule_id）。
+    #: PREMIS の eventDetail に出す。Archivematica の FPRCommandID に相当する。
+    rule_id: str = ""
+    #: ツールの版（例 "Ghostscript 10.07.1" / "Pillow 12.3.0 (libtiff 4.7.0)"）。
+    #: **同じ規則でも、版が違えば出てくるバイト列は違う。** 版が無いと、
+    #: 後からこの派生物を再現できるかどうかを判断できない。
+    #: 聞けなかった場合は空（「聞いていない」ではなく「答えなかった」を意味する）。
+    tool_version: str = ""
+    #: その規則が組み込みか、利用者が足したものか（RuleSource の値）。
+    #: **rule_id に "(user)" のように混ぜ込まない。** rule_id は過去の AIP に
+    #: そのまま書き込まれている文字列で、後年それと突き合わせるためにある。
+    #: 装飾を足すと、同じ規則で作った古い AIP と新しい AIP の値が食い違う。
+    #: 別の欄に持ち、PREMIS では別の属性として書く。
+    rule_source: str = ""
 
 
 @dataclass(slots=True)
@@ -218,6 +232,31 @@ class AIPFile:
 # --------------------------------------------------------------------------
 
 
+class Executor(Enum):
+    """規則を誰が実行するか。
+
+    **この 2 つしかない。** コードを差し込む道（プラグイン）は用意しない。
+    公証・ストア審査を通した配布物が、実行時に外部のコードを読むことになるため。
+    """
+
+    #: アプリ内蔵の処理（現状は Pillow の画像変換）。利用者の表からは指定できない。
+    BUILTIN = "builtin"
+    #: 利用者の環境にある外部コマンドを呼ぶ。利用者が足せるのはこちらだけ。
+    COMMAND = "command"
+
+
+class RuleSource(Enum):
+    """その規則がどこから来たか。
+
+    保存の観点でこれは記録に値する。**同じ資料から別の組織が別の AIP を作った
+    とき、違いの原因が「表を足したから」なのかどうかを、後から見た人が
+    判断できる必要がある。**
+    """
+
+    BUILTIN = "builtin"
+    USER = "user"
+
+
 @dataclass(slots=True)
 class NormalizationRule:
     """1 つの正規化ルール。PUID をキーに「どのツールでどう変換するか」を定める。"""
@@ -227,10 +266,26 @@ class NormalizationRule:
     tool: str  # 変換の担い手。外部バイナリ名（gs）か、アプリ内変換の識別子（pillow）
     args: list[str]  # 引数テンプレート（{in} {out} を実パスに置換）
     out_extension: str  # 出力ファイルの拡張子（例: "pdf"）
+    #: 規則の安定した識別子（例 "image-to-tiff"）。Archivematica が PREMIS の
+    #: eventDetail に書く FPRCommandID に相当する。**版を上げても変えないこと。**
+    #: 変えると、過去に作った AIP に書かれた値と突き合わせられなくなり、
+    #: 「どの規則で作られたか」を追えなくなる。
+    #: 既定を空にしてあるのは、その場限りの規則（テストや実験）まで識別子を
+    #: 強要しないため。表に載る規則が空のまま出ていかないことは
+    #: conversion_registry のテストで固定する。
+    rule_id: str = ""
     puid_out: str | None = None  # 出力フォーマットの PUID（分かれば）
     #: 出力フォーマットの名前。**PUID だけだと画面に「unknown」と出る。**
     #: 変換したものが未識別に見えるのは、実態と違ううえ紛らわしい。
     format_name_out: str | None = None
+    #: 誰が実行するか。**tool の名前で分岐しない。** 利用者が tool = "pillow" と
+    #: 書いた外部コマンドの規則を、アプリ内蔵の画像変換と取り違えないため。
+    #: 既定を COMMAND にしてあるのは、内蔵処理が既定で呼ばれる状態を作らないため。
+    executor: Executor = Executor.COMMAND
+    #: 組み込みか、利用者が足したものか。PREMIS に書き出す。
+    #: 既定が BUILTIN なのは、コードの中で組み立てた規則は定義上 BUILTIN だから
+    #: （利用者の表から来た規則は rule_table が必ず USER を明示して作る）。
+    source: RuleSource = RuleSource.BUILTIN
 
 
 # --------------------------------------------------------------------------

@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
-from archival_packager.core import aip_pipeline, sip_pipeline, sip_reader
+from archival_packager.core import aip_pipeline, conversion_registry, sip_pipeline, sip_reader
 from archival_packager.core.aip_models import (
     AIPOptions,
     AIPPipelineError,
@@ -22,6 +22,18 @@ from archival_packager.core.mets import METS_NS, PREMIS_NS
 from archival_packager.core.models import SIPMetadata, SIPOptions
 
 NS = {"mets": METS_NS, "premis": PREMIS_NS}
+
+
+@pytest.fixture(autouse=True)
+def builtin_rules_only(tmp_path):
+    """開発機に置いてある本物の rules.toml でテストの通り方が変わらないようにする。
+
+    規則表は利用者の環境から読む。テストが環境に左右されると、落ちたときに
+    アプリの不具合なのか手元の設定なのかを切り分けられない。
+    """
+    conversion_registry.reload(tmp_path / "no-such-rules.toml")
+    yield
+    conversion_registry.reload(tmp_path / "no-such-rules.toml")
 
 
 @pytest.fixture
@@ -42,6 +54,37 @@ def sip(tmp_path: Path) -> Path:
         progress=lambda _m: None,
     )
     return result.sip_path
+
+
+@pytest.fixture
+def sip_with_image(tmp_path: Path) -> Path:
+    """PNG を 1 枚だけ入れた SIP。正規化の経路を通しで確かめるために使う。"""
+    from PIL import Image
+
+    src = tmp_path / "img-in"
+    src.mkdir()
+    Image.new("RGB", (16, 16), (200, 100, 50)).save(src / "写真.png")
+
+    out = tmp_path / "img-sip-out"
+    out.mkdir()
+    sip_path = sip_pipeline.run(
+        input_path=src,
+        output_parent=out,
+        metadata=SIPMetadata(identifier="2026-写真", title="写真資料"),
+        options=SIPOptions(),
+        progress=lambda _m: None,
+    ).sip_path
+
+    # PUID は SIP の formats.csv から継承される。ここで直接書いておくことで、
+    # このテストが siegfried の同梱有無に左右されないようにする
+    # （バイナリは配布物に含めないので、CI では sf が無い）。
+    formats = sip_path / "metadata" / "submissionDocumentation" / "formats.csv"
+    formats.write_text(
+        "﻿相対パス,フォーマット名,PRONOM,MIME,拡張子警告,サイズ(バイト),更新日時,SHA-256\r\n"
+        "写真.png,Portable Network Graphics,fmt/11,image/png,,0,,\r\n",
+        encoding="utf-8",
+    )
+    return sip_path
 
 
 def run_aip(sip: Path, tmp_path: Path, **opts) -> tuple:
@@ -267,35 +310,6 @@ class TestImageNormalizationEndToEnd:
     アプリ内変換にしたことで初めて実際に検証できる。
     """
 
-    @pytest.fixture
-    def sip_with_image(self, tmp_path: Path) -> Path:
-        from PIL import Image
-
-        src = tmp_path / "img-in"
-        src.mkdir()
-        Image.new("RGB", (16, 16), (200, 100, 50)).save(src / "写真.png")
-
-        out = tmp_path / "img-sip-out"
-        out.mkdir()
-        sip_path = sip_pipeline.run(
-            input_path=src,
-            output_parent=out,
-            metadata=SIPMetadata(identifier="2026-写真", title="写真資料"),
-            options=SIPOptions(),
-            progress=lambda _m: None,
-        ).sip_path
-
-        # PUID は SIP の formats.csv から継承される。ここで直接書いておくことで、
-        # このテストが siegfried の同梱有無に左右されないようにする
-        # （バイナリは配布物に含めないので、CI では sf が無い）。
-        formats = sip_path / "metadata" / "submissionDocumentation" / "formats.csv"
-        formats.write_text(
-            "﻿相対パス,フォーマット名,PRONOM,MIME,拡張子警告,サイズ(バイト),更新日時,SHA-256\r\n"
-            "写真.png,Portable Network Graphics,fmt/11,image/png,,0,,\r\n",
-            encoding="utf-8",
-        )
-        return sip_path
-
     def test_png_becomes_an_uncompressed_tiff_derivative(self, sip_with_image, tmp_path):
         from PIL import Image
 
@@ -322,11 +336,199 @@ class TestImageNormalizationEndToEnd:
         )
         assert any("Pillow" in n for n in notes), "何で変換したかが残っていない"
 
+    def test_premis_records_which_rule_ran(self, sip_with_image, tmp_path):
+        """どの規則が動いたかを残すこと。
+
+        Archivematica は eventDetail に
+        `ArchivematicaFPRCommandID="..."; program="convert"; version="ImageMagick ..."`
+        と書く。同じ 3 点（規則・道具・版）が無いと、この派生物を別の環境で
+        作り直せるかどうかを後から判断できない。道具と版だけでは、
+        **同じ道具で別の設定を使った場合と区別が付かない。**
+        """
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+        root = etree.fromstring(result.mets_path.read_bytes())
+
+        notes = root.xpath(
+            "//premis:event[premis:eventType='normalization']"
+            "//premis:eventOutcomeDetailNote/text()",
+            namespaces=NS,
+        )
+        assert any('rule="image-to-tiff"' in n for n in notes), "どの規則か分からない"
+        assert any('program="pillow"' in n for n in notes)
+        assert any('version="Pillow' in n for n in notes)
+
+    def test_the_original_is_byte_identical_in_the_aip(self, sip_with_image, tmp_path):
+        """**このアプリの最重要の性質。** 変換しても原本は 1 バイトも変わらない。
+
+        正規化は原本を読むだけで、書き込みは派生物にしか行わない。ここが
+        崩れると、保存しようとしている当のものを壊すことになる。
+        """
+        from archival_packager.core.checksums import sha256_of
+
+        before = sha256_of(sip_with_image / "objects" / "写真.png")
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+
+        assert sha256_of(sip_with_image / "objects" / "写真.png") == before, "入力を書き換えた"
+        assert sha256_of(result.aip_path / "data" / "objects" / "写真.png") == before, (
+            "AIP に入った原本が原本でなくなっている"
+        )
+
     def test_derivative_is_in_the_bag_manifest(self, sip_with_image, tmp_path):
         """派生物がマニフェストに載っていなければ、後の完全性確認から漏れる。"""
         result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
         manifest = (result.aip_path / "manifest-sha256.txt").read_text(encoding="utf-8")
         assert "写真-preservation.tiff" in manifest
+
+
+class TestRuleTableTravelsWithTheAip:
+    """使った規則表そのものを AIP に入れる。
+
+    Archivematica は PREMIS に FPR（規則の登録簿）の識別子だけを書き、規則の
+    中身は中央の登録簿にある。**後年その登録簿が引けなくなると、識別子だけ
+    残っても意味を失う。** 表を一緒に入れておけば、このパッケージ単体で
+    「何をどう変換したか」の説明が付く。
+    """
+
+    def _rules_doc(self, result) -> Path:
+        return (
+            result.aip_path / "data" / "objects" / "submissionDocumentation"
+            / "normalization-rules.toml"
+        )
+
+    def test_the_table_is_written_into_the_package(self, sip, tmp_path):
+        result, _ = run_aip(sip, tmp_path)
+        text = self._rules_doc(result).read_text(encoding="utf-8")
+        assert "image-to-tiff" in text
+        assert "postscript-to-pdf" in text
+
+    def test_the_table_is_listed_in_the_mets(self, sip, tmp_path):
+        """**AIP に入れているのに fileSec に無いと、METS だけを読む側からは
+        存在しないことになる。**"""
+        result, _ = run_aip(sip, tmp_path)
+        root = etree.fromstring(result.mets_path.read_bytes())
+        hrefs = root.xpath("//mets:FLocat/@xlink:href",
+                           namespaces={**NS, "xlink": "http://www.w3.org/1999/xlink"})
+        assert "objects/submissionDocumentation/normalization-rules.toml" in hrefs
+
+    def test_the_table_is_covered_by_the_manifest(self, sip, tmp_path):
+        """マニフェストに無ければ、後の完全性確認から漏れる。"""
+        result, _ = run_aip(sip, tmp_path)
+        manifest = (result.aip_path / "manifest-sha256.txt").read_text(encoding="utf-8")
+        assert "normalization-rules.toml" in manifest
+
+    def test_the_user_rules_are_in_there_too(self, sip, tmp_path):
+        (tmp_path / "rules.toml").write_text(
+            """
+[[rule]]
+id = "wav-to-flac"
+puid_in = ["fmt/141"]
+executor = "command"
+tool = "flac"
+args = ["--best", "-o", "{out}", "{in}"]
+out_extension = "flac"
+""",
+            encoding="utf-8",
+        )
+        conversion_registry.reload(tmp_path / "rules.toml")
+
+        result, _ = run_aip(sip, tmp_path)
+        text = self._rules_doc(result).read_text(encoding="utf-8")
+        assert "wav-to-flac" in text
+        assert "--best" in text, "引数まで残す（何をしたかは引数で決まる）"
+
+    def test_a_broken_table_is_reported_but_does_not_stop_the_aip(self, sip, tmp_path):
+        """表の書き間違いで資料を受け入れられなくなるのは本末転倒。
+
+        ただし黙って捨てない。なぜ規則が効かないかは利用者にしか直せない。
+        """
+        (tmp_path / "rules.toml").write_text(
+            """
+[[rule]]
+id = "odd"
+puid_in = ["fmt/141"]
+executor = "command"
+tool = "flac"
+args = ["{in}", "{out}", "{tmp}"]
+out_extension = "flac"
+""",
+            encoding="utf-8",
+        )
+        conversion_registry.reload(tmp_path / "rules.toml")
+
+        result, _ = run_aip(sip, tmp_path)
+        assert any("変換規則表" in w and "{tmp}" in w for w in result.warnings)
+        assert (result.aip_path / "data" / "objects" / "a.txt").is_file()
+
+
+class TestUserRulesEndToEnd:
+    """利用者が足した規則が、実際に AIP の中身まで届くこと。
+
+    組み込みと同じ道を通っているかは、ここで初めて端から端まで確かめられる。
+    """
+
+    @pytest.fixture
+    def fake_conv(self, tmp_path, fake_tool, monkeypatch):
+        """PNG を受け取って何か書き出す外部コマンドを装う。
+
+        本物の変換ツールが開発機や CI にあるかどうかで、テストの通り方が
+        変わってはいけない。
+        """
+        fake = fake_tool(name="conv", output_text="converted")
+        (tmp_path / "rules.toml").write_text(
+            """
+[[rule]]
+id = "png-to-jp2"
+puid_in = ["fmt/11"]
+executor = "command"
+tool = "conv"
+args = ["{in}", "{out}"]
+puid_out = "x-fmt/392"
+format_name_out = "JPEG 2000"
+out_extension = "jp2"
+""",
+            encoding="utf-8",
+        )
+        conversion_registry.reload(tmp_path / "rules.toml")
+        monkeypatch.setattr(aip_pipeline.normalizer, "locate", lambda tool: fake)
+        return fake
+
+    def test_user_rule_replaces_the_builtin_one(self, sip_with_image, tmp_path, fake_conv):
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+        assert result.derivative_count == 1
+        assert (result.aip_path / "data" / "objects" / "写真-preservation.jp2").is_file()
+        assert not (result.aip_path / "data" / "objects" / "写真-preservation.tiff").exists(), (
+            "利用者の規則が組み込みより優先される"
+        )
+        assert (result.aip_path / "data" / "objects" / "写真.png").is_file(), "原本は残す"
+
+    def test_premis_says_the_rule_came_from_the_user(
+        self, sip_with_image, tmp_path, fake_conv
+    ):
+        """**組み込みか利用者のものかが、記録から分かること。**
+
+        同じ資料から別の組織が別の AIP を作ったとき、違いの原因が
+        「表を足したから」なのかを、後から見た人が判断できる必要がある。
+        """
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+        root = etree.fromstring(result.mets_path.read_bytes())
+        notes = root.xpath(
+            "//premis:event[premis:eventType='normalization']"
+            "//premis:eventOutcomeDetailNote/text()",
+            namespaces=NS,
+        )
+        assert any('rule="png-to-jp2"' in n for n in notes)
+        assert any('ruleSource="user"' in n for n in notes)
+
+    def test_builtin_rules_are_marked_as_builtin(self, sip_with_image, tmp_path):
+        """利用者の表が無いときは、組み込みで動いたことが記録に残る。"""
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+        root = etree.fromstring(result.mets_path.read_bytes())
+        notes = root.xpath(
+            "//premis:event[premis:eventType='normalization']"
+            "//premis:eventOutcomeDetailNote/text()",
+            namespaces=NS,
+        )
+        assert any('ruleSource="builtin"' in n for n in notes)
 
 
 class TestGuards:

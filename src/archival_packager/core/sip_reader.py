@@ -11,6 +11,22 @@ SHA-256 とフォーマット識別(PUID) は SIP 段の成果物から**継承*
 
 継承するのは、SIP 段で識別・計算した結果を AIP 段で作り直さないため。
 作り直すと「受入時の記録」と「保存時の記録」が食い違う余地が生まれる。
+
+## 旧形式の SIP も必ず読めること（2026-09-12）
+
+このアプリは公開済みで、利用者の手元には旧形式のパッケージがある。
+**読めなくなると、過去に作った SIP から AIP を作れなくなる。** 相互運用の是正で
+次の 2 つが変わったので、ここでは新旧どちらの書き方も受け付ける。
+
+    checksum.sha256   旧 metadata/submissionDocumentation/ に "<hash>  objects/<rel>"
+                      新 metadata/ 直下に "<hash>  <rel>"（objects/ からの相対）
+    metadata.csv      旧 filename が "objects/" と "objects/<rel>"
+                      新 filename が "objects" と "objects/<rel>"、
+                         bag では "data/objects" と "data/objects/<rel>"
+
+`description.csv` の列見出しは**変えていない**（人が書き込むシートであり、
+ここが読み戻しの土台になっている）。AtoM へ渡す機械名の CSV は
+atom-import.csv として別に出している。
 """
 
 from __future__ import annotations
@@ -231,10 +247,30 @@ def _parse_description_csv(text: str) -> DescriptiveMetadata | None:
     return d if d.has_any else None
 
 
+def _objects_relative(filename: str) -> str | None:
+    """metadata.csv の filename を objects/ からの相対パスに直す。
+
+    全体を指す行は空文字を返し、objects 配下でない行は None を返す。
+    新旧 4 通りの書き方を受け付ける。
+
+        "objects"         新（全体行）      "objects/"        旧（全体行）
+        "objects/a.txt"   新旧（ファイル）  "data/objects/…"  bag（data/ が 1 段付く）
+    """
+    path = filename.strip().replace("\\", "/")
+    if path.startswith("data/"):
+        path = path[len("data/") :]
+    if path.rstrip("/") == "objects":
+        return ""
+    if path.startswith("objects/"):
+        return path[len("objects/") :]
+    return None
+
+
 def _parse_metadata_csv(text: str) -> dict[str, DescriptiveMetadata]:
     """Archivematica 風 metadata.csv から file 単位の記述メタデータを読む。
 
-    filename 列が "objects/<相対パス>"。"objects/" だけの行は SIP 全体の記述。
+    filename の書き方は版によって違う（_objects_relative を参照）。
+    全体を指す行は空文字のキーに入れ、呼び出し側が SIP 全体の記述として使う。
     """
     rows = _rows(text)
     if len(rows) < 2:
@@ -266,10 +302,9 @@ def _parse_metadata_csv(text: str) -> dict[str, DescriptiveMetadata]:
     for fields in rows[1:]:
         if i_file >= len(fields):
             continue
-        filename = fields[i_file]
-        if not filename.startswith("objects/"):
+        rel = _objects_relative(fields[i_file])
+        if rel is None:
             continue
-        rel = filename[len("objects/") :]
 
         def at(key: str, fields: list[str] = fields) -> str | None:
             i = mapping[key]
@@ -288,19 +323,39 @@ def _parse_metadata_csv(text: str) -> dict[str, DescriptiveMetadata]:
 
 
 def _parse_manifest(sip_root: Path, *, is_bag: bool) -> dict[str, str]:
-    """マニフェストから objects 配下の 相対パス -> SHA-256 を読む。"""
-    if is_bag:
-        manifest = sip_root / "manifest-sha256.txt"
-        prefix = "data/objects/"
-    else:
-        manifest = sip_root / "metadata" / "submissionDocumentation" / "checksum.sha256"
-        prefix = "objects/"
+    """マニフェストから objects 配下の 相対パス -> SHA-256 を読む。
 
-    if not manifest.is_file():
-        return {}
+    非 bag では **2 箇所を見る。** 0.1.x が作った SIP は
+    `metadata/submissionDocumentation/checksum.sha256` に `objects/` 付きで、
+    以降は `metadata/checksum.sha256` に `objects/` 抜きで書いている。
+    片方しか見ないと、どちらかの世代の SIP でハッシュを継承できず、
+    AIP 段で全ファイルを再計算することになる（受入時の記録との突合ができなくなる）。
+    """
+    if is_bag:
+        candidates = [(sip_root / "manifest-sha256.txt", "data/objects/")]
+    else:
+        candidates = [
+            # 旧 → 新の順。同じパスがあれば新しい方で上書きする。
+            # 接頭辞は候補ごとに決め打ちする。「付いていれば外す」式にすると、
+            # objects/ の中に objects という名前のフォルダがある SIP で誤読する。
+            (sip_root / "metadata" / "submissionDocumentation" / "checksum.sha256", "objects/"),
+            (sip_root / "metadata" / "checksum.sha256", ""),
+        ]
 
     out: dict[str, str] = {}
-    for line in _read_text(manifest).splitlines():
+    for manifest, prefix in candidates:
+        if manifest.is_file():
+            out.update(_manifest_entries(_read_text(manifest), prefix=prefix))
+    return out
+
+
+def _manifest_entries(text: str, *, prefix: str) -> dict[str, str]:
+    """"<hash><空白>+<パス>" の並びを objects/ からの相対パス -> SHA-256 にする。
+
+    prefix はそのマニフェストが使っているパスの基点（空なら objects/ 直下基準）。
+    """
+    out: dict[str, str] = {}
+    for line in text.splitlines():
         trimmed = line.strip()
         if not trimmed:
             continue
@@ -308,8 +363,9 @@ def _parse_manifest(sip_root: Path, *, is_bag: bool) -> dict[str, str]:
         if len(parts) != 2:
             continue
         digest, path = parts[0], parts[1].lstrip("*")
-        if path.startswith(prefix):
-            out[path[len(prefix) :]] = digest
+        if not path.startswith(prefix):
+            continue
+        out[path[len(prefix) :]] = digest
     return out
 
 

@@ -5,7 +5,8 @@
 
     非bag: <pkg>/objects/...
            <pkg>/metadata/metadata.csv          ← AM 規約: file 単位 DC は metadata/ 直下
-           <pkg>/metadata/submissionDocumentation/{description,formats,accession}.csv
+           <pkg>/metadata/checksum.sha256       ← AM 規約: 外部チェックサムは metadata/ 直下
+           <pkg>/metadata/submissionDocumentation/{description,atom-import,formats,accession}.csv
                                                  {arrangement-map,pii-report}.csv（該当時のみ）
                                                  dfxml.xml, report.txt, report.html, checksum.sha256
     bag:   <pkg>/data/objects/...
@@ -13,6 +14,21 @@
            <pkg>/{bagit.txt, bag-info.txt, manifest-sha256.txt, tagmanifest-sha256.txt}
 
 チェックサムは本家の MD5 ではなく SHA-256 を用いる（Swift 版から引き継ぐ改善）。
+
+## checksum.sha256 が 2 箇所にあるのはなぜか（2026-09-12）
+
+読み手が 2 人いて、求める形が違うため。**同じ内容をパス基準だけ変えて 2 本置く。**
+
+    metadata/checksum.sha256                        Archivematica が読む。
+                                                    行は "<hash>  <objects/ からの相対パス>"。
+                                                    仕様の例（beihai.tif）に objects/ は付かない。
+    metadata/submissionDocumentation/checksum.sha256 このアプリの core/fixity.py が読む。
+                                                    行は "<hash>  objects/<相対パス>"（SIP ルート基準）。
+
+前者だけにすると、このアプリ自身の完全性確認がマニフェストを見つけられず
+「検査していない」状態になる。後者だけにすると、Archivematica の
+*Verify transfer checksums* が走らず、検証されずに素通りする。
+どちらも同じ 1 つのリストから作るので、内容がずれることはない。
 
 ## BagIt は自前実装しない
 
@@ -67,6 +83,10 @@ class SubmissionDocs:
     report_html: str
     arrangement_map_csv: str | None = None
     pii_csv: str | None = None
+    #: AtoM の csv:import に渡す CSV。既定を空にしてあるのは、この引数を
+    #: 知らない既存の呼び出し（テストを含む）をそのまま通すため。
+    #: 空なら atom-import.csv 自体を作らない。
+    atom_import_csv: str = ""
 
 
 @dataclass(slots=True)
@@ -120,10 +140,7 @@ def _build_plain(request: SIPBuildRequest, pkg_dir: Path, docs: SubmissionDocs) 
 
     _copy_payload(request.files, objects)
     paths = _write_submission_docs(subdoc, docs)
-
-    # checksum.sha256（"<hash>  objects/<rel>"）。
-    lines = [f"{f.sha256}  objects/{f.relative_path}" for f in request.files if f.sha256]
-    _write_text(_manifest_lines(lines), subdoc / "checksum.sha256")
+    _write_checksum_files(request.files, subdoc)
 
     return paths
 
@@ -199,6 +216,8 @@ def _write_submission_docs(subdoc: Path, docs: SubmissionDocs) -> dict[str, Path
     """提出書類群（BOM 付き CSV と report）を書き、主要なパスを返す。"""
     description = subdoc / "description.csv"
     _write_csv(docs.description_csv, description)
+    if docs.atom_import_csv:
+        _write_atom_csv(docs.atom_import_csv, subdoc / "atom-import.csv")
     _write_csv(docs.formats_csv, subdoc / "formats.csv")
     _write_csv(docs.accession_csv, subdoc / "accession.csv")
 
@@ -218,6 +237,29 @@ def _write_submission_docs(subdoc: Path, docs: SubmissionDocs) -> dict[str, Path
     if pii := _write_optional_csv(docs.pii_csv, "pii-report.csv", subdoc):
         out["pii_report"] = pii
     return out
+
+
+def _write_checksum_files(files: list[ScannedFile], subdoc: Path) -> None:
+    """外部チェックサムを 2 箇所に書く（内容は同じ・パス基準だけ違う）。
+
+    分けている理由はモジュール冒頭の注に書いた。bag のときは呼ばない。
+    bag は manifest-sha256.txt が同じ役目を果たすので、二重に持つと
+    食い違ったときにどちらが正なのか分からなくなる。
+    """
+    digests = [(f.sha256, f.relative_path) for f in files if f.sha256]
+
+    # Archivematica 用。transfer.rst の例は "<hash>␣␣beihai.tif" で、
+    # objects/ の接頭辞は付かない（パスは objects/ からの相対）。
+    _write_text(
+        _manifest_lines([f"{sha}  {rel}" for sha, rel in digests]),
+        subdoc.parent / "checksum.sha256",
+    )
+    # このアプリの fixity.py 用。SIP ルート基準なので objects/ が要る。
+    # 公開済みの版が作った SIP もこの形で、読み手（fixity.py）は変えられない。
+    _write_text(
+        _manifest_lines([f"{sha}  objects/{rel}" for sha, rel in digests]),
+        subdoc / "checksum.sha256",
+    )
 
 
 def _write_optional_csv(csv: str | None, name: str, subdoc: Path) -> Path | None:
@@ -320,6 +362,21 @@ def _manifest_lines(lines: list[str]) -> str:
 def _write_csv(csv: str, path: Path) -> None:
     """UTF-8 BOM 付きで書く。Excel が UTF-8 と判定するために BOM が要る。"""
     _write_bytes((BOM + csv).encode("utf-8"), path)
+
+
+def _write_atom_csv(csv: str, path: Path) -> None:
+    """AtoM に渡す CSV は **BOM を付けない**。
+
+    AtoM の CSV validation は UTF-8 の BOM を ERROR にはしないが、剥がすとは
+    どこにも書いていない。剥がされなければ先頭の列名が "﻿ legacyId" になり、
+    **未知の列として黙って捨てられる**（未知列は警告だけで無視される）。
+    legacyId を出す目的そのものが消えるので、ここでは BOM を付けない。
+
+    この CSV は人が Excel で開くためのものではない。人が開くのは
+    同じフォルダの description.csv の方で、そちらは BOM 付きのまま。
+    改行も CRLF ではなく LF（spreadsheets.LF の注を参照）。
+    """
+    _write_bytes(csv.encode("utf-8"), path)
 
 
 def _write_text(text: str, path: Path) -> None:

@@ -21,6 +21,7 @@ import uuid as _uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import BinaryIO
 
 from .. import __version__
 from . import (
@@ -28,6 +29,7 @@ from . import (
     fixity,
     mets,
     normalizer,
+    rule_table,
     sip_builder,
     sip_reader,
     zip_io,
@@ -78,9 +80,15 @@ def run(
     agents = _agents(options)
     _record_ingestion_events(parsed.files, fixity_status, now, options)
 
+    # 規則表は、変換を始める前に 1 回だけ確定させる。**AIP に同梱するのは
+    # 「実際に効いていた表」でなければならない**ので、参照するのは常にこの文字列。
+    rules_document = conversion_registry.document()
+
     work_dir = Path(tempfile.mkdtemp(prefix="archival-packager-normalize-"))
     try:
-        warnings: list[str] = []
+        # 表の不備は利用者にしか直せない。黙って捨てると、書いたはずの規則が
+        # 効かない理由が誰にも分からなくなる。変換の有無にかかわらず出す。
+        warnings: list[str] = [f"変換規則表: {w}" for w in conversion_registry.warnings()]
         if options.normalize:
             warnings += _normalize_all(parsed.files, work_dir, now, progress)
         else:
@@ -89,25 +97,30 @@ def run(
         aip_uuid = str(_uuid.uuid4())
         descriptive = DescriptiveMetadata.merge(options.descriptive, parsed.descriptive)
 
-        progress("METS を生成しています…")
-        mets_xml = mets.build_mets(
-            aip_uuid=aip_uuid,
-            files=parsed.files,
-            agents=agents,
-            descriptive=descriptive,
-            created_iso=now,
-            submission_documentation=_submission_documents(parsed),
-        )
+        # **バイト列にしてから渡さない。** 5 万件の METS は 300MB 近くになり、
+        # 戻り値として持つだけでそのぶん常駐する（実測 283.8MiB）。
+        # 書き出し先が決まる `_build` の中で、直接ファイルへ流す。
+        def write_mets(out) -> None:
+            mets.write_mets(
+                out,
+                aip_uuid=aip_uuid,
+                files=parsed.files,
+                agents=agents,
+                descriptive=descriptive,
+                created_iso=now,
+                submission_documentation=_submission_documents(parsed),
+            )
 
-        progress("AIP（BagIt bag）を組み立てています…")
         result = _build(
             sip_root=sip_root,
             parsed=parsed,
             output_parent=output_parent,
             aip_uuid=aip_uuid,
-            mets_xml=mets_xml,
+            write_mets=write_mets,
             fixity_status=fixity_status,
             warnings=warnings,
+            rules_document=rules_document,
+            progress=progress,
         )
 
         if options.serialize_zip:
@@ -145,25 +158,32 @@ def _agents(options: AIPOptions) -> list[PremisAgent]:
     return agents
 
 
+#: AIP に同梱する規則表の置き場所（data/ からの相対）。
+RULES_DOCUMENT_HREF = f"objects/submissionDocumentation/{rule_table.DOCUMENT_NAME}"
+
+
 def _submission_documents(parsed) -> list[mets.SubmissionDocument]:
     """AIP に継承する提出書類を、METS に載せる形で並べる。
 
     **AIP に入れているのに fileSec に無いと、METS だけを読む側からは
     存在しないことになる。** BagIt のマニフェストには入っていたが、
     METS からは辿れていなかった。
+
+    ここで書き出す規則表も同じ扱いにする（_build が実体を書く）。
     """
-    root = parsed.submission_documentation
-    if not root or not root.is_dir():
-        return []
     docs: list[mets.SubmissionDocument] = []
-    for path in sorted(p for p in root.rglob("*") if p.is_file()):
-        rel = path.relative_to(root).as_posix()
-        docs.append(
-            mets.SubmissionDocument(
-                href=f"objects/submissionDocumentation/{rel}",
-                uuid=str(_uuid.uuid4()),
-            )
-        )
+    root = parsed.submission_documentation
+    if root and root.is_dir():
+        for path in sorted(p for p in root.rglob("*") if p.is_file()):
+            rel = path.relative_to(root).as_posix()
+            href = f"objects/submissionDocumentation/{rel}"
+            if href == RULES_DOCUMENT_HREF:
+                # AIP を入力にして作り直した場合、継承元に同じ名前の表がある。
+                # 二重に載せず、今回の表（下で足す方）で置き換える。
+                continue
+            docs.append(mets.SubmissionDocument(href=href, uuid=str(_uuid.uuid4())))
+
+    docs.append(mets.SubmissionDocument(href=RULES_DOCUMENT_HREF, uuid=str(_uuid.uuid4())))
     return docs
 
 
@@ -302,7 +322,11 @@ def _normalize_all(
             f.events.append(
                 PremisEvent(
                     type="normalization", date_time=now,
-                    detail_note=exc.message, outcome="fail", agent_ids=[APP_AGENT_ID],
+                    # 失敗のときも、どの規則が動こうとしたのかは残す。
+                    # 「変換されなかった」だけでは、規則が無かったのか
+                    # 規則はあったが失敗したのかを後から区別できない。
+                    detail_note=f'rule="{rule.rule_id}"; {exc.message}',
+                    outcome="fail", agent_ids=[APP_AGENT_ID],
                 )
             )
             continue
@@ -311,7 +335,9 @@ def _normalize_all(
         f.events.append(
             PremisEvent(
                 type="normalization", date_time=now,
-                detail_note=derivative.command_line, outcome="success",
+                # どの規則が・どの道具の・どの版で動いたか
+                #（Archivematica の eventDetail に倣う）。
+                detail_note=normalizer.event_detail(derivative), outcome="success",
                 agent_ids=[APP_AGENT_ID],
             )
         )
@@ -325,9 +351,11 @@ def _build(
     parsed: sip_reader.ParsedSIP,
     output_parent: Path,
     aip_uuid: str,
-    mets_xml: bytes,
+    write_mets: Callable[[BinaryIO], None],
     fixity_status: FixityStatus,
     warnings: list[str],
+    rules_document: str,
+    progress: Progress,
 ) -> AIPResult:
     import bagit
 
@@ -336,6 +364,15 @@ def _build(
     logs = aip_dir / "logs"
     objects.mkdir(parents=True)
     logs.mkdir(parents=True)
+
+    # 進捗の表示と実際の処理の順序を合わせる。METS の生成はここで起きるので、
+    # 呼び出し元で先に「生成しています」と出すと、実態より早く出てしまう。
+    progress("METS を生成しています…")
+    mets_name = f"METS.{aip_uuid}.xml"
+    with (aip_dir / mets_name).open("wb") as fh:
+        write_mets(fh)
+
+    progress("AIP（BagIt bag）を組み立てています…")
 
     for f in parsed.files:
         _copy(f.absolute_path, objects / f.relative_path)
@@ -347,12 +384,19 @@ def _build(
         dest = objects / "submissionDocumentation"
         shutil.copytree(parsed.submission_documentation, dest, dirs_exist_ok=True)
 
+    # **使った規則表そのものを同梱する。** Archivematica は PREMIS に FPR の
+    # 識別子だけを書き、規則の中身は中央の登録簿にある。後年その登録簿が
+    # 引けなくなると、「どの規則で作られたか」が書いてあっても意味を失う。
+    # 表を一緒に入れておけば、このパッケージ単体で説明が付く。
+    # 継承した提出書類のコピーより後に書くこと（同名ファイルを上書きして、
+    # METS に載せた今回の表と実体を一致させる）。
+    rules_doc = aip_dir / RULES_DOCUMENT_HREF
+    rules_doc.parent.mkdir(parents=True, exist_ok=True)
+    rules_doc.write_text(rules_document, encoding="utf-8")
+
     (logs / "README.txt").write_bytes(
         "AIP 保存処理ログ（将来: 正規化・検証の詳細）。\n".encode()
     )
-
-    mets_name = f"METS.{aip_uuid}.xml"
-    (aip_dir / mets_name).write_bytes(mets_xml)
 
     try:
         bagit.make_bag(str(aip_dir), bag_info={"External-Identifier": aip_uuid}, checksums=["sha256"])

@@ -50,6 +50,11 @@ def run(source: Path, tmp_path: Path, **opts) -> tuple:
     return result, messages
 
 
+def read_csv(path: Path) -> list[list[str]]:
+    """BOM を剥がして CSV を読む。"""
+    return list(csv.reader(io.StringIO(path.read_text(encoding="utf-8-sig"), newline="")))
+
+
 class TestEndToEnd:
     def test_produces_a_complete_sip(self, source, tmp_path):
         result, _ = run(source, tmp_path)
@@ -103,6 +108,104 @@ class TestEndToEnd:
         empty.mkdir()
         with pytest.raises(SIPPipelineError):
             run(empty, tmp_path)
+
+
+class TestInteroperableOutputs:
+    """AtoM / Archivematica がそのまま読める形で出ていること。
+
+    ここが崩れると、掲載文と予稿に書いた「受け取れる形式に揃えてある」が
+    また実態から離れる。突合の根拠は docs/interoperability.md にある。
+    """
+
+    def test_atom_import_csv_is_written_next_to_the_human_sheet(self, source, tmp_path):
+        """人が書くシート（description.csv）と、機械に渡すシートを分けて置く。"""
+        result, _ = run(source, tmp_path)
+        subdoc = result.sip_path / "metadata" / "submissionDocumentation"
+        assert (subdoc / "description.csv").is_file()
+        assert (subdoc / "atom-import.csv").is_file()
+
+    def test_atom_import_csv_has_no_bom_and_unix_line_breaks(self, source, tmp_path):
+        """AtoM は Unix 改行を期待し、BOM を剥がすとは書いていない。
+
+        BOM が残ると先頭の列名が legacyId と認識されず、未知の列として
+        黙って捨てられる。**そうなると legacyId を出した意味が消える。**
+        """
+        result, _ = run(source, tmp_path)
+        raw = (
+            result.sip_path / "metadata" / "submissionDocumentation" / "atom-import.csv"
+        ).read_bytes()
+        assert not raw.startswith(b"\xef\xbb\xbf")
+        assert b"\r" not in raw
+        assert raw.startswith(b"legacyId,")
+
+    def test_atom_import_csv_describes_every_file(self, source, tmp_path):
+        """SIP 全体の 1 行だけでなく、ファイル 1 件ずつの行が出ること。"""
+        result, _ = run(source, tmp_path)
+        rows = read_csv(result.sip_path / "metadata" / "submissionDocumentation" / "atom-import.csv")
+        assert len(rows) == 1 + 1 + result.file_count, "見出し + 全体 1 行 + ファイル行"
+        parent_col = rows[0].index("parentId")
+        assert all(r[parent_col] == rows[1][0] for r in rows[2:])
+
+    def test_checksum_file_sits_where_archivematica_looks(self, source, tmp_path):
+        """「Checksum files are placed in the ``metadata`` directory」（transfer.rst）。
+
+        行は「the checksum, followed by two spaces, followed by the file path」で、
+        公式の例（beihai.tif）に objects/ の接頭辞は無い。
+        """
+        result, _ = run(source, tmp_path)
+        manifest = result.sip_path / "metadata" / "checksum.sha256"
+        assert manifest.is_file()
+
+        from archival_packager.core.checksums import sha256_of
+
+        lines = [ln for ln in manifest.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        assert len(lines) == result.file_count
+        for line in lines:
+            digest, sep, rel = line.partition("  ")
+            assert sep == "  ", "区切りは空白 2 個"
+            assert not rel.startswith("objects/")
+            assert sha256_of(result.sip_path / "objects" / rel) == digest
+
+    def test_internal_fixity_manifest_is_kept(self, source, tmp_path):
+        """**このアプリ自身の完全性確認を止めないこと。**
+
+        core/fixity.py は metadata/submissionDocumentation/checksum.sha256 を
+        SIP ルート基準（objects/ 付き）で読む。Archivematica 用に置き場と
+        表記を変えたからといって、こちらを消すと自分の検査が
+        「マニフェストが見つかりません」で素通りになる。読み手が 2 人いる。
+        """
+        from archival_packager.core import fixity
+        from archival_packager.core.aip_models import FixityOutcome
+
+        result, _ = run(source, tmp_path)
+        status = fixity.verify(result.sip_path, is_bag=False)
+        assert status.outcome is FixityOutcome.PASSED
+        assert status.checked == result.file_count
+
+    def test_metadata_csv_whole_row_has_no_trailing_slash(self, source, tmp_path):
+        result, _ = run(source, tmp_path)
+        rows = read_csv(result.sip_path / "metadata" / "metadata.csv")
+        assert rows[1][0] == "objects"
+
+    def test_bag_metadata_csv_paths_begin_with_data(self, source, tmp_path):
+        """bag では「the filename path must always begin with ``data``」。"""
+        result, _ = run(source, tmp_path, make_bag=True)
+        rows = read_csv(result.sip_path / "data" / "metadata" / "metadata.csv")
+        paths = [r[0] for r in rows[1:]]
+        assert paths[0] == "data/objects"
+        assert all(p.startswith("data/objects") for p in paths)
+        # 記載されたパスが bag の中に実在すること。実在しないと紐づかない。
+        for p in paths[1:]:
+            assert (result.sip_path / p).is_file(), p
+
+    def test_bag_has_no_separate_checksum_file(self, source, tmp_path):
+        """bag は manifest-sha256.txt が同じ役目を果たす。
+
+        二重に持つと、食い違ったときにどちらが正なのか分からなくなる。
+        """
+        result, _ = run(source, tmp_path, make_bag=True)
+        assert not (result.sip_path / "data" / "metadata" / "checksum.sha256").exists()
+        assert (result.sip_path / "manifest-sha256.txt").is_file()
 
 
 class TestOptions:
@@ -193,6 +296,26 @@ class TestStructuredInput:
         assert (result.sip_path / "objects" / "a.txt").is_file()
         assert not (result.sip_path / "objects" / "objects").exists(), "二重にならない"
         assert "objects/ をそのまま尊重" in "\n".join(messages)
+
+    def test_inherited_metadata_csv_is_rebased_when_bagging(self, tmp_path):
+        """記入済みの記述は残したまま、パスだけ bag の形に直すこと。
+
+        bag のペイロードは data/ の中にある。objects/a.txt のままだと
+        Archivematica から見て転送内に実体の無いパスになり、
+        **せっかく書いた記述がどのファイルにも紐づかない。**
+        """
+        src = tmp_path / "transfer"
+        (src / "objects").mkdir(parents=True)
+        (src / "objects" / "a.txt").write_text("x", encoding="utf-8")
+        (src / "metadata").mkdir()
+        (src / "metadata" / "metadata.csv").write_text(
+            "filename,dc.title\r\nobjects/a.txt,記入済みタイトル\r\n", encoding="utf-8"
+        )
+
+        result, _ = run(src, tmp_path, make_bag=True)
+        rows = read_csv(result.sip_path / "data" / "metadata" / "metadata.csv")
+        assert rows[1][0] == "data/objects/a.txt"
+        assert rows[1][1] == "記入済みタイトル"
 
     def test_provided_metadata_csv_is_inherited(self, tmp_path):
         """担当者が記入済みの metadata.csv を空テンプレートで上書きしないこと。"""

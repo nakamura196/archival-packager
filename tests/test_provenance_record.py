@@ -39,7 +39,14 @@ class TestVersionIsNotHardcoded:
         assert archival_packager.__version__ in APP_AGENT_NAME
 
     def test_no_literal_version_in_the_source(self):
-        """版の文字列をコード中に直書きしないこと。"""
+        """版の文字列をコード中に直書きしないこと。
+
+        **コメント行は見ない。** コメントは何も直書きできないので、
+        ここで拾っても誤検知にしかならない。実際に
+        「`gs --version` は "10.07.1" としか答えない」という説明の行を
+        違反として報告し、説明のほうを削らせかけた（2026-09-12）。
+        検査したいのは、動くコードが版を名乗ってしまうことである。
+        """
         import re
 
         root = Path(archival_packager.__file__).parent
@@ -48,6 +55,8 @@ class TestVersionIsNotHardcoded:
             if path.name == "__init__.py":
                 continue  # ここだけが版を持つ
             for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if line.lstrip().startswith("#"):
+                    continue
                 if re.search(r'"\d+\.\d+\.\d+"', line) and "version" in line.lower():
                     offenders.append(f"{path.name}:{i}")
         assert not offenders, (
