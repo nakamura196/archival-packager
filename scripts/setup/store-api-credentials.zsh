@@ -11,18 +11,21 @@
 #   zsh scripts/setup/store-api-credentials.zsh
 #
 # 何をするか:
-#   テナント ID・クライアント ID・シークレットを**画面に出さずに**受け取り、
+#   テナント ID・クライアント ID・キーを**画面に出さずに**受け取り、
 #   1Password の項目 microsoft-store-api を作る。値はディスクに書かない。
+#   入れ違い（テナント ID とクライアント ID の取り違え）はその場で弾く。
 #
 # 注意:
-#   シークレットは Azure の画面を閉じると二度と見られない。
-#   閉じてしまったら、新しいシークレットを作り直す。
+#   キーは Partner Center の画面を閉じると二度と見られない。
+#   閉じてしまったら、Remove して新しいキーを作り直す。
 
 set -euo pipefail
 setopt interactive_comments
 
 vault="Personal"
 title="microsoft-store-api"
+store_id="9N6XJD7THHPZ"
+guid='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
 
 if op item get "$title" --vault "$vault" >/dev/null 2>&1; then
   print "既に $title があります。上書きせず、編集で入れ直します。"
@@ -33,11 +36,21 @@ fi
 
 read 'TENANT?ディレクトリ (テナント) ID: '
 read 'CLIENT?アプリケーション (クライアント) ID: '
-read -s 'SECRET?クライアント シークレットの値（表示されません）: '
+read -s 'SECRET?キーの値（表示されません）: '
 print
-read 'EXPIRES?シークレットの期限 (例 2028-09-12): '
+read 'EXPIRES?キーの期限 (例 2028-09-12): '
 
-store_id="9N6XJD7THHPZ"
+fail() {
+  print -u2 "中止: $1"
+  unset TENANT CLIENT SECRET EXPIRES
+  exit 1
+}
+
+[[ "$TENANT" =~ $guid ]] || fail "テナント ID が GUID の形ではありません。"
+[[ "$CLIENT" =~ $guid ]] || fail "クライアント ID が GUID の形ではありません。"
+[[ "$TENANT" != "$CLIENT" ]] || fail "テナント ID とクライアント ID が同じ値です。貼り間違いです。"
+[[ -n "$SECRET" ]] || fail "キーが空です。"
+[[ "$EXPIRES" =~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' ]] || fail "期限は YYYY-MM-DD で入れてください。"
 
 if [[ "$mode" == "create" ]]; then
   op item create --category="API Credential" --vault="$vault" --title="$title" \
@@ -51,7 +64,13 @@ else
     "secret_expires[text]=$EXPIRES" >/dev/null
 fi
 
+secret_len=${#SECRET}
 unset TENANT CLIENT SECRET EXPIRES
 
 print "1Password に $title を用意しました。"
+print "  tenant_id     : $(op item get "$title" --vault "$vault" --fields tenant_id)"
+print "  client_id     : $(op item get "$title" --vault "$vault" --fields client_id)"
+print "  client_secret : 設定あり（${secret_len}文字・表示しません）"
+print "  secret_expires: $(op item get "$title" --vault "$vault" --fields secret_expires)"
+print
 print "確認: op run --env-file=store/.env -- python scripts/store_submit.py --dry-run"

@@ -46,6 +46,11 @@ TOKEN_URL = "https://login.microsoftonline.com/{tenant}/oauth2/token"
 RESOURCE = "https://manage.devcenter.microsoft.com"
 API = "https://manage.devcenter.microsoft.com/v1.0/my"
 
+# 申請 JSON で値を埋めておく必要がある端末種別。
+# 複製で返ってくる申請には一部しか入っておらず、足りないまま PUT すると
+# 400 InvalidParameterValue で落ちる（2026-09-12 に遭遇）。
+DEVICE_FAMILIES = ("Desktop", "Mobile", "Xbox", "Holographic")
+
 ROOT = Path(__file__).resolve().parent.parent
 LISTING = ROOT / "store" / "listing-ja.md"
 
@@ -144,13 +149,61 @@ def create_submission(token: str, store_id: str) -> dict:
     return _request("POST", f"{API}/applications/{store_id}/submissions", token=token)
 
 
+def ensure_device_families(submission: dict) -> dict:
+    """端末種別の指定を全部そろえる。
+
+    複製した申請には Desktop の分しか入っていないことがある。
+    そのまま送ると次のように断られる。
+
+        AllowTargetFutureDeviceFamilies needs to be initialized for all
+        supported platform, [Desktop, Mobile, Xbox, Holographic]
+
+    入っている値は大文字小文字を問わず拾い、無いものは False で埋める。
+    このアプリはデスクトップ専用なので、勝手に True にしない。
+    """
+    current = submission.get("allowTargetFutureDeviceFamilies") or {}
+    lowered = {str(k).lower(): v for k, v in current.items()}
+    submission["allowTargetFutureDeviceFamilies"] = {
+        family: bool(lowered.get(family.lower(), False))
+        for family in DEVICE_FAMILIES
+    }
+    return submission
+
+
+def resume_submission(token: str, store_id: str, app: dict) -> dict:
+    """進行中の申請を引き継ぐ。
+
+    確定の途中で落ちたとき、作り直すとパッケージを上げ直すことになる。
+    108 MB を二度送らずに済むよう、既にある申請を読んで続きから行う。
+    """
+    node = app.get("pendingApplicationSubmission")
+    if not node:
+        raise StoreError("進行中の申請がありません。--resume を外して実行してください。")
+    sid = node["id"]
+    return _request("GET", f"{API}/applications/{store_id}/submissions/{sid}",
+                    token=token)
+
+
+def japanese_listing_keys(submission: dict) -> list[str]:
+    """申請の中で日本語の掲載情報が入っている言語キーを返す。
+
+    **`ja` と決め打ちしない。** 実際の申請は `ja-jp` だった。
+    決め打ちすると、既存の掲載情報を更新せず空の `ja` を足してしまい、
+    説明文が消えたまま公開される。
+    """
+    keys = [k for k in submission.get("listings", {})
+            if k.lower() == "ja" or k.lower().startswith("ja-")]
+    return keys or ["ja-jp"]
+
+
 def apply_listing(submission: dict, listing: dict[str, str]) -> dict:
     """日本語の掲載情報を差し替える。ほかの言語や価格には触らない。"""
     listings = submission.setdefault("listings", {})
-    ja = listings.setdefault("ja", {}).setdefault("baseListing", {})
-    ja["description"] = listing["description"]
-    ja["shortDescription"] = listing["short"]
-    ja["keywords"] = listing["keywords"]
+    for key in japanese_listing_keys(submission):
+        base = listings.setdefault(key, {}).setdefault("baseListing", {})
+        base["description"] = listing["description"]
+        base["shortDescription"] = listing["short"]
+        base["keywords"] = listing["keywords"]
     return submission
 
 
@@ -211,11 +264,59 @@ def wait(token: str, store_id: str, submission_id: str, *, minutes: int = 30) ->
 # --------------------------------------------------------------------------
 
 
+def check_credentials() -> int:
+    """資格情報が通るかだけ確かめる。読むだけで、申請には触れない。
+
+    --dry-run は説明文を組み立てるだけなので、鍵が正しいかは分からない。
+    鍵を入れ替えたあと、申請を始める前にここで一度通しておく。
+    """
+    missing = [k for k in ("STORE_TENANT_ID", "STORE_CLIENT_ID",
+                           "STORE_CLIENT_SECRET", "STORE_ID")
+               if not os.environ.get(k)]
+    if missing:
+        print(f"環境変数がありません: {', '.join(missing)}。"
+              f"op run --env-file=store/.env -- で実行してください。", file=sys.stderr)
+        return 1
+
+    store_id = os.environ["STORE_ID"]
+    try:
+        token = token_for(os.environ["STORE_TENANT_ID"],
+                          os.environ["STORE_CLIENT_ID"],
+                          os.environ["STORE_CLIENT_SECRET"])
+    except StoreError as exc:
+        print(f"トークンを取れませんでした。\n{exc}", file=sys.stderr)
+        return 1
+    print("トークンを取れました。")
+
+    try:
+        app = _request("GET", f"{API}/applications/{store_id}", token=token)
+    except StoreError as exc:
+        print(f"アプリを読めませんでした。役割が Manager か確かめてください。\n{exc}",
+              file=sys.stderr)
+        return 1
+
+    print(f"アプリを読めました: {app.get('primaryName')} ({store_id})")
+    pending = app.get("pendingApplicationSubmission")
+    last = app.get("lastPublishedApplicationSubmission")
+    print(f"  公開済みの申請: {(last or {}).get('id', 'なし')}")
+    print(f"  進行中の申請  : {(pending or {}).get('id', 'なし')}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--msix", type=Path, help="差し替える MSIX。省略すると掲載情報だけ更新")
     parser.add_argument("--dry-run", action="store_true", help="送信せず、何を送るかだけ出す")
+    parser.add_argument("--check", action="store_true",
+                        help="資格情報だけ確かめる。読むだけで、何も変えない")
+    parser.add_argument("--resume", action="store_true",
+                        help="進行中の申請を引き継ぐ。確定の途中で落ちたとき用")
+    parser.add_argument("--skip-upload", action="store_true",
+                        help="パッケージの送信を省く。既に上げ終わっているとき用")
     args = parser.parse_args()
+
+    if args.check:
+        return check_credentials()
 
     listing = listing_from_markdown()
     print("掲載情報を読みました:")
@@ -243,9 +344,16 @@ def main() -> int:
                       os.environ["STORE_CLIENT_ID"],
                       os.environ["STORE_CLIENT_SECRET"])
 
-    print("前回の申請を複製しています…")
-    submission = create_submission(token, store_id)
+    if args.resume:
+        app = _request("GET", f"{API}/applications/{store_id}", token=token)
+        submission = resume_submission(token, store_id, app)
+        print(f"進行中の申請を引き継ぎます（id={submission['id']}）…")
+    else:
+        print("前回の申請を複製しています…")
+        submission = create_submission(token, store_id)
+
     submission = apply_listing(submission, listing)
+    submission = ensure_device_families(submission)
 
     if args.msix:
         if not args.msix.is_file():
@@ -254,8 +362,14 @@ def main() -> int:
         work = Path(os.environ.get("TMPDIR", "/tmp")) / "archival-packager-store"
         work.mkdir(parents=True, exist_ok=True)
         bundle = stage_package(submission, args.msix, work)
-        print(f"パッケージを送っています（{bundle.stat().st_size // 1024 // 1024} MB）…")
-        upload(submission["fileUploadUrl"], bundle)
+        if args.skip_upload:
+            print("パッケージは送信済みとして扱います（--skip-upload）。")
+        else:
+            print(f"パッケージを送っています（{bundle.stat().st_size // 1024 // 1024} MB）…")
+            upload(submission["fileUploadUrl"], bundle)
+    elif args.skip_upload:
+        print("--skip-upload は --msix と一緒に使ってください。", file=sys.stderr)
+        return 1
 
     print("申請を確定しています…")
     commit(token, store_id, submission)
