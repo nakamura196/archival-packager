@@ -186,6 +186,7 @@ class Derivative:
     command_line: str
     sha256: str | None = None
     puid_out: str | None = None
+    format_name_out: str | None = None
 
 
 @dataclass(slots=True)
@@ -228,6 +229,9 @@ class NormalizationRule:
     args: list[str]  # 引数テンプレート（{in} {out} を実パスに置換）
     out_extension: str  # 出力ファイルの拡張子（例: "pdf"）
     puid_out: str | None = None  # 出力フォーマットの PUID（分かれば）
+    #: 出力フォーマットの名前。**PUID だけだと画面に「unknown」と出る。**
+    #: 変換したものが未識別に見えるのは、実態と違ううえ紛らわしい。
+    format_name_out: str | None = None
 
 
 # --------------------------------------------------------------------------

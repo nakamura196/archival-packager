@@ -138,3 +138,80 @@ class TestSubmissionDocuments:
         report = package_report.read(aip)
         assert report.overview.original_count < report.overview.file_count
         assert report.overview.original_count > 0
+
+
+class TestNormalizedCopiesAreNamed:
+    """変換して作ったファイルにも、フォーマット名を付けること。
+
+    PUID だけ入れて名前を空にしていたため、METS には規定値の "unknown" が
+    書かれ、画面では「未識別」に見えていた。変換したものが未識別に見えるのは
+    実態と違ううえ、担当者を無用に不安にさせる。
+    """
+
+    @pytest.fixture
+    def aip_with_png(self, tmp_path: Path) -> Path:
+        import base64
+
+        png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+            "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        )
+        src = tmp_path / "in"
+        src.mkdir()
+        (src / "写真.png").write_bytes(png)
+
+        out = tmp_path / "sip-out"
+        out.mkdir()
+        sip = sip_pipeline.run(
+            input_path=src, output_parent=out,
+            metadata=SIPMetadata(identifier="x", title="写真"),
+            options=SIPOptions(), progress=lambda _m: None,
+        ).sip_path
+
+        aout = tmp_path / "aip-out"
+        aout.mkdir()
+        return aip_pipeline.run(
+            sip_root=sip, output_parent=aout, options=AIPOptions(),
+            progress=lambda _m: None,
+        ).aip_path
+
+    def test_the_original_png_is_identified(self, aip_with_png: Path):
+        report = package_report.read(aip_with_png)
+        png = next(f for f in report.files if f.path.endswith(".png"))
+        assert png.puid == "fmt/11"
+        assert png.format_name == "Portable Network Graphics"
+
+    def test_the_preservation_copy_has_a_name(self, aip_with_png: Path):
+        report = package_report.read(aip_with_png)
+        tiff = next(f for f in report.files if f.use == "保存用")
+        assert tiff.puid == "fmt/353"
+        assert tiff.format_name and tiff.format_name != "unknown", (
+            "変換後のファイルが未識別に見える"
+        )
+
+    def test_nothing_counts_as_unidentified(self, aip_with_png: Path):
+        report = package_report.read(aip_with_png)
+        assert report.summary.unidentified == 0
+        assert report.summary.normalized == 1
+
+
+class TestSummary:
+    """まとまりで見た数。1 件ずつ並べても全体は掴めない。"""
+
+    def test_counts_formats_and_events(self, aip: Path):
+        report = package_report.read(aip)
+        assert report.summary.formats, "フォーマットごとの件数が空"
+        assert sum(n for _name, n in report.summary.formats) == report.overview.original_count
+        assert report.summary.events, "処理の種類ごとの件数が空"
+
+    def test_formats_are_ordered_by_count(self, aip: Path):
+        report = package_report.read(aip)
+        counts = [n for _name, n in report.summary.formats]
+        assert counts == sorted(counts, reverse=True)
+
+    def test_inherits_the_virus_column_into_the_aip(self, aip: Path):
+        """ウイルス検査の結果は METS では表せないので、
+        引き継いだ技術インベントリから拾えていること。"""
+        report = package_report.read(aip)
+        originals = [f for f in report.files if f.use == "原本"]
+        assert all(f.virus for f in originals), "ウイルス検査の列が空"

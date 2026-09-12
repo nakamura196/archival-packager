@@ -47,6 +47,11 @@ _POSTSCRIPT_TO_PDF: frozenset[str] = frozenset(
 TIFF_PUID = "fmt/353"
 PDF_PUID = "fmt/276"  # PDF 1.7（PDF/A 化は将来 -dPDFA=2）
 
+#: 出力フォーマットの名前（PRONOM の表記に合わせる）。
+#: 名前を付けないと METS には "unknown" と入り、画面上は未識別に見える。
+TIFF_NAME = "Tagged Image File Format"
+PDF_NAME = "Acrobat PDF 1.7 - Portable Document Format"
+
 
 def rule_for(puid: str | None, purpose: DerivativePurpose) -> NormalizationRule | None:
     """PUID に対応する正規化ルールを返す。
@@ -64,6 +69,7 @@ def rule_for(puid: str | None, purpose: DerivativePurpose) -> NormalizationRule 
             tool=image_normalize.TOOL,
             args=[],
             puid_out=TIFF_PUID,
+            format_name_out=TIFF_NAME,
             out_extension="tiff",
         )
 
@@ -81,6 +87,7 @@ def rule_for(puid: str | None, purpose: DerivativePurpose) -> NormalizationRule 
                 "{in}",
             ],
             puid_out=PDF_PUID,
+            format_name_out=PDF_NAME,
             out_extension="pdf",
         )
 

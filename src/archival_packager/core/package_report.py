@@ -82,11 +82,29 @@ class FileRow:
 
 
 @dataclass(frozen=True)
+class Summary:
+    """まとまりで見たときの数。**1 件ずつ並べても全体は掴めない。**
+
+    どの形式がどれだけ入っているか、変換したものが何件あるか、
+    確認が要るものが何件あるか。ここが分かると、担当者は次に何を
+    見ればよいかを決められる。
+    """
+
+    formats: list[tuple[str, int]] = field(default_factory=list)   # 多い順
+    events: list[tuple[str, int]] = field(default_factory=list)    # 処理の種類ごと
+    normalized: int = 0        # 保存用形式に変換したもの
+    unidentified: int = 0      # フォーマットを特定できなかったもの
+    extension_warnings: int = 0  # 拡張子と中身が食い違うもの
+    virus_scanned: int = 0     # ウイルス検査を行ったもの
+
+
+@dataclass(frozen=True)
 class PackageReport:
     root: Path
     overview: Overview
     events: list[EventRow] = field(default_factory=list)
     files: list[FileRow] = field(default_factory=list)
+    summary: Summary = field(default_factory=Summary)
     mets_path: Path | None = None
 
 
@@ -201,9 +219,11 @@ def _read_mets(root: Path, mets_path: Path) -> PackageReport:
             files.append(FileRow(path=href, use=use, size=_size_on_disk(root, href)))
 
     events.sort(key=lambda e: e.date_time)
+    files = _merge_inherited_csv(root, files)
 
     return PackageReport(
         root=root,
+        summary=_summarize(files, events),
         overview=Overview(
             kind="AIP",
             title=title,
@@ -217,6 +237,48 @@ def _read_mets(root: Path, mets_path: Path) -> PackageReport:
         files=files,
         mets_path=mets_path,
     )
+
+
+def _merge_inherited_csv(root: Path, files: list[FileRow]) -> list[FileRow]:
+    """AIP に引き継がれた formats.csv から、METS に無い列を補う。
+
+    ウイルス検査の結果と拡張子警告は METS では表せない
+    （PREMIS の event と outcome には出るが、ファイル単位の表にはならない）。
+    SIP 段の技術インベントリが提出書類として AIP に入っているので、そこから拾う。
+    """
+    metadata = _find_metadata_dir(root)
+    if metadata is None:
+        for base in (root / "data" / "objects" / "submissionDocumentation",
+                     root / "objects" / "submissionDocumentation"):
+            if (base / "formats.csv").is_file():
+                metadata = base
+                break
+    if metadata is None:
+        return files
+
+    inherited: dict[str, dict[str, str]] = {}
+    for row in _rows(metadata / "formats.csv"):
+        rel = (row.get("相対パス") or "").strip()
+        if rel:
+            inherited[rel] = row
+
+    merged: list[FileRow] = []
+    for f in files:
+        # METS の href は objects/ から始まる。CSV は原本からの相対。
+        key = f.path.split("objects/", 1)[-1] if "objects/" in f.path else f.path
+        row = inherited.get(key)
+        if row is None:
+            merged.append(f)
+            continue
+        merged.append(
+            FileRow(
+                path=f.path, use=f.use, format_name=f.format_name, puid=f.puid,
+                size=f.size, sha256=f.sha256,
+                virus=(row.get("ウイルス検査") or "").strip(),
+                warning=(row.get("拡張子警告") or "").strip(),
+            )
+        )
+    return merged
 
 
 def _size_on_disk(root: Path, href: str) -> int:
@@ -307,8 +369,10 @@ def _read_sip(root: Path) -> PackageReport:
         identifier = (first.get("Identifier") or "").strip()
 
     note = "" if files else "技術インベントリ（formats.csv）が見つかりませんでした"
+    summary = _summarize(files, [])
     return PackageReport(
         root=root,
+        summary=summary,
         overview=Overview(
             kind="SIP",
             title=title,
@@ -319,6 +383,33 @@ def _read_sip(root: Path) -> PackageReport:
             note=note,
         ),
         files=files,
+    )
+
+
+def _summarize(files: list[FileRow], events: list[EventRow]) -> Summary:
+    originals = [f for f in files if f.use in ("原本", "")]
+
+    formats: dict[str, int] = {}
+    for f in originals:
+        name = f.format_name or "（未識別）"
+        formats[name] = formats.get(name, 0) + 1
+
+    kinds: dict[str, int] = {}
+    for e in events:
+        kinds[e.type_label] = kinds.get(e.type_label, 0) + 1
+
+    return Summary(
+        # 多い順。同数なら名前順にして、開くたびに並びが変わらないようにする。
+        formats=sorted(formats.items(), key=lambda kv: (-kv[1], kv[0])),
+        events=sorted(kinds.items(), key=lambda kv: (-kv[1], kv[0])),
+        normalized=sum(1 for f in files if f.use == "保存用"),
+        unidentified=sum(1 for f in originals if not f.puid),
+        extension_warnings=sum(
+            1 for f in originals if f.warning and f.warning not in ("-", "なし")
+        ),
+        virus_scanned=sum(
+            1 for f in originals if f.virus and f.virus not in ("", "未実施", "-")
+        ),
     )
 
 

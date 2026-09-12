@@ -24,6 +24,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import flet as ft
+import flet.canvas as cv
 
 from ..core import package_report, preview
 from . import platform as plat
@@ -219,6 +220,138 @@ def _mono(text: str, size: int = 11) -> ft.Control:
     return ft.Text(text, size=size, font_family=_MONO, selectable=True)
 
 
+#: 円グラフの色。多い順に割り当てる。7 種を超えた分は「その他」にまとめる。
+_SLICE_COLORS = (
+    ft.Colors.BLUE_400, ft.Colors.TEAL_400, ft.Colors.ORANGE_400,
+    ft.Colors.PURPLE_300, ft.Colors.GREEN_400, ft.Colors.RED_300,
+    ft.Colors.BROWN_300,
+)
+_OTHER_COLOR = ft.Colors.BLUE_GREY_300
+_MAX_SLICES = 7
+
+
+def _slices(formats: list[tuple[str, int]]) -> list[tuple[str, int, str]]:
+    """(名前, 件数, 色) の並びにする。多すぎる分はまとめる。"""
+    head = formats[:_MAX_SLICES]
+    rest = formats[_MAX_SLICES:]
+    out = [(name, n, _SLICE_COLORS[i % len(_SLICE_COLORS)])
+           for i, (name, n) in enumerate(head)]
+    if rest:
+        out.append((f"その他 {len(rest)} 種", sum(n for _name, n in rest), _OTHER_COLOR))
+    return out
+
+
+def _pie(formats: list[tuple[str, int]], size: int = 160) -> ft.Control:
+    """フォーマットごとの割合を円で見せる。
+
+    Flet 0.86 にグラフの部品は無いので、canvas の扇形を並べて描く。
+    中央を抜いてドーナツにし、真ん中に総数を出す。
+    """
+    import math
+
+    total = sum(n for _name, n, _c in _slices(formats)) or 1
+    shapes: list[cv.Shape] = []
+    start = -math.pi / 2  # 12 時から時計回り
+    for _name, count, color in _slices(formats):
+        sweep = 2 * math.pi * count / total
+        shapes.append(
+            cv.Arc(0, 0, size, size, start, sweep, use_center=True,
+                   paint=ft.Paint(color=color))
+        )
+        start += sweep
+    # 中抜き。背景と同じ色で塗る。
+    hole = size * 0.52
+    offset = (size - hole) / 2
+    shapes.append(
+        cv.Arc(offset, offset, hole, hole, 0, 2 * math.pi, use_center=True,
+               paint=ft.Paint(color=ft.Colors.SURFACE))
+    )
+    return ft.Stack(
+        [
+            cv.Canvas(shapes, width=size, height=size),
+            ft.Container(
+                ft.Column(
+                    [
+                        ft.Text(str(total), size=20, weight=ft.FontWeight.BOLD),
+                        ft.Text("原本", size=11, color=_LABEL_COLOR),
+                    ],
+                    spacing=0,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                width=size, height=size, alignment=ft.Alignment.CENTER,
+            ),
+        ],
+        width=size, height=size,
+    )
+
+
+def _legend(formats: list[tuple[str, int]]) -> ft.Control:
+    rows: list[ft.Control] = []
+    for name, count, color in _slices(formats):
+        rows.append(
+            ft.Row(
+                [
+                    ft.Container(width=10, height=10, bgcolor=color, border_radius=2),
+                    ft.Text(name, size=12, expand=True),
+                    ft.Text(f"{count} 件", size=12, color=_LABEL_COLOR),
+                ],
+                spacing=8,
+            )
+        )
+    return ft.Column(rows, spacing=6, tight=True)
+
+
+def _stat(label: str, value: str, *, warn: bool = False) -> ft.Control:
+    return ft.Container(
+        ft.Column(
+            [
+                ft.Text(value, size=18, weight=ft.FontWeight.BOLD,
+                        color=ft.Colors.ORANGE_800 if warn else None),
+                ft.Text(label, size=11, color=_LABEL_COLOR),
+            ],
+            spacing=2,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+        padding=ft.Padding.symmetric(horizontal=18, vertical=10),
+        border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
+        border_radius=8,
+    )
+
+
+def _breakdown(report: package_report.PackageReport) -> ft.Control:
+    """全体の内訳。1 件ずつの表を見なくても、何が入っていて
+    どれだけ手が入ったかが分かるようにする。"""
+    summary = report.summary
+    if not summary.formats:
+        return ft.Container()
+
+    stats = [
+        _stat("保存用に変換", f"{summary.normalized} 件"),
+        _stat("ウイルス検査済", f"{summary.virus_scanned} 件"),
+    ]
+    if summary.unidentified:
+        stats.append(_stat("未識別", f"{summary.unidentified} 件", warn=True))
+    if summary.extension_warnings:
+        stats.append(_stat("拡張子が不一致", f"{summary.extension_warnings} 件", warn=True))
+
+    return ft.Column(
+        [
+            ft.Text("内訳", size=13, weight=ft.FontWeight.BOLD),
+            ft.Row(
+                [
+                    _pie(summary.formats),
+                    ft.Container(_legend(summary.formats), expand=True,
+                                 padding=ft.Padding.only(left=8)),
+                ],
+                spacing=16,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            ft.Row(stats, spacing=10, wrap=True),
+        ],
+        spacing=12,
+    )
+
+
 def _overview_tab(report: package_report.PackageReport) -> ft.Control:
     o = report.overview
     items: list[ft.Control] = [
@@ -249,6 +382,7 @@ def _overview_tab(report: package_report.PackageReport) -> ft.Control:
                 padding=ft.Padding.only(top=12),
             )
         )
+    items.append(ft.Container(_breakdown(report), padding=ft.Padding.only(top=20)))
     items.append(
         ft.Container(
             ft.Row(
@@ -289,10 +423,18 @@ def _events_tab(report: package_report.PackageReport) -> ft.Control:
         ]
         for e in report.events
     ]
+    kinds = "、".join(f"{name} {n}" for name, n in report.summary.events)
     head = ft.Container(
-        ft.Text(
-            f"{len(report.events)} 件の記録。担当者が別に作業記録を書く必要はありません。",
-            size=12, color=_LABEL_COLOR,
+        ft.Column(
+            [
+                ft.Text(
+                    f"{len(report.events)} 件の記録。"
+                    "担当者が別に作業記録を書く必要はありません。",
+                    size=12, color=_LABEL_COLOR,
+                ),
+                ft.Text(kinds, size=11, color=_LABEL_COLOR),
+            ],
+            spacing=2,
         ),
         padding=ft.Padding.only(left=16, top=12, bottom=4),
     )

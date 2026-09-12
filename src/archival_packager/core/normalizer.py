@@ -138,6 +138,7 @@ def _derivative(
         command_line=command_line,
         sha256=sha256_of(out_path),
         puid_out=rule.puid_out,
+        format_name_out=rule.format_name_out,
     )
 
 

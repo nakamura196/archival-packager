@@ -138,7 +138,7 @@ def build_mets(
                 object_uuid=d.uuid,
                 sha256=d.sha256,
                 size=d.size_bytes,
-                format_name=None,
+                format_name=d.format_name_out,
                 puid=d.puid_out,
                 original_name=None,
                 related_uuid=f.uuid,
