@@ -18,6 +18,8 @@ from pathlib import Path
 
 from . import (
     accession as accession_mod,
+)
+from . import (
     checksums,
     clamav,
     dfxml,
@@ -25,11 +27,13 @@ from . import (
     filenames,
     pii,
     report,
-    scan as scan_mod,
     siegfried,
     sip_builder,
     spreadsheets,
     zip_io,
+)
+from . import (
+    scan as scan_mod,
 )
 from .models import ScannedFile, SIPMetadata, SIPOptions, SIPPipelineError, SIPResult
 from .sip_builder import SIPBuildRequest, SubmissionDocs
@@ -262,18 +266,27 @@ def _scan_pii(files: list[ScannedFile], options: SIPOptions, progress: Progress)
     for f in files:
         text = document_text.scannable(f, max_bytes=PII_SCAN_MAX_BYTES)
         if text is None:
+            # 文書のはずなのに中身を取り出せなかったものは、黙って飛ばさない。
+            # 壊れた PDF や暗号化された PDF を「候補なし」に混ぜると、
+            # 個人情報が入っていても「見つかりませんでした」と表示される。
+            f.pii_unreadable = document_text.is_pdf(f)
             continue
+        f.pii_scanned = True
         findings = pii.scan(text)
         if findings:
             f.pii = findings
             hit_files += 1
 
     total = sum(len(f.pii) for f in files)
-    progress(
+    unreadable = sum(1 for f in files if f.pii_unreadable)
+    head = (
         "PII 候補は見つかりませんでした。"
         if hit_files == 0
         else f"PII 候補: {total} 件（{hit_files} ファイル）。pii-report.csv を確認してください。"
     )
+    if unreadable:
+        head += f" ただし {unreadable} ファイルは中身を読めず、走査できていません。"
+    progress(head)
 
 
 def _build_documents(

@@ -52,6 +52,11 @@ jobs:
 
       - run: uv sync --group dev
 
+      # 書き方の揺れは、本題の差分を読みにくくする。機械で揃える。
+      # 規則と行長は pyproject.toml の [tool.ruff] に置いてある。
+      - name: ruff
+        run: uvx ruff check src tests scripts main.py
+
       - name: pytest
         run: uv run pytest -q
 

@@ -1,0 +1,32 @@
+# 依存の脆弱性に自動で追随する。
+#
+# cooldown を入れているのは、公開直後の版を掴まないため。
+# 乗っ取られた maintainer が悪意ある版を出す事故（chalk/debug 2025-09、
+# eslint-config-prettier 2025-07 ほか）は、数時間〜数日で検出・撤回されている。
+# **security update は cooldown を無視して即時来る**ので、緊急時は遅れない。
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    cooldown:
+      default-days: 5
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+
+  # Actions は SHA で固定してある。Dependabot は SHA とコメントの両方を書き換える。
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 5
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3

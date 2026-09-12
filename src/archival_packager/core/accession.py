@@ -66,7 +66,7 @@ def parse(text: str) -> list[AccessionRecord]:
 
     out: list[AccessionRecord] = []
     for fields in rows[1:]:
-        def at(i: int | None) -> str:
+        def at(i: int | None, fields: list[str] = fields) -> str:
             return fields[i] if i is not None and i < len(fields) else ""
 
         digest = at(i_hash)

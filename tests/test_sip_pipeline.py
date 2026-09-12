@@ -15,9 +15,9 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
-from archival_packager.core import bundled, clamav, report, scan as scan_mod, sip_pipeline, zip_io
+from archival_packager.core import bundled, clamav, report, sip_pipeline, zip_io
+from archival_packager.core import scan as scan_mod
 from archival_packager.core.models import (
-    PIIFinding,
     ScannedFile,
     SIPMetadata,
     SIPOptions,
@@ -73,7 +73,7 @@ class TestEndToEnd:
 
         from archival_packager.core.checksums import sha256_of
 
-        lines = [l for l in manifest.splitlines() if l.strip()]
+        lines = [ln for ln in manifest.splitlines() if ln.strip()]
         assert len(lines) == 3
         for line in lines:
             digest, _, rel = line.partition("  ")
@@ -417,3 +417,55 @@ class TestReportSaysWhyFormatsAreUnidentified:
         report = (result.sip_path / "metadata" / "submissionDocumentation"
                   / "report.txt").read_text(encoding="utf-8")
         assert "フォーマット識別: 実施" in report
+
+
+class TestUnreadableDocumentsAreNotReportedAsClean:
+    """読めなかった文書を「候補なし」に混ぜない。
+
+    壊れた PDF・暗号化された PDF はテキストを取り出せない。黙って飛ばすと、
+    個人情報が入っていても report には「個人情報(PII)スキャン: 実施（候補なし）」
+    とだけ出る。**利用者はこれを「安全だと確認済み」と読む。**
+    走査できなかった件数を必ず添える。
+    """
+
+    def _run(self, tmp_path, make_file):
+        from archival_packager.core import sip_pipeline
+        from archival_packager.core.models import SIPMetadata, SIPOptions
+
+        src = tmp_path / "in"
+        src.mkdir()
+        make_file(src)
+        out = tmp_path / "out"
+        out.mkdir()
+
+        result = sip_pipeline.run(
+            input_path=src, output_parent=out,
+            metadata=SIPMetadata(identifier="x", title="t"),
+            options=SIPOptions(scan_pii=True), progress=lambda _m: None,
+        )
+        return result, (result.sip_path / "metadata" / "submissionDocumentation"
+                        / "report.txt").read_text(encoding="utf-8")
+
+    def test_broken_pdf_is_counted_as_unscanned(self, tmp_path):
+        def make(src):
+            # 先頭だけ PDF で、中身は壊れている。pypdf は読めない。
+            (src / "壊れた.pdf").write_bytes(b"%PDF-1.7\n" + b"\x00\xff" * 200)
+
+        _result, report = self._run(tmp_path, make)
+        assert "走査できず" in report
+
+    def test_images_are_not_counted_as_unscanned(self, tmp_path):
+        """元から対象外のもの（画像）を「読めなかった」に数えない。"""
+        def make(src):
+            (src / "写真.bin").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+
+        _result, report = self._run(tmp_path, make)
+        assert "走査できず" not in report
+
+    def test_readable_text_is_marked_scanned(self, tmp_path):
+        def make(src):
+            (src / "a.txt").write_text("ふつうの本文\n", encoding="utf-8")
+
+        _result, report = self._run(tmp_path, make)
+        assert "個人情報(PII)スキャン: 実施" in report
+        assert "走査できず" not in report

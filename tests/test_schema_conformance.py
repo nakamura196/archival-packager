@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -26,7 +25,6 @@ from archival_packager.core.aip_models import (
     Derivative,
     DerivativePurpose,
     DescriptiveMetadata,
-    PremisAgent,
     PremisEvent,
 )
 

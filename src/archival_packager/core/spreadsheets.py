@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import timezone
+from datetime import UTC
 
 from .models import ScannedFile, SIPMetadata
 
@@ -70,8 +70,8 @@ def _iso(dt) -> str:
     # Windows では、素の datetime を astimezone でローカル時刻に変換しようとすると
     # 1970-01-01 前後で OSError になる、という事情もある。
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def description(files: list[ScannedFile], metadata: SIPMetadata) -> str:

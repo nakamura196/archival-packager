@@ -29,11 +29,12 @@ from pathlib import Path
 
 import flet as ft
 
-from ..core.aip_models import AIPOptions, AIPPipelineError, AIPResult, DescriptiveMetadata
 from .. import __version__
 from ..core import aip_pipeline, applog, clamav, sip_pipeline
+from ..core.aip_models import AIPOptions, AIPPipelineError, AIPResult, DescriptiveMetadata
 from ..core.models import SIPMetadata, SIPOptions, SIPPipelineError, SIPResult
-from . import about, platform as plat, viewer
+from . import about, viewer
+from . import platform as plat
 
 MODE_SIP = "sip"
 MODE_AIP = "aip"
@@ -818,7 +819,6 @@ def self_test(page: ft.Page) -> None:
     標準出力に書いて終了コードで返す。macOS は署名したあと、Windows は
     CI のビルド直後に走らせる。
     """
-    import asyncio
 
     #: 結果の書き出し先。包んだアプリでは標準出力が呼び出し元まで戻らないので、
     #: ファイルに書く。

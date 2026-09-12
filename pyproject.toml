@@ -7,7 +7,12 @@ description = "SIP/AIP creator for macOS and Windows from a single codebase"
 # 実測: Flet 0.86.2 は python-build-standalone の 3.12.13 を同梱する。
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "flet[all]==0.86.2",
+    # **`[all]` にしない。** `[all]` は flet-cli（ビルド用）と flet-web を引き込み、
+    # その依存（cookiecutter / fastapi / uvicorn / chardet / text-unidecode …）が
+    # 丸ごと配布物に入る。実行には要らないうえ、chardet は LGPL、
+    # text-unidecode は Artistic/GPL で、NOTICE に書いていない表示義務が増える。
+    # 実行に要るのは desktop だけ。ビルド用の flet-cli は dev グループに置く。
+    "flet[desktop]==0.86.2",
     # BagIt は自前実装しない。米国議会図書館のリファレンス実装を使う。
     # これが Python を移植先に選んだ最大の理由。
     "bagit>=1.8.1",
@@ -21,6 +26,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.3.0",
+    # `uv run flet build` に要る。配布物に入れたくないので実行時依存にはしない。
+    "flet-cli==0.86.2",
 ]
 
 [build-system]
@@ -41,3 +48,16 @@ filterwarnings = [
     # bagit 側が修正されたらこの行を消して確認する。
     "ignore:codecs.open\\(\\) is deprecated:DeprecationWarning:bagit",
 ]
+
+[tool.ruff]
+# 既存の書き方に合わせる（実測: 88 桁で 245 件、100 桁で 29 件、110 桁で 5 件）。
+# 本文は概ね 100 桁で書かれているが、日本語コメントが少しはみ出す行がある。
+# **今ある行を折り返すために 15 ファイルを触ると、変更の差分が読めなくなる。**
+# 極端な行だけを捕まえる目的で 110 にし、はみ出した 5 行だけ直した。
+line-length = 110
+
+[tool.ruff.lint]
+# E/F: 素の誤り。I: import 順。UP: 古い書き方。B: 壊れやすい書き方。
+# DTZ（naive な datetime）は入れたいが、既存の違反が多く別途整理する。
+# Windows で実際に事故を起こした種類なので、TODO として README に残す。
+select = ["E", "F", "I", "UP", "B"]

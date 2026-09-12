@@ -15,21 +15,27 @@ AIP の data/ 配下:
 
 from __future__ import annotations
 
-from .. import __version__
-
 import shutil
 import tempfile
 import uuid as _uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from . import bundled, conversion_registry, fixity, mets, normalizer, sip_builder, sip_reader, zip_io
+from .. import __version__
+from . import (
+    conversion_registry,
+    fixity,
+    mets,
+    normalizer,
+    sip_builder,
+    sip_reader,
+    zip_io,
+)
 from .aip_models import (
     AgentKind,
     AIPErrorKind,
     AIPFile,
-    AIPInput,
     AIPOptions,
     AIPPipelineError,
     AIPResult,
@@ -121,7 +127,7 @@ def run(
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _fixity_message(status: FixityStatus) -> str:
@@ -342,7 +348,7 @@ def _build(
         shutil.copytree(parsed.submission_documentation, dest, dirs_exist_ok=True)
 
     (logs / "README.txt").write_bytes(
-        "AIP 保存処理ログ（将来: 正規化・検証の詳細）。\n".encode("utf-8")
+        "AIP 保存処理ログ（将来: 正規化・検証の詳細）。\n".encode()
     )
 
     mets_name = f"METS.{aip_uuid}.xml"

@@ -12,7 +12,12 @@ import pytest
 from lxml import etree
 
 from archival_packager.core import aip_pipeline, sip_pipeline, sip_reader
-from archival_packager.core.aip_models import AIPOptions, AIPPipelineError, DescriptiveMetadata, FixityOutcome
+from archival_packager.core.aip_models import (
+    AIPOptions,
+    AIPPipelineError,
+    DescriptiveMetadata,
+    FixityOutcome,
+)
 from archival_packager.core.mets import METS_NS, PREMIS_NS
 from archival_packager.core.models import SIPMetadata, SIPOptions
 
@@ -200,7 +205,7 @@ class TestNormalization:
 
     def test_failure_is_a_warning_not_a_stop(self, sip, tmp_path, monkeypatch):
         """1 ファイルの変換失敗で移管全体を止めない。原本はそのまま保存される。"""
-        from archival_packager.core import conversion_registry, normalizer
+        from archival_packager.core import conversion_registry
         from archival_packager.core.aip_models import DerivativePurpose, NormalizationRule
 
         rule = NormalizationRule(

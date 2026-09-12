@@ -88,6 +88,13 @@ class ScannedFile:
 
     # PII 走査が埋める（検出があった場合のみ。マスク済み）
     pii: list[PIIFinding] = field(default_factory=list)
+    #: 中身を取り出して走査できたか。ウイルス検査と同じ理由で持つ。
+    #: pii が空なだけでは「候補なし」と「そもそも走査できていない」を
+    #: 区別できず、後者を「安全」と読み違えられては困る。
+    pii_scanned: bool = False
+    #: 走査すべき文書なのに中身を取り出せなかった（壊れた/暗号化された PDF 等）。
+    #: 画像のように元から対象外のものは False のまま。
+    pii_unreadable: bool = False
 
     # ウイルス検査が埋める（感染時のみ。ClamAV シグネチャ名）
     virus: str | None = None

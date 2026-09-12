@@ -35,13 +35,10 @@ from __future__ import annotations
 
 import os
 import shutil
-import stat
 import unicodedata
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 
-from .checksums import sha256_of
 from .models import ScannedFile, SIPMetadata, SIPOptions, SIPPipelineError, SIPResult
 
 BOM = "﻿"

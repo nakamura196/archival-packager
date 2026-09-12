@@ -223,3 +223,60 @@ class TestSummary:
         report = package_report.read(aip)
         originals = [f for f in report.files if f.use == "原本"]
         assert all(f.virus for f in originals), "ウイルス検査の列が空"
+
+
+class TestMaliciousMetsCannotReadLocalFiles:
+    """細工された METS に手元のファイルを読み出させない（XXE）。
+
+    lxml 6.1.1 の既定でも実体は解決されないので、**今は落ちない**。
+    このテストは穴を塞いだ証明ではなく、**将来塞がらなくなったら気づくための番人**。
+    パーサの指定を外した／lxml の既定が変わった、のどちらでも赤くなる。
+    """
+
+    def _package(self, tmp_path: Path, secret: Path) -> Path:
+        root = tmp_path / "わるいパッケージ"
+        (root / "data").mkdir(parents=True)
+        mets = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mets [
+  <!ENTITY leak SYSTEM "file://{secret}">
+]>
+<mets:mets xmlns:mets="http://www.loc.gov/METS/"
+           xmlns:xlink="http://www.w3.org/1999/xlink">
+  <mets:metsHdr CREATEDATE="2026-09-12T00:00:00Z"/>
+  <mets:fileSec>
+    <mets:fileGrp USE="original">
+      <mets:file ID="f1">
+        <mets:FLocat LOCTYPE="URL" xlink:href="&leak;"/>
+      </mets:file>
+    </mets:fileGrp>
+  </mets:fileSec>
+  <mets:structMap/>
+</mets:mets>
+"""
+        (root / "data" / "METS.xml").write_text(mets, encoding="utf-8")
+        return root
+
+    def test_secret_does_not_leak(self, tmp_path: Path):
+        secret = tmp_path / "秘密.txt"
+        secret.write_text("TOP-SECRET-VALUE", encoding="utf-8")
+        root = self._package(tmp_path, secret)
+
+        try:
+            report = package_report.read(root)
+        except Exception:
+            # 読めずに失敗するのは構わない。漏れないことが要件。
+            return
+
+        blob = repr(report)
+        assert "TOP-SECRET-VALUE" not in blob
+
+    def test_does_not_crash_the_viewer(self, tmp_path: Path):
+        """壊れた入力で例外を投げてよいが、黙って中身を読んではいけない。"""
+        secret = tmp_path / "秘密.txt"
+        secret.write_text("TOP-SECRET-VALUE", encoding="utf-8")
+        root = self._package(tmp_path, secret)
+
+        try:
+            package_report.read(root)
+        except Exception as exc:
+            assert "TOP-SECRET-VALUE" not in str(exc)

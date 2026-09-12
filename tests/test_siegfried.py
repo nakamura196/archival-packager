@@ -7,9 +7,6 @@ JSON 解釈は siegfried を実際に起動せずに固定する（CI に sf を
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import pytest
 
 from archival_packager.core import bundled, siegfried

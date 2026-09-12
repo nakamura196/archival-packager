@@ -14,20 +14,21 @@ METS と同じ理由で lxml を使う。Swift 版の esc() は `'` をエスケ
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from lxml import etree
+
+#: 版は 1 か所（archival_packager.__version__）で持つ。ここに直書きすると
+#: 版を上げたときに追随せず、**来歴記録が誤った道具名を主張する**。
+#: 実際に 0.1.2 を配ったあとも 0.1.0 と記録されていた。
+from archival_packager import __version__ as PROGRAM_VERSION
 
 from .models import ScannedFile
 
 DC_NS = "http://purl.org/dc/elements/1.1/"
 
 PROGRAM_NAME = "Archival Packager"
-#: 版は 1 か所（archival_packager.__version__）で持つ。ここに直書きすると
-#: 版を上げたときに追随せず、**来歴記録が誤った道具名を主張する**。
-#: 実際に 0.1.2 を配ったあとも 0.1.0 と記録されていた。
-from archival_packager import __version__ as PROGRAM_VERSION
 
 
 def build(
@@ -38,7 +39,7 @@ def build(
     full_source_path: bool = False,
 ) -> bytes:
     """DFXML を組み立てて UTF-8 のバイト列で返す。"""
-    started = start_time or datetime.now(timezone.utc)
+    started = start_time or datetime.now(UTC)
 
     root = etree.Element("dfxml", xmloutputversion="1.0")
 
@@ -76,5 +77,5 @@ def build(
 
 def _iso(dt: datetime) -> str:
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")

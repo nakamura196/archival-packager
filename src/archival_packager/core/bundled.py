@@ -30,12 +30,10 @@ zip を経由した配置では落ちることがある（spike で実測）。�
 
 from __future__ import annotations
 
-import subprocess
-import sys
-
 import os
 import platform
 import stat
+import subprocess
 import sys
 from pathlib import Path
 

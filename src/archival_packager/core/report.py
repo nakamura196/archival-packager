@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import html
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .models import ScannedFile, SIPMetadata, SIPOptions
 
@@ -20,7 +20,7 @@ _LIST_LIMIT = 100
 
 
 def _iso_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _format_counts(files: list[ScannedFile]) -> list[tuple[str, int]]:
@@ -35,14 +35,24 @@ def _mismatched(files: list[ScannedFile]) -> list[ScannedFile]:
     return [f for f in files if f.format_warning and "mismatch" in f.format_warning.lower()]
 
 
+def _nothing_to_review(*groups: list) -> str:
+    """目視確認の項目が 1 つも無いときだけ、その旨を出す。"""
+    return "" if any(groups) else "<p>目視確認が必要な点はありません。</p>"
+
+
 def _pii_summary(files: list[ScannedFile], options: SIPOptions) -> str:
     hit_files = [f for f in files if f.pii]
     total = sum(len(f.pii) for f in hit_files)
+    unreadable = sum(1 for f in files if f.pii_unreadable)
     if not options.scan_pii:
         return "未実施（オプション OFF）"
+
+    # 「候補なし」とだけ書くと、読めなかったファイルの分まで
+    # 安全だと受け取られる。走査できていない件数は必ず添える。
+    tail = f"／うち {unreadable} ファイルは読み取れず走査できず" if unreadable else ""
     if total == 0:
-        return "実施（候補なし）"
-    return f"実施（候補 {total} 件 / {len(hit_files)} ファイル）"
+        return f"実施（候補なし{tail}）"
+    return f"実施（候補 {total} 件 / {len(hit_files)} ファイル{tail}）"
 
 
 def _truncated(items: list[str]) -> tuple[list[str], int]:
@@ -203,7 +213,7 @@ def html_report(
 {review_section("未識別", [f.relative_path for f in unidentified])}
 {review_section("拡張子不一致", [f.relative_path for f in mismatched])}
 {review_section("個人情報(PII)候補", [f"{f.relative_path}: {len(f.pii)} 件" for f in pii_files])}
-{"<p>目視確認が必要な点はありません。</p>" if not (infected or unidentified or mismatched or pii_files) else ""}
+{_nothing_to_review(infected, unidentified, mismatched, pii_files)}
 </div>
 
 <h2>フォーマット内訳</h2>

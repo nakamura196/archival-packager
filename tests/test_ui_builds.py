@@ -88,7 +88,6 @@ class TestRunButtonBecomesPressable:
 
     def test_pressable_only_after_everything_is_chosen(self, tmp_path):
         import asyncio
-
         from unittest.mock import AsyncMock
 
         import flet as ft
@@ -116,7 +115,6 @@ class TestRunButtonBecomesPressable:
     def test_says_what_is_missing(self, tmp_path):
         """押せない理由を画面に出すこと。灰色のボタンだけでは伝わらない。"""
         import asyncio
-
         from unittest.mock import AsyncMock
 
         import flet as ft

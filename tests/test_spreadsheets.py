@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -18,7 +18,7 @@ def sf(rel: str, **kw) -> ScannedFile:
         relative_path=rel,
         absolute_path=Path("/x") / rel,
         size_bytes=kw.pop("size_bytes", 100),
-        modified=kw.pop("modified", datetime(2026, 7, 25, 12, 0, tzinfo=timezone.utc)),
+        modified=kw.pop("modified", datetime(2026, 7, 25, 12, 0, tzinfo=UTC)),
         sha256=kw.pop("sha256", "a" * 64),
         **kw,
     )
@@ -80,8 +80,8 @@ class TestDescription:
 
     def test_date_range_from_file_mtimes(self):
         files = [
-            sf("old.txt", modified=datetime(2024, 1, 2, tzinfo=timezone.utc)),
-            sf("new.txt", modified=datetime(2025, 12, 31, tzinfo=timezone.utc)),
+            sf("old.txt", modified=datetime(2024, 1, 2, tzinfo=UTC)),
+            sf("new.txt", modified=datetime(2025, 12, 31, tzinfo=UTC)),
         ]
         rows = parse_csv(spreadsheets.description(files, SIPMetadata("id", "t")))
         header, values = rows[0], rows[1]
@@ -140,7 +140,7 @@ class TestAccessionCSV:
         assert rows[1][0] == "plain.txt"
 
     def test_iso8601_utc(self):
-        f = sf("a.txt", modified=datetime(2026, 7, 25, 3, 4, 5, tzinfo=timezone.utc))
+        f = sf("a.txt", modified=datetime(2026, 7, 25, 3, 4, 5, tzinfo=UTC))
         rows = parse_csv(spreadsheets.accession([f]))
         assert rows[1][3] == "2026-07-25T03:04:05Z"
 

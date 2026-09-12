@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .models import ScannedFile, SIPPipelineError
@@ -41,7 +41,7 @@ def scan(root: Path) -> list[ScannedFile]:
                 relative_path=path.relative_to(resolved_root).as_posix(),
                 absolute_path=path,
                 size_bytes=stat.st_size,
-                modified=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+                modified=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
             )
         )
 

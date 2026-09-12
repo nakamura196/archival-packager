@@ -7,7 +7,7 @@ PII は誤検出（偽陽性）と見落とし（偽陰性）の両方が問題�
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -22,7 +22,7 @@ def sf(rel: str, **kw) -> ScannedFile:
         relative_path=rel,
         absolute_path=kw.pop("absolute_path", Path("/x") / rel),
         size_bytes=kw.pop("size_bytes", 10),
-        modified=kw.pop("modified", datetime(2026, 7, 25, tzinfo=timezone.utc)),
+        modified=kw.pop("modified", datetime(2026, 7, 25, tzinfo=UTC)),
         **kw,
     )
 
@@ -173,7 +173,7 @@ class TestPDFDetection:
 
 class TestDFXML:
     def _root(self, files, root=Path("/in")):
-        return etree.fromstring(dfxml.build(files, root, start_time=datetime(2026, 7, 25, tzinfo=timezone.utc)))
+        return etree.fromstring(dfxml.build(files, root, start_time=datetime(2026, 7, 25, tzinfo=UTC)))
 
     def test_parses_and_has_creator(self):
         root = self._root([sf("a.txt")])

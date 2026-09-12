@@ -143,8 +143,26 @@ def _text(node, path: str) -> str:
     return (found.text or "").strip() if found is not None else ""
 
 
+# 可視化画面は、自分で作ったものとは限らない METS を開く（利用者がパスを指定する）。
+#
+# lxml 6.1.1 の既定パーサは内部 DTD を読まないので、
+#     <!ENTITY x SYSTEM "file:///etc/passwd">
+# を仕込まれても「実体が未定義」で解析に失敗し、実際には読み出されない
+# （2026-09-12 に実測）。**つまり今は穴ではない。**
+#
+# それでも明示しておく。既定に頼ると、lxml 側の既定が変わった日に黙って
+# 挙動が変わる。読むだけのビューアに実体解決も外部取得も要らないので、
+# 要らないものは要らないと書いておく。
+_SAFE_PARSER = etree.XMLParser(
+    resolve_entities=False,
+    load_dtd=False,
+    no_network=True,
+    huge_tree=False,
+)
+
+
 def _read_mets(root: Path, mets_path: Path) -> PackageReport:
-    tree = etree.parse(str(mets_path))
+    tree = etree.parse(str(mets_path), _SAFE_PARSER)
     doc = tree.getroot()
     ns = {"mets": METS_NS, "premis": PREMIS_NS, "xlink": XLINK_NS, "dc": DC_NS}
 

@@ -213,17 +213,17 @@ def _first_difference(left: str, right: str) -> str:
     食い違い位置の周辺だけを出す。
     """
     la, lb = left.splitlines(), right.splitlines()
-    for i, (x, y) in enumerate(zip(la, lb), start=1):
+    for i, (x, y) in enumerate(zip(la, lb, strict=False), start=1):
         if x == y:
             continue
         fa, fb = next(csv.reader([x]), []), next(csv.reader([y]), [])
         if len(fa) > 1 or len(fb) > 1:
             if len(fa) != len(fb):
                 return f"{i} 行目: 列数が違う（Swift {len(fa)} / Python {len(fb)}）"
-            for col, (u, v) in enumerate(zip(fa, fb)):
+            for col, (u, v) in enumerate(zip(fa, fb, strict=False)):
                 if u != v:
                     return f"{i} 行目 {col + 1} 列目\n    Swift : {u}\n    Python: {v}"
-        at = next((k for k, (u, v) in enumerate(zip(x, y)) if u != v), min(len(x), len(y)))
+        at = next((k for k, (u, v) in enumerate(zip(x, y, strict=False)) if u != v), min(len(x), len(y)))
         lo = max(0, at - 40)
         return f"{i} 行目 {at + 1} 文字目付近\n    Swift : {x[lo:at + 60]}\n    Python: {y[lo:at + 60]}"
     if len(la) != len(lb):

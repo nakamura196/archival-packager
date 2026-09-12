@@ -18,8 +18,7 @@ from __future__ import annotations
 import csv
 import io
 import uuid as _uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
 from pathlib import Path
 
 from .aip_models import AIPFile, AIPPipelineError, DescriptiveMetadata
@@ -189,7 +188,7 @@ def _parse_formats_csv(text: str) -> dict[str, _InheritedMeta]:
 
     out: dict[str, _InheritedMeta] = {}
     for fields in rows[1:]:
-        def at(i: int | None) -> str | None:
+        def at(i: int | None, fields: list[str] = fields) -> str | None:
             if i is None or i >= len(fields):
                 return None
             return fields[i] or None
@@ -272,7 +271,7 @@ def _parse_metadata_csv(text: str) -> dict[str, DescriptiveMetadata]:
             continue
         rel = filename[len("objects/") :]
 
-        def at(key: str) -> str | None:
+        def at(key: str, fields: list[str] = fields) -> str | None:
             i = mapping[key]
             if i is None or i >= len(fields):
                 return None

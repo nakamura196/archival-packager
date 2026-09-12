@@ -134,8 +134,8 @@ class TestConversionRegistry:
 
     def test_already_preservation_ready_formats_are_left_alone(self):
         """TIFF や PDF を再変換すると劣化と情報損失を招く。"""
-        assert conversion_registry.rule_for(conversion_registry.TIFF_PUID, DerivativePurpose.PRESERVATION) is None
-        assert conversion_registry.rule_for(conversion_registry.PDF_PUID, DerivativePurpose.PRESERVATION) is None
+        for puid in (conversion_registry.TIFF_PUID, conversion_registry.PDF_PUID):
+            assert conversion_registry.rule_for(puid, DerivativePurpose.PRESERVATION) is None
 
     def test_unknown_puid_is_left_alone(self):
         assert conversion_registry.rule_for("fmt/99999", DerivativePurpose.PRESERVATION) is None

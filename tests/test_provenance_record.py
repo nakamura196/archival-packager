@@ -17,8 +17,8 @@ from lxml import etree
 
 import archival_packager
 from archival_packager.core import dfxml, mets, spreadsheets
+from archival_packager.core.aip_models import AIPFile, DescriptiveMetadata
 from archival_packager.core.aip_pipeline import APP_AGENT_NAME
-from archival_packager.core.aip_models import AIPFile, DescriptiveMetadata, PremisEvent
 from archival_packager.core.models import ScannedFile
 
 NS = {"mets": mets.METS_NS, "premis": mets.PREMIS_NS}
@@ -100,7 +100,6 @@ class TestProcessesAreRecorded:
         aip_pipeline._append_identification_event(f, "2026-09-11T00:00:00Z", ["agent"])
         doc = _build([f])
         assert "format identification" in self._events(doc)
-        note = doc.findtext(".//premis:eventDetailInformation/premis:eventDetail", "", NS)
         assert "fmt/19" in etree.tostring(doc, encoding="unicode")
 
     def test_unidentified_file_is_also_recorded(self):
