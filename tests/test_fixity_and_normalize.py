@@ -11,6 +11,8 @@ from archival_packager.core import conversion_registry, fixity, image_normalize,
 from archival_packager.core.aip_models import (
     AIPFile,
     AIPPipelineError,
+    CheckOutcome,
+    Derivative,
     DerivativePurpose,
     Executor,
     FixityOutcome,
@@ -633,3 +635,176 @@ class TestToolVersionIsRecorded:
         assert sha256_of(src) == before, "原本のバイト列が変わっている"
         assert src.stat().st_mtime == mtime, "原本に書き込んでいる"
         assert derivative.path != src
+
+
+class TestDerivativeReadback:
+    """**作った派生物を開き直せるか。**
+
+    変換の終了コードが 0 でも、出てきたものが読めるとは限らない。中身が空、
+    途中で切れた TIFF、xref の壊れた PDF は、開き直すまで分からない。
+    「変換したつもりで実は読めないものができていた」は最も気づきにくい
+    壊れ方で、しかも**読めないものを保存用として記録するほうが、変換でき
+    なかったと記録するより悪い**（後から見た人が「保存用がある」と信じる）。
+
+    ここで確かめているのは読み戻せるかどうかだけで、**形式の適合性検査
+    （veraPDF / JHOVE 相当）ではない。** それらは Java 製で同梱できない。
+    """
+
+    def _derivative(self, path: Path) -> Derivative:
+        return Derivative(
+            purpose=DerivativePurpose.PRESERVATION,
+            path=path,
+            relative_path=path.name,
+            size_bytes=path.stat().st_size if path.exists() else 0,
+            uuid="d1",
+            tool_name="t",
+            command_line="t in out",
+        )
+
+    def _valid_pdf(self, path: Path) -> Path:
+        from pypdf import PdfWriter
+
+        writer = PdfWriter()
+        writer.add_blank_page(width=72, height=72)
+        with path.open("wb") as fh:
+            writer.write(fh)
+        return path
+
+    def test_readable_tiff_passes(self, tmp_path):
+        from PIL import Image
+
+        out = tmp_path / "a.tiff"
+        src = tmp_path / "a.png"
+        Image.new("RGB", (8, 8), (1, 2, 3)).save(src)
+        image_normalize.to_tiff(src, out)
+
+        check = normalizer.verify_derivative(self._derivative(out))
+        assert check.outcome is CheckOutcome.PASSED
+        # どの道具の何版で読めたのかを残す。「読めた」はその版の挙動でしかない。
+        assert "Pillow" in check.agent
+
+    def test_readable_pdf_passes(self, tmp_path):
+        check = normalizer.verify_derivative(
+            self._derivative(self._valid_pdf(tmp_path / "a.pdf"))
+        )
+        assert check.outcome is CheckOutcome.PASSED
+        assert "1 ページ" in check.note
+        assert "pypdf" in check.agent
+
+    def test_garbage_named_tiff_fails(self, tmp_path):
+        out = tmp_path / "a.tiff"
+        out.write_bytes(b"this is not a TIFF at all")
+        check = normalizer.verify_derivative(self._derivative(out))
+        assert check.outcome is CheckOutcome.FAILED
+        # 失敗のときも、どの道具で開こうとしたのかを残す。
+        assert "Pillow" in check.agent
+
+    def test_truncated_tiff_fails(self, tmp_path):
+        """**ヘッダだけ見る確認では捕まらない壊れ方。**
+
+        Pillow の `verify()` はヘッダの整合しか見ないので、途中で切り詰め
+        られた画像はそのまま通る。保存用の派生物で確かめたいのはまさに
+        そこなので、画素まで読む（`load()`）。この区別を外すと、中身の
+        半分が失われた TIFF が「確認済み」として保存される。
+        """
+        from PIL import Image
+
+        src = tmp_path / "big.png"
+        Image.new("RGB", (200, 200), (9, 9, 9)).save(src)
+        out = tmp_path / "big.tiff"
+        image_normalize.to_tiff(src, out)
+
+        whole = out.read_bytes()
+        out.write_bytes(whole[: len(whole) // 2])  # 後半を落とす
+
+        check = normalizer.verify_derivative(self._derivative(out))
+        assert check.outcome is CheckOutcome.FAILED
+
+    def test_pdf_header_alone_is_not_enough(self, tmp_path):
+        """先頭が `%PDF-` でも PDF とは限らない。
+
+        変換ツールが入力を読めずに、ヘッダだけ書いて終了コード 0 を返す
+        事故が実際にある。拡張子と先頭数バイトで判断していると通ってしまう。
+        """
+        out = tmp_path / "a.pdf"
+        out.write_bytes(b"%PDF-1.7\n")
+        check = normalizer.verify_derivative(self._derivative(out))
+        assert check.outcome is CheckOutcome.FAILED
+
+    def test_unknown_extension_is_skipped_not_passed(self, tmp_path):
+        """**「確認していない」を「確認して通った」にしない。**
+
+        利用者が足した規則は任意の形式を出せる。読み戻す道具が無い形式を
+        黙って通すと、記録上は検査済みに見えてしまう。判定を pass にせず
+        skipped として、何を確認していないかを残す。
+
+        道具の範囲を欲張らないのは、たとえば Pillow の JPEG 2000 が
+        openjpeg の有無で開けたり開けなかったりするため。捨てる判断を
+        する以上、**健全な派生物を「読めない」と誤判定するほうが害が大きい。**
+        """
+        out = tmp_path / "a.jp2"
+        out.write_bytes(b"anything")
+        check = normalizer.verify_derivative(self._derivative(out))
+        assert check.outcome is CheckOutcome.SKIPPED
+        assert check.agent == "", "使っていない道具を記録しない"
+        assert "未確認" in check.note
+
+    def test_missing_file_is_a_failure_not_a_crash(self, tmp_path):
+        """読み戻しで例外を投げないこと。
+
+        投げると変換の失敗と区別が付かなくなり、呼び出し側が
+        validation の event を書けない（確認した事実が消える）。
+        """
+        check = normalizer.verify_derivative(self._derivative(tmp_path / "nope.tiff"))
+        assert check.outcome is CheckOutcome.FAILED
+
+    def test_multi_frame_count_is_recorded(self, tmp_path):
+        """フレームが減っていないことは、読み戻してしか確かめられない。"""
+        from PIL import Image
+
+        frames = [Image.new("RGB", (4, 4), c).convert("P")
+                  for c in [(255, 0, 0), (0, 255, 0), (0, 0, 255)]]
+        src = tmp_path / "anim.gif"
+        frames[0].save(src, save_all=True, append_images=frames[1:])
+        out = tmp_path / "anim.tiff"
+        image_normalize.to_tiff(src, out)
+
+        check = normalizer.verify_derivative(self._derivative(out))
+        assert check.outcome is CheckOutcome.PASSED
+        assert "3 フレーム" in check.note
+
+    def test_normalize_attaches_the_check(self, tmp_path):
+        """normalize() を通ったら必ず結果が付いていること。
+
+        呼び出し側は `check is None` を「まだ確かめていない」として扱う。
+        付け忘れると、確認したのに記録されない状態になる。
+        """
+        from PIL import Image
+
+        src = tmp_path / "a.png"
+        Image.new("RGB", (4, 4)).save(src)
+        f = AIPFile("a.png", src, src.stat().st_size, "u1")
+        rule = conversion_registry.rule_for("fmt/11", DerivativePurpose.PRESERVATION)
+        derivative = normalizer.normalize(f, rule, tmp_path / "work")
+
+        assert derivative.check is not None
+        assert derivative.check.outcome is CheckOutcome.PASSED
+
+    def test_unreadable_output_is_not_an_exception(self, tmp_path, fake_tool):
+        """読み戻せなくても normalize() は送出しないこと。
+
+        **読み戻せなかったことも記録すべき事実である。** ここで送出すると
+        呼び出し側は変換の失敗としてしか扱えず、「変換はできたが読めな
+        かった」という区別が METS から消える。捨てる判断は呼び出し側に置く。
+        """
+        fake = fake_tool(output_text="out")
+        rule = NormalizationRule(
+            puid_in="fmt/11", purpose=DerivativePurpose.PRESERVATION,
+            tool=str(fake), args=["{in}", "{out}"], out_extension="tiff",
+        )
+        src = tmp_path / "a.png"
+        src.write_bytes(b"x")
+        derivative = normalizer.normalize(
+            AIPFile("a.png", src, 1, "u1"), rule, tmp_path / "work"
+        )
+        assert derivative.check.outcome is CheckOutcome.FAILED

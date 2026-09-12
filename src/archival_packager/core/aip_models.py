@@ -172,6 +172,38 @@ class DerivativePurpose(Enum):
     ACCESS = "access"
 
 
+class CheckOutcome(Enum):
+    """派生物を開き直せたかどうか。"""
+
+    PASSED = "passed"
+    FAILED = "failed"
+    #: 読み戻す道具を持っていない形式だった。**「確認して通った」と混同させない。**
+    SKIPPED = "skipped"
+
+
+@dataclass(slots=True)
+class DerivativeCheck:
+    """生成した派生物を開き直した結果。PREMIS の validation event として書き出す。
+
+    **これは形式の適合性検査ではない。** Archivematica は veraPDF で PDF/A の
+    適合を、JHOVE で形式の well-formed / valid を見ている。どちらも Java 製で
+    同梱できないため（NOTICE と README の「外部ツールの同梱方針」）、ここで
+    行っているのは同梱済みの Pillow / pypdf で**開き直せるか**だけである。
+
+    それでも記録する価値があるのは、「変換したつもりで、実は読めないものが
+    できていた」が最も気づきにくい壊れ方だからである。読めないものを保存用と
+    して記録するくらいなら、変換できなかったと記録するほうがまだ良い。
+    """
+
+    outcome: CheckOutcome
+    #: 何を見て、何が分かったか（PREMIS の eventOutcomeDetailNote に入る）。
+    note: str
+    #: 開き直しに使った道具と版（例 "Pillow 12.3.0 (libtiff 4.7.0)"）。
+    #: **版まで書く。** 読めた／読めなかったは、その版の挙動でしかない。
+    #: 道具を持たずに飛ばしたときは空。
+    agent: str = ""
+
+
 @dataclass(slots=True)
 class Derivative:
     """正規化で生成された派生物（保存用 or 利用用）。"""
@@ -200,6 +232,10 @@ class Derivative:
     #: 装飾を足すと、同じ規則で作った古い AIP と新しい AIP の値が食い違う。
     #: 別の欄に持ち、PREMIS では別の属性として書く。
     rule_source: str = ""
+    #: 派生物を開き直した結果。**None は「まだ確かめていない」を意味する**
+    #: （normalizer が必ず付ける。テストが手で組んだ Derivative では付かない）。
+    #: 「確かめて通った」は CheckOutcome.PASSED で表す。両者を混ぜないこと。
+    check: DerivativeCheck | None = None
 
 
 @dataclass(slots=True)

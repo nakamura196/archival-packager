@@ -614,14 +614,52 @@ class TestArchivematicaAipShape:
         assert subdoc.is_dir()
         assert (subdoc / "description.csv").is_file()
 
-    def test_no_readme_html_at_the_data_root(self, aip):
-        """**ずれ（小）。** Archivematica の AIP は data/README.html を持つ。
+    def test_readme_html_sits_at_the_data_root(self, aip):
+        """Archivematica の AIP と同じく data/README.html を置くこと。
 
-        こちらは data/logs/README.txt しか置いていない。README.html は AIP の
-        構造を人に説明するためのもので、機械的な取り込みには影響しない。
+        以前は data/logs/README.txt しか無く、突合表の Gap 9 として残っていた。
+        人向けの案内が無いと、**10 年後にこの bag を渡された人が、まず何を
+        見ればよいかを知る手立てが METS（XML）しかない。**
         """
-        assert not (aip.aip_path / "data" / "README.html").exists()
+        readme = aip.aip_path / "data" / "README.html"
+        assert readme.is_file()
         assert (aip.aip_path / "data" / "logs" / "README.txt").is_file()
+
+    def test_readme_html_is_in_the_payload_manifest(self, aip):
+        """**payload に入れた以上、マニフェストに載っていること。**
+
+        BagIt では data/ 配下は payload であり、manifest に無いファイルが
+        あると bag として不正になる（検証が落ちる）。`bagit.make_bag` を
+        呼ぶ前に書いているかどうかで決まるので、書く場所を動かすと静かに
+        壊れる。ここで固定しておく。
+        """
+        manifest = (aip.aip_path / "manifest-sha256.txt").read_text(encoding="utf-8")
+        assert "data/README.html" in manifest
+
+    def test_readme_html_explains_itself_in_japanese_and_english(self, aip):
+        """**受け取る人の言語はこちらから決められない。**
+
+        画面表示の言語はアプリの設定で変わるが、パッケージは作った環境から
+        切り離されて流通する。両方の言語で書いておく。
+        """
+        text = (aip.aip_path / "data" / "README.html").read_text(encoding="utf-8")
+        assert "このパッケージについて" in text
+        assert "About this package" in text
+        # METS の実ファイル名を案内すること（UUID が埋まっていないと迷子になる）。
+        assert f"METS.{aip.aip_uuid}.xml" in text
+        # 読み戻し確認を形式適合性検査と読み違えられては困る。
+        assert "veraPDF" in text and "JHOVE" in text
+
+    def test_readme_html_references_nothing_outside_the_package(self, aip):
+        """外部の CSS・画像・スクリプトを読みに行かないこと。
+
+        ネットワークの無い場所で、ブラウザに放り込んだだけで読める必要がある。
+        参照先はいずれ必ず消える（消えた時点で、読めないページだけが残る）。
+        """
+        text = (aip.aip_path / "data" / "README.html").read_text(encoding="utf-8")
+        assert "<script" not in text
+        assert 'src=' not in text
+        assert '<link' not in text
 
     def test_tag_manifest_uses_sha256_not_md5(self, aip):
         """**ずれ（小）。** 公式 AIP の例は tagmanifest-md5.txt。
@@ -696,12 +734,6 @@ KNOWN_GAPS: tuple[Gap, ...] = (
         impact="中。利用条件が AIP から機械的に読めない。権利情報の入力画面から要る",
     ),
     Gap(
-        area="AIP: data/README.html",
-        ours="data/logs/README.txt のみ",
-        theirs="data/README.html",
-        impact="小。人向けの説明で、取り込みには影響しない。AIP 生成側の変更が要る",
-    ),
-    Gap(
         area="AIP: tagmanifest のアルゴリズム",
         ours="tagmanifest-sha256.txt",
         theirs="公式例は tagmanifest-md5.txt",
@@ -723,9 +755,10 @@ def test_known_gap_count_is_frozen():
     `docs/interoperability.md` の突合表を必ず一緒に直す。
 
     2026-09-12: 10 件 → 7 件を是正 → 新たに 1 件（culture）を記録して 4 件。
+    2026-09-12: data/README.html（Gap 9）を是正して 3 件。
     """
-    assert len(KNOWN_GAPS) == 4
-    assert len({g.area for g in KNOWN_GAPS}) == 4
+    assert len(KNOWN_GAPS) == 3
+    assert len({g.area for g in KNOWN_GAPS}) == 3
 
 
 def test_gap_report_is_printable(capsys):

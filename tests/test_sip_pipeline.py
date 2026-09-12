@@ -8,14 +8,17 @@ from __future__ import annotations
 
 import csv
 import io
+import struct
 import sys
 import zipfile
+import zlib
 from pathlib import Path
 
 import pytest
 from lxml import etree
+from PIL import Image
 
-from archival_packager.core import bundled, clamav, report, sip_pipeline, zip_io
+from archival_packager.core import bundled, clamav, dfxml, report, sip_pipeline, zip_io
 from archival_packager.core import scan as scan_mod
 from archival_packager.core.models import (
     ScannedFile,
@@ -592,3 +595,186 @@ class TestUnreadableDocumentsAreNotReportedAsClean:
         _result, report = self._run(tmp_path, make)
         assert "個人情報(PII)スキャン: 実施" in report
         assert "走査できず" not in report
+
+
+def broken_png() -> bytes:
+    """siegfried は PNG と識別するが、Pillow は開けないファイル。
+
+    署名だけを真似たファイルでは siegfried が PNG と認めず（未識別になり）、
+    そもそも画像として開きに行かないので、この場面を再現できない。
+    そこで **PNG として正しい構造のまま、画像として成立しない値**（画素数 0）を
+    IHDR に書く。壊れ方としては、途中で切れた画像や書き込みに失敗した画像に近い。
+    """
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(payload))
+            + kind
+            + payload
+            + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+        )
+
+    ihdr = struct.pack(">IIBBBBB", 0, 0, 8, 2, 0, 0, 0)  # 幅 0 / 高さ 0
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IEND", b"")
+
+
+class TestImageCharacterisation:
+    """画像の技術的特性を記録すること（Issue #8）。
+
+    DFXML にはファイル単位の事実しか無く、画素数も色空間も残っていなかった。
+    ここで固定するのは (1) 対象の画像だけを開くこと、(2) 読めた値が dfxml.xml に
+    入ること、(3) **読めなかったときに黙って通り過ぎないこと**の 3 点。
+    """
+
+    def _image_elements(self, result) -> dict:
+        path = result.sip_path / "metadata" / "submissionDocumentation" / "dfxml.xml"
+        root = etree.fromstring(path.read_bytes())
+        found = {}
+        for obj in root.findall("fileobject"):
+            el = obj.find(f"{{{dfxml.AP_NS}}}image")
+            if el is not None:
+                found[obj.findtext("filename")] = el
+        return found
+
+    @pytest.mark.skipif(
+        bundled.find("sf") is None, reason="同梱 sf が無い環境では PUID が付かず対象を選べない"
+    )
+    def test_png_characteristics_reach_the_dfxml(self, tmp_path):
+        src = tmp_path / "in"
+        src.mkdir()
+        Image.new("RGB", (9, 4)).save(src / "写真.png")
+        (src / "a.txt").write_text("本文\n", encoding="utf-8")
+
+        result, _ = run(src, tmp_path)
+        found = self._image_elements(result)
+
+        assert "a.txt" not in found, "画像でないファイルは開かない"
+        el = found["写真.png"]
+        ns = f"{{{dfxml.AP_NS}}}"
+        assert el.get("readable") == "true"
+        assert el.findtext(f"{ns}width") == "9"
+        assert el.findtext(f"{ns}height") == "4"
+        assert el.findtext(f"{ns}color_space") == "RGB"
+        assert el.findtext(f"{ns}bits_per_sample") == "8"
+
+    @pytest.mark.skipif(
+        bundled.find("sf") is None, reason="同梱 sf が無い環境では PUID が付かず対象を選べない"
+    )
+    def test_broken_image_is_reported_and_does_not_stop_the_sip(self, tmp_path):
+        """壊れた画像で移管を止めない。ただし黙って通さない。
+
+        壊れた画像は資料の中に普通に混ざっている。止めるのは割に合わないが、
+        「特性が空の画像」と見分けが付かないまま通すのは、このリポジトリが
+        いちばん避けたい失敗の仕方（沈黙する失敗）になる。
+        """
+        src = tmp_path / "in"
+        src.mkdir()
+        (src / "壊れた.png").write_bytes(broken_png())
+
+        result, messages = run(src, tmp_path)
+        assert result.sip_path.is_dir(), "SIP は作られる"
+
+        el = self._image_elements(result)["壊れた.png"]
+        assert el.get("readable") == "false"
+        assert el.findtext(f"{{{dfxml.AP_NS}}}error")
+
+        assert any(w.startswith("画像を読めません: 壊れた.png") for w in result.warnings), (
+            "画面と CLI にも出ないと、XML を開いた人しか気づけない"
+        )
+        assert any("読み取れませんでした" in m for m in messages)
+
+    def test_originals_are_not_modified(self, tmp_path):
+        """**原本を書き換えない。** Pillow は書き込みもできる道具なので確かめる。"""
+        src = tmp_path / "in"
+        src.mkdir()
+        Image.new("RGB", (9, 4)).save(src / "写真.png")
+        before = {
+            p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in src.iterdir()
+        }
+
+        run(src, tmp_path)
+        after = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in src.iterdir()}
+        assert after == before
+
+    def test_only_formats_we_open_with_pillow_are_selected(self):
+        """対象は変換規則の表に聞く（PUID を書き写さない）。
+
+        表に PUID を足した利用者の画像が、黙って対象から漏れないようにするため。
+        PDF のように Pillow で開かないものを選んでしまうと、**壊れてもいない
+        資料に「読めません」が並ぶ**ことになる。
+        """
+        assert sip_pipeline._is_pillow_image("fmt/11"), "PNG"
+        assert sip_pipeline._is_pillow_image("fmt/353"), "TIFF 自身も記録の対象"
+        assert not sip_pipeline._is_pillow_image("fmt/19"), "PDF"
+        assert not sip_pipeline._is_pillow_image("fmt/124"), "PostScript（gs で変換する側）"
+        assert not sip_pipeline._is_pillow_image(None), "未識別"
+
+
+class TestWarningsAreBounded:
+    """警告の件数を打ち切ること（Issue #10）。
+
+    未識別のファイルが数万件ある資料群では、警告も数万行になる。画面はその
+    全行を組み立てて描画し、人は誰も読まない。**ただし件数は落とさない。**
+    「多いので省略しました」では、残りが 3 件なのか 3 万件なのか分からず、
+    担当者は次に何をすべきかを決められない。
+    """
+
+    LIMIT = sip_pipeline.WARNING_LIMIT_PER_KIND
+
+    def test_keeps_the_head_and_says_how_many_were_left_out(self):
+        warnings = [f"未識別: file{i}.bin" for i in range(self.LIMIT + 37)]
+        bounded = sip_pipeline._bounded_warnings(warnings)
+
+        assert bounded[: self.LIMIT] == warnings[: self.LIMIT], "先頭から残す"
+        assert len(bounded) == self.LIMIT + 1
+        assert bounded[-1] == "未識別: （他 37 件）", "残りが何件かが読み取れること"
+
+    def test_below_the_limit_nothing_changes(self):
+        warnings = [f"未識別: file{i}.bin" for i in range(self.LIMIT)]
+        assert sip_pipeline._bounded_warnings(warnings) == warnings
+
+    def test_a_flood_of_one_kind_does_not_push_out_another(self):
+        """**種類ごとに枠を分ける。**
+
+        全体で 1 本の上限にすると、未識別が数万件ある移管では、いちばん
+        見落としてはいけないウイルス検出の 1 行が枠から押し出されて消える。
+        """
+        warnings = [f"未識別: file{i}.bin" for i in range(self.LIMIT * 3)]
+        warnings.append("ウイルス検出: 危険.doc (Eicar-Test-Signature)")
+
+        bounded = sip_pipeline._bounded_warnings(warnings)
+        assert "ウイルス検出: 危険.doc (Eicar-Test-Signature)" in bounded
+
+    def test_the_summary_line_keeps_the_prefix(self):
+        """まとめの行にも「種類:」を残す。
+
+        CLI は前置きで検出の種類を分けている（cli._FINDING_PREFIXES）。
+        前置きの無い行になると、どの種類の話なのか分からなくなる。
+        """
+        warnings = [f"PII候補: file{i}.txt (1)" for i in range(self.LIMIT + 2)]
+        assert sip_pipeline._bounded_warnings(warnings)[-1].startswith("PII候補: ")
+
+    def test_order_is_unchanged_for_the_lines_that_remain(self):
+        """残った行の並びを変えない。種類ごとに寄せ直すと、これまでの順序が理由なく変わる。"""
+        warnings = ["未識別: a.bin", "拡張子不一致: b.txt", "未識別: c.bin"]
+        assert sip_pipeline._bounded_warnings(warnings) == warnings
+
+    def test_prefixless_warnings_are_bounded_too(self):
+        """前置きの無い警告（NFC の案内など）も打ち切りの対象にすること。"""
+        warnings = [f"ファイル名が変です{i}" for i in range(self.LIMIT + 5)]
+        bounded = sip_pipeline._bounded_warnings(warnings)
+        assert bounded[-1] == "（他 5 件）"
+
+    def test_the_pipeline_actually_applies_it(self, tmp_path, monkeypatch):
+        """**通しで効いていること。** 関数があっても呼ばれていなければ意味がない。"""
+        monkeypatch.setattr(sip_pipeline, "WARNING_LIMIT_PER_KIND", 2)
+
+        src = tmp_path / "in"
+        src.mkdir()
+        for i in range(5):
+            (src / f"file{i}.unknownext").write_bytes(b"\x00\x01\x02\x03 unknown payload")
+
+        result, _ = run(src, tmp_path)
+        unidentified = [w for w in result.warnings if w.startswith("未識別: ")]
+        assert unidentified, "前提: このデータは未識別になる"
+        assert len(unidentified) == 3, "先頭 2 件 + まとめの 1 行"
+        assert unidentified[-1] == "未識別: （他 3 件）"

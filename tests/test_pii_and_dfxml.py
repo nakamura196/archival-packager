@@ -3,6 +3,10 @@
 PII は誤検出（偽陽性）と見落とし（偽陰性）の両方が問題になる。
 偽陽性が多いと「毎回警告が出るもの」として無視されるようになり、
 結果的に本物の検出も見落とされる。両方向を固定する。
+
+画像の技術的特性（scan.image_characteristics）もここに置いてある。
+出力先が DFXML であり、**読めなかったときに読めなかったと分かること**という
+固定したい点が PII 走査とまったく同じだから。
 """
 
 from __future__ import annotations
@@ -13,8 +17,8 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
-from archival_packager.core import dfxml, document_text, pii
-from archival_packager.core.models import ScannedFile
+from archival_packager.core import dfxml, document_text, pii, scan
+from archival_packager.core.models import ImageCharacteristics, ScannedFile
 
 
 def sf(rel: str, **kw) -> ScannedFile:
@@ -263,3 +267,207 @@ class TestDFXML:
         given = Path("/データ/移管 2026")
         root = self._root([sf("a.txt")], root=given)
         assert root.findtext("source/image_filename") == "移管 2026"
+
+
+def png(path: Path, size=(4, 2), mode="RGB", **save_kw) -> Path:
+    """テスト用の小さな画像を書く。"""
+    from PIL import Image
+
+    Image.new(mode, size).save(path, **save_kw)
+    return path
+
+
+class TestImageCharacteristics:
+    """画像そのものの性質を読めること（Issue #8）。
+
+    DFXML にはファイル単位の事実しか無く、**画素数も色空間も残っていなかった**。
+    画素数の分からない画像は、後から見た人に「これで原本の代わりになるか」を
+    判断させられない。ここで固定するのは「読めること」だけでなく、
+    **読めなかったときに読めなかったと分かること**（このリポジトリで最も
+    避けたいのは沈黙する失敗）。
+    """
+
+    def test_reads_pixels_colour_space_and_depth(self, tmp_path):
+        c = scan.image_characteristics(png(tmp_path / "a.png", size=(7, 3)))
+        assert (c.width, c.height) == (7, 3)
+        assert c.color_space == "RGB"
+        assert c.bits_per_sample == 8
+        assert c.readable
+
+    def test_bilevel_image_is_one_bit(self, tmp_path):
+        """白黒 2 値は 1 ビット。
+
+        Pillow は mode "1" を内部で 1 画素 1 バイトに展開して持つので、
+        型情報をそのまま信じると 8 ビットと書いてしまう。記録したいのは
+        メモリ上の持ち方ではなく画像そのものの性質のほう。
+        """
+        c = scan.image_characteristics(png(tmp_path / "a.png", mode="1"))
+        assert c.bits_per_sample == 1
+
+    def test_resolution_is_recorded_when_the_file_has_one(self, tmp_path):
+        c = scan.image_characteristics(png(tmp_path / "a.png", dpi=(300, 300)))
+        # PNG は解像度を「1 メートルあたりの画素数」の整数で持つため、
+        # 300 dpi を書いても 300 ちょうどには戻らない。**丸めない。**
+        # 原本に入っている値をそのまま残す。
+        assert c.x_dpi is not None and 299 < c.x_dpi < 301
+        assert c.y_dpi is not None and 299 < c.y_dpi < 301
+
+    def test_resolution_is_not_invented(self, tmp_path):
+        """解像度を持たない画像に 72 dpi を補わないこと。
+
+        補うと「原本が解像度を持っていなかった」という事実が記録から消え、
+        後から見た人には本当に 72 dpi だったのか区別が付かない。
+        """
+        c = scan.image_characteristics(png(tmp_path / "a.png"))
+        assert c.x_dpi is None and c.y_dpi is None
+
+    def test_broken_image_is_recorded_as_unreadable(self, tmp_path):
+        """壊れた画像で例外を投げないこと、かつ黙って飛ばさないこと。
+
+        壊れた画像は資料の中に普通に混ざっている。そこで移管全体を止めるのは
+        割に合わないが、「特性が空の画像」と見分けが付かなくなるのはもっと悪い。
+        """
+        p = tmp_path / "broken.png"
+        p.write_bytes(b"\x89PNG\r\n\x1a\n" + b"not really a png")
+        c = scan.image_characteristics(p)
+        assert not c.readable
+        assert c.error
+
+    def test_unreadable_reason_does_not_leak_the_absolute_path(self, tmp_path):
+        """読めなかった理由に絶対パスを残さないこと。
+
+        Pillow の例外文にはファイルの絶対パスが入り、そこには利用者名が入る
+        （C:\\Users\\<名前>\\…）。この文字列は dfxml.xml に入り、パッケージは
+        外部に渡りうる。dfxml.build が image_filename に絶対パスを既定で
+        書かないのと同じ理由で、ここでも落とす。
+        """
+        p = tmp_path / "broken.png"
+        p.write_bytes(b"nonsense bytes here")  # Pillow は絶対パス入りの文で断る
+        error = scan.image_characteristics(p).error
+        assert error and str(tmp_path) not in error
+        assert p.name in error, "ファイル名は残す（どれの話か分からなくなるため）"
+
+    def test_a_relative_path_does_not_mangle_the_reason(self, tmp_path, monkeypatch):
+        """相対パスで呼ばれても、理由の文を壊さないこと。
+
+        絶対パスを隠す処理が、親ディレクトリの文字列をそのまま置き換えていた。
+        相対パスだと親が "." になるため、文中のピリオドが全部置き換わり
+        "cannot identify image file \'sig…png\'" という読めない記録になっていた。
+        """
+        monkeypatch.chdir(tmp_path)
+        Path("sig.png").write_bytes(b"nonsense bytes here")
+        error = scan.image_characteristics(Path("sig.png")).error
+        assert "sig.png" in error, error
+
+    def test_the_original_is_not_modified(self, tmp_path):
+        """**原本を書き換えない。** このアプリが手放してはいけない性質。
+
+        Pillow は書き込みもできる道具なので、読むだけのつもりが save に
+        なっていないことを入口ごとに確かめる。
+        """
+        p = png(tmp_path / "a.png")
+        before = (p.read_bytes(), p.stat().st_mtime_ns)
+        scan.image_characteristics(p)
+        assert (p.read_bytes(), p.stat().st_mtime_ns) == before
+
+
+class TestDFXMLImageCharacteristics:
+    """読み取った特性が DFXML に入ること（Issue #8）。"""
+
+    AP = dfxml.AP_NS
+
+    def _root(self, files):
+        return etree.fromstring(
+            dfxml.build(files, Path("/in"), start_time=datetime(2026, 7, 25, tzinfo=UTC))
+        )
+
+    def _image_el(self, root):
+        return root.find(f"fileobject/{{{self.AP}}}image")
+
+    def test_values_are_written(self):
+        root = self._root([
+            sf("a.png", image=ImageCharacteristics(
+                width=7, height=3, color_space="RGB", bits_per_sample=8,
+                x_dpi=300.0, y_dpi=300.0,
+            ))
+        ])
+        el = self._image_el(root)
+        got = {etree.QName(child).localname: child.text for child in el}
+        assert got == {
+            "width": "7", "height": "3", "color_space": "RGB",
+            "bits_per_sample": "8", "x_dpi": "300", "y_dpi": "300",
+        }
+
+    def test_missing_values_are_omitted_not_emptied(self):
+        """取れなかった項目は要素ごと出さない。
+
+        空の要素を出すと「0 だった」「空文字だった」と読まれる余地が残る。
+        """
+        root = self._root([sf("a.png", image=ImageCharacteristics(width=7, height=3))])
+        names = [etree.QName(child).localname for child in self._image_el(root)]
+        assert names == ["width", "height"]
+
+    def test_unreadable_image_says_so_with_a_reason(self):
+        """読めなかったことが DFXML からも分かること。
+
+        特性が空なだけだと「画像だが情報を持っていなかった」と読めてしまう。
+        """
+        root = self._root([sf("a.png", image=ImageCharacteristics(error="OSError: 壊れています"))])
+        el = self._image_el(root)
+        assert el.get("readable") == "false"
+        assert el.findtext(f"{{{self.AP}}}error") == "OSError: 壊れています"
+
+    def test_readable_is_stated_explicitly(self):
+        """読めた場合も readable を書く。
+
+        属性が無いことを「読めた」と解釈させると、書き忘れと区別が付かない。
+        """
+        root = self._root([sf("a.png", image=ImageCharacteristics(width=1, height=1))])
+        assert self._image_el(root).get("readable") == "true"
+
+    def test_image_element_comes_last_in_the_fileobject(self):
+        """**fileobject の末尾に置くこと。**
+
+        DFXML が別の名前空間の要素を許しているのは fileobject の内容モデルの
+        末尾だけ（`<xs:any namespace="##other">`）。順序を変えると、DFXML の
+        スキーマで検証した人のところで落ちる。
+        """
+        root = self._root([sf("a.png", sha256="d" * 64,
+                              image=ImageCharacteristics(width=1, height=1))])
+        children = [etree.QName(child).localname for child in root.find("fileobject")]
+        assert children[-1] == "image"
+        assert children[-2] == "hashdigest"
+
+    def test_the_element_is_not_in_the_dfxml_vocabulary(self):
+        """DFXML 自身の語彙を勝手に増やさないこと。
+
+        画素数に当たる要素は DFXML に無い。名前空間を分けずに書くと、
+        DFXML の要素のふりをした別物になる。
+        """
+        root = self._root([sf("a.png", image=ImageCharacteristics(width=1, height=1))])
+        assert self._image_el(root) is not None
+        assert root.find("fileobject/image") is None
+
+    def test_the_reading_tool_is_recorded_once(self):
+        """どの版の Pillow が言ったことなのかを残す。
+
+        読み取れる値は道具の版で変わりうる。fileobject ごとには書かない
+        （数万件ぶん同じ文字列が並ぶだけになる）。
+        """
+        import PIL
+
+        root = self._root([sf("a.png", image=ImageCharacteristics(width=1, height=1))])
+        libraries = root.findall("creator/library")
+        assert len(libraries) == 1
+        assert libraries[0].get("name") == "Pillow"
+        assert libraries[0].get("version") == PIL.__version__
+
+    def test_nothing_is_added_when_no_image_was_examined(self):
+        """画像を 1 件も見ていない移管では、何も足さないこと。
+
+        使っていない道具を来歴に書くと、読んだ人は「Pillow で何かした」と読む。
+        """
+        xml = dfxml.build([sf("a.txt")], Path("/in"),
+                          start_time=datetime(2026, 7, 25, tzinfo=UTC)).decode("utf-8")
+        assert dfxml.AP_NS not in xml
+        assert "<library" not in xml

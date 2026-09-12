@@ -19,7 +19,9 @@ from . import bundled, image_normalize
 from .aip_models import (
     AIPFile,
     AIPPipelineError,
+    CheckOutcome,
     Derivative,
+    DerivativeCheck,
     DerivativePurpose,
     Executor,
     NormalizationRule,
@@ -242,7 +244,7 @@ def _derivative(
     if not out_path.is_file():
         raise AIPPipelineError.tool_failed(rule.tool, 0, "出力が生成されませんでした")
 
-    return Derivative(
+    derivative = Derivative(
         purpose=DerivativePurpose.PRESERVATION,
         path=out_path,
         relative_path=derivative_relative_path(file.relative_path, rule.out_extension),
@@ -257,6 +259,11 @@ def _derivative(
         puid_out=rule.puid_out,
         format_name_out=rule.format_name_out,
     )
+    # **ここで捨てない。** 読み戻せなかったことも記録に値する事実なので、
+    # 結果を付けて返し、派生物を成果物に入れるかどうかは呼び出し側が決める
+    # （aip_pipeline が validation の event を書いてから破棄する）。
+    derivative.check = verify_derivative(derivative)
+    return derivative
 
 
 def derivative_relative_path(original_rel: str, ext: str) -> str:
@@ -289,3 +296,121 @@ def _tool_environment(tool_path: Path, tool: str) -> dict[str, str] | None:
     env = dict(os.environ)
     env["GS_LIB"] = str(share)
     return env
+
+
+# --------------------------------------------------------------------------
+# 派生物の読み戻し確認
+# --------------------------------------------------------------------------
+#
+# **ここでやっているのは形式の適合性検査ではない。**
+#
+# Archivematica は veraPDF で PDF/A への適合を、JHOVE で形式の well-formed /
+# valid を判定している。どちらも Java 製で、このアプリには同梱できない
+# （README の「外部ツールの同梱方針」と NOTICE を参照）。したがって
+# 「この TIFF は TIFF 6.0 の仕様に適合しているか」には答えられない。
+#
+# 答えられるのは「同梱している Pillow / pypdf で開き直せるか」だけである。
+# それでも入れる価値があるのは、**変換したつもりで実は読めないものが
+# できていた、が最も気づきにくい壊れ方**だからである。終了コード 0 で
+# 中身が空、途中で切れた TIFF、xref の壊れた PDF は、ここで初めて分かる。
+#
+# 通らなかった派生物は成果物に入れない（呼び出し側で捨てる）。中途半端な
+# 派生物を保存用として記録するほうが、変換できなかったと記録するより悪い。
+
+#: 出力拡張子ごとの読み戻し手順。**ここに無い形式は確認しない。**
+#:
+#: 広げたい誘惑があるが、広げると副作用が出る。たとえば Pillow は
+#: JPEG 2000 の読み書きに openjpeg を要し、無い環境では開けない。
+#: そこまで面倒を見ると、**健全な派生物を「読めない」と誤判定して捨てる**
+#: ことになる。捨てる判断をする以上、確実に読める形式だけを相手にする。
+#: 自分たちが作る形式（TIFF / PDF）はここに入っている。
+_READBACK_EXTENSIONS = ("tif", "tiff", "pdf")
+
+
+def verify_derivative(derivative: Derivative) -> DerivativeCheck:
+    """生成した派生物を開き直し、読み戻せたかどうかを返す。
+
+    **例外を投げない。** 確認できなかったこと自体が記録すべき結果であり、
+    ここで送出すると変換の失敗と区別が付かなくなる。
+    """
+    ext = derivative.path.suffix.lstrip(".").lower()
+    if ext not in _READBACK_EXTENSIONS:
+        # 「読み戻せた」でも「読み戻せなかった」でもない。**黙って通さない。**
+        # 利用者が足した規則は任意の形式を出せるので、ここは普通に起こる。
+        return DerivativeCheck(
+            CheckOutcome.SKIPPED,
+            f"読み戻せる道具を持っていない形式のため未確認（.{ext or '拡張子なし'}）",
+        )
+
+    reader = _readback_pdf if ext == "pdf" else _readback_image
+    try:
+        note, agent = reader(derivative.path)
+    except Exception as exc:  # noqa: BLE001 — 読み戻せない理由は何であれ「読めない」
+        # 型で絞らないのは、読み手のライブラリが何を投げるかを当てにできないため。
+        # Pillow は OSError 系、pypdf は独自の例外、壊れ方によっては
+        # ValueError や struct.error も出る。ここで取りこぼすと、
+        # 「読めない派生物」が黙って保存用として記録される。
+        return DerivativeCheck(
+            CheckOutcome.FAILED,
+            f"生成した派生物を開き直せませんでした: {type(exc).__name__}: {exc}"[:500],
+            agent=_reader_agent(ext),
+        )
+    return DerivativeCheck(CheckOutcome.PASSED, note, agent=agent)
+
+
+def _reader_agent(ext: str) -> str:
+    """読み手の道具と版。失敗のときも記録するので、例外の外でも引けるようにする。"""
+    return _pypdf_version() if ext == "pdf" else image_normalize.version_note()
+
+
+def _readback_image(path: Path) -> tuple[str, str]:
+    """Pillow で画像を開き直す。**画素まで読む。**
+
+    `verify()` はヘッダの整合しか見ない。途中で切り詰められた画像は
+    `verify()` を通ってしまい、実際に読んだときに初めて落ちる。保存用の
+    派生物で確かめたいのはまさにそこなので、全フレームを load() する。
+    変換で一度エンコードした直後なので、追加の費用はおおよそ同じ桁に収まる。
+    """
+    from PIL import Image
+
+    with Image.open(path) as image:
+        image.verify()  # verify() の後、同じ Image オブジェクトは読めなくなる
+
+    with Image.open(path) as image:
+        frames = getattr(image, "n_frames", 1)
+        for index in range(frames):
+            image.seek(index)
+            image.load()
+        # 多フレームでは seek 後の値を見たいので、ループの外で読む。
+        width, height = image.size
+        mode = image.mode
+
+    note = f"Pillow で再読込: {mode} {width}x{height}"
+    if frames > 1:
+        # フレームが減っていないことは、読み戻しでしか確かめられない。
+        note += f" / {frames} フレーム"
+    return note, image_normalize.version_note()
+
+
+def _readback_pdf(path: Path) -> tuple[str, str]:
+    """pypdf で PDF を開き直す。ページ数が取れるところまで見る。
+
+    **本文の描画までは見ない。** ページ木を辿れれば「開ける PDF」である、
+    というのがここでの主張の限界。PDF/A への適合は veraPDF の仕事であり、
+    それは同梱できない。
+    """
+    from pypdf import PdfReader
+
+    reader = PdfReader(str(path))
+    pages = len(reader.pages)
+    if pages == 0:
+        # 開けはしたが中身が無い。gs が入力を読めずに空の PDF を書く事故が
+        # ここに当たる。ページの無い PDF を保存用として残す意味はない。
+        raise ValueError("ページが 1 つもありません")
+    return f"pypdf で再読込: {pages} ページ", _pypdf_version()
+
+
+def _pypdf_version() -> str:
+    import pypdf
+
+    return f"pypdf {getattr(pypdf, '__version__', 'unknown')}"

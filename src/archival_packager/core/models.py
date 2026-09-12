@@ -60,6 +60,43 @@ class PIIFinding:
 
 
 @dataclass(slots=True)
+class ImageCharacteristics:
+    """画像そのものの性質（フォーマット固有の技術的特性）。
+
+    DFXML が持っているのは「ファイルとしての事実」（サイズ・ハッシュ・日時）だけで、
+    **中身が画像であることに由来する性質は 1 つも残っていなかった**。画素数の分からない
+    画像は、後から見た人に「これで原本の代わりになるのか」を判断させられない。
+
+    値は Pillow がヘッダから返したものだけを入れる。取れなかった項目は None のままにし、
+    推測で埋めない（例: DPI を持たない PNG に 72 を補わない）。
+
+    `error` は「開けなかった」ことの記録。**None であること自体には意味が無い**ので、
+    「調べていない」と「調べて読めなかった」を取り違えないよう、走査しなかった
+    ファイルには ScannedFile.image ごと None を入れる（pii_scanned と同じ考え方）。
+    """
+
+    #: 画素数。
+    width: int | None = None
+    height: int | None = None
+    #: 色空間。Pillow の mode をそのまま入れる（RGB / L / P / CMYK / I;16 ...）。
+    #: **別の語彙に言い換えない。** "P"（パレット）や "I;16" を MIX の
+    #: typeOfColorSpace のような固定語彙に押し込むと、必ずどれかを取りこぼして
+    #: 実態と違う値になる。道具が言ったことを、そのまま道具の語で残す。
+    color_space: str | None = None
+    #: 1 サンプルあたりのビット数（RGB 8bit なら 8）。1 画素あたりではない。
+    bits_per_sample: int | None = None
+    #: 解像度（dpi）。縦横で違う値を持つ画像があるので分けて持つ。
+    x_dpi: float | None = None
+    y_dpi: float | None = None
+    #: 読み取れなかった理由。読めた場合は None。
+    error: str | None = None
+
+    @property
+    def readable(self) -> bool:
+        return self.error is None
+
+
+@dataclass(slots=True)
 class ScannedFile:
     """入力ツリー内の 1 ファイル。各処理段が情報を埋めていく。"""
 
@@ -96,6 +133,12 @@ class ScannedFile:
     #: 画像のように元から対象外のものは False のまま。
     pii_unreadable: bool = False
 
+    #: 画像の技術的特性（対象フォーマットのときだけ埋まる）。
+    #: None は「調べていない」。画像でないファイルと、画像だが読めなかったファイルを
+    #: 同じ None で表すと、後者が「問題なし」に見えてしまう（読めなかった場合は
+    #: ImageCharacteristics.error に理由が入る）。
+    image: ImageCharacteristics | None = None
+
     # ウイルス検査が埋める（感染時のみ。ClamAV シグネチャ名）
     virus: str | None = None
     #: 検査を実行したか。virus=None だけでは「検出なし」と「未実施」を
@@ -116,7 +159,10 @@ class SIPResult:
     arrangement_map_path: Path | None = None  # 配列前後の対応表（prior 指定時のみ）
     pii_report_path: Path | None = None  # PII レポート（検出があった時のみ）
     zip_path: Path | None = None  # 無圧縮 zip（serialize_zip 指定時のみ）
-    warnings: list[str] = field(default_factory=list)  # 未識別・拡張子不一致など目視確認したい点
+    #: 未識別・拡張子不一致など目視確認したい点。
+    #: **種類ごとに上限があり、超えた分は「（他 N 件）」の 1 行にまとめてある**
+    #: （sip_pipeline._bounded_warnings）。件数を数える用途にはそのまま使えない。
+    warnings: list[str] = field(default_factory=list)
 
 
 class PipelineErrorKind(Enum):

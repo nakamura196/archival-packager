@@ -22,9 +22,11 @@ from . import (
 from . import (
     checksums,
     clamav,
+    conversion_registry,
     dfxml,
     document_text,
     filenames,
+    image_normalize,
     pii,
     report,
     siegfried,
@@ -35,6 +37,7 @@ from . import (
 from . import (
     scan as scan_mod,
 )
+from .aip_models import DerivativePurpose, Executor
 from .models import ScannedFile, SIPMetadata, SIPOptions, SIPPipelineError, SIPResult
 from .sip_builder import SIPBuildRequest, SubmissionDocs
 
@@ -42,6 +45,20 @@ Progress = Callable[[str], None]
 
 # PII 走査で 1 ファイルあたり読む上限（8 MiB）。これを超える分は見ない。
 PII_SCAN_MAX_BYTES = 8 << 20
+
+#: SIPResult.warnings に載せる、**種類 1 つあたりの**上限。
+#:
+#: 値は report.py の一覧上限（_LIST_LIMIT = 100）に揃えてある。同じ移管について
+#: 画面と report.txt で「何件まで並ぶか」が違うと、読んだ人はどちらが正しいのか
+#: 判断できない。100 件あれば、どういう問題がどのあたりで起きているかは十分に伝わる。
+#:
+#: 上限を設ける理由は Issue #10。未識別のファイルが数万件ある資料群では警告も
+#: 数万行になり、画面はその全行を組み立てて描画し、人は誰も読まない。
+#:
+#: **全体で 1 本の上限にはしない。** 未識別が数万件ある移管では、先頭から詰めると
+#: ウイルス検出の 1 行が枠から押し出されて消える。いちばん見落としてはいけない
+#: ものから消えることになるので、種類ごとに枠を分ける。
+WARNING_LIMIT_PER_KIND = 100
 
 
 def run(
@@ -74,6 +91,7 @@ def run(
 
         files = _maybe_sanitize(files, options, progress)
         files, format_status = _identify_formats(files, root, progress)
+        _characterise_images(files, progress)
         _compute_checksums(files, progress)
         virus_status = _scan_virus(files, root, options, progress)
         _scan_pii(files, options, progress)
@@ -103,6 +121,11 @@ def run(
                 files, sanitized=options.sanitize_filenames
             )
         )
+        result.warnings.extend(_unreadable_image_warnings(files))
+
+        # **最後にまとめて打ち切る。** 途中で切ると、あとから足した警告
+        # （パス長・NFC・画像）だけが上限を免れる。
+        result.warnings = _bounded_warnings(result.warnings)
 
         if options.serialize_zip:
             progress("ZIP（無圧縮）に固めています…")
@@ -208,6 +231,72 @@ def _identify_formats(
     return files, "実施（siegfried / PRONOM）"
 
 
+def _characterise_images(files: list[ScannedFile], progress: Progress) -> None:
+    """画像の技術的特性（画素数・色空間・ビット深度・解像度）を読み、DFXML に残す。
+
+    DFXML が持っているのはファイルとしての事実だけで、**中身が画像であることに
+    由来する性質が 1 つも残っていなかった**（Issue #8）。画素数の分からない画像は、
+    後から見た人に「これで原本の代わりになるか」を判断させられない。
+
+    対象は**いま TIFF 化の対象にしている画像フォーマットと TIFF 自身**に限る。
+    その一覧は変換規則の表（conversion_registry）が持っているので、そちらに聞く。
+    ここに PUID の一覧を書き写すと、表に足された PUID が黙って対象から漏れる。
+
+    音声・動画は対象外。Pillow では読めず、新しい依存（MediaInfo / ExifTool 相当）が
+    要るため。Issue #8 に残してある。
+    """
+    targets = [f for f in files if _is_pillow_image(f.puid)]
+    if not targets:
+        return
+
+    progress(f"画像の技術的特性を読み取っています…（{len(targets)} 件）")
+    for f in targets:
+        f.image = scan_mod.image_characteristics(f.absolute_path)
+
+    unreadable = sum(1 for f in targets if f.image is not None and not f.image.readable)
+    if unreadable:
+        # 黙って飛ばさない。壊れた画像は「特性が空の画像」と見分けが付かない。
+        progress(
+            f"画像 {unreadable} 件は開けず、特性を読み取れませんでした。"
+            "理由は dfxml.xml に残し、目視確認の警告にも出します。"
+        )
+
+
+def _is_pillow_image(puid: str | None) -> bool:
+    """その PUID は、アプリ内の Pillow で開く画像か。
+
+    TIFF 自身は変換の対象ではない（既に保存に適した形式なので規則が無い）が、
+    特性を記録したいのは同じなので明示的に足す。
+
+    **tool の名前だけで判定しない。** 利用者が rules.toml に tool = "pillow" と
+    書いた外部コマンドの規則を、アプリ内蔵の画像変換と取り違えないため
+    （aip_models.Executor の注を参照）。
+    """
+    if puid is None:
+        return False
+    if puid == conversion_registry.TIFF_PUID:
+        return True
+    rule = conversion_registry.rule_for(puid, DerivativePurpose.PRESERVATION)
+    return (
+        rule is not None
+        and rule.executor is Executor.BUILTIN
+        and rule.tool == image_normalize.TOOL
+    )
+
+
+def _unreadable_image_warnings(files: list[ScannedFile]) -> list[str]:
+    """開けなかった画像を、目視確認の対象として警告に出す。
+
+    DFXML に書くだけでは、XML を開いた人しか気づけない。壊れた原本が混ざって
+    いること自体が担当者の判断材料なので、画面と CLI にも出す。
+    """
+    return [
+        f"画像を読めません: {f.relative_path}（{f.image.error}）"
+        for f in files
+        if f.image is not None and not f.image.readable
+    ]
+
+
 def _compute_checksums(files: list[ScannedFile], progress: Progress) -> None:
     progress("チェックサム(SHA-256)を計算しています…")
     total = len(files)
@@ -287,6 +376,46 @@ def _scan_pii(files: list[ScannedFile], options: SIPOptions, progress: Progress)
     if unreadable:
         head += f" ただし {unreadable} ファイルは中身を読めず、走査できていません。"
     progress(head)
+
+
+def _bounded_warnings(warnings: list[str]) -> list[str]:
+    """種類ごとに先頭 N 件だけ残し、あふれた分は「（他 N 件）」の 1 行にまとめる。
+
+    **件数は落とさない。** 「多いので省略しました」では、担当者は残りが 3 件なのか
+    3 万件なのか分からず、次に何をすべきかも決められない。何件あふれたかを必ず書く。
+    考え方も文言も report.py の `_truncated` に揃えてある（同じ移管について、
+    画面と report.txt で見え方が変わらないようにするため）。
+
+    並びは元のまま（ファイル順）にし、あふれた分の行だけを末尾に足す。
+    種類ごとに寄せ直すと、これまで出ていた順序が理由もなく変わる。
+    """
+    kept: list[str] = []
+    counts: dict[str, int] = {}
+    for warning in warnings:
+        kind = _warning_kind(warning)
+        counts[kind] = counts.get(kind, 0) + 1
+        if counts[kind] <= WARNING_LIMIT_PER_KIND:
+            kept.append(warning)
+
+    for kind, count in counts.items():
+        rest = count - WARNING_LIMIT_PER_KIND
+        if rest <= 0:
+            continue
+        # 前置きを残す。CLI は前置きで検出の種類を分けており（cli._FINDING_PREFIXES）、
+        # 前置きの無い行はどの種類の話なのか分からなくなる。
+        kept.append(f"{kind}: （他 {rest} 件）" if kind else f"（他 {rest} 件）")
+    return kept
+
+
+def _warning_kind(warning: str) -> str:
+    """警告の種類。「種類: 対象」という前置きで見る（無ければ空文字）。
+
+    前置きは sip_builder.collect_warnings などが付けている。ここで前置きを
+    読めなくなっても打ち切り自体は働く（すべて 1 つの種類として数えられる）ので、
+    表示が崩れるだけで、警告が消えることはない。
+    """
+    head, separator, _rest = warning.partition(": ")
+    return head if separator else ""
 
 
 def _build_documents(

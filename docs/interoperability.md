@@ -21,7 +21,7 @@
    パス表記を公式例に合わせた**（`objects/` の接頭辞を外した）。
 
 残っている 4 件は、いずれも**新しい機能か、今回触れない範囲の変更が要る**もの
-（PREMIS rights・AIP の `data/README.html`・AtoM の `culture` 列）か、
+（PREMIS rights・AtoM の `culture` 列）か、
 **直す必要が無いと判断したもの**（tagmanifest のアルゴリズム差）である。
 
 **なお、この検証も是正も、仕様文書との突合にとどまる。実際に AtoM /
@@ -284,7 +284,7 @@ Archivematica の AIP は bag で、`data/` の下に `METS.<uuid>.xml`、`READM
 | METS のセクション | dmdSec / amdSec / fileSec / structMap | 4 つとも出力 | 一致 |
 | PREMIS | object / event / agent で来歴を表す | 3 つとも出力（PREMIS v3 名前空間） | 一致 |
 | structMap | 物理構造 | `TYPE="physical"` | 一致 |
-| **`data/README.html`** | AIP の構造を説明する HTML | `data/logs/README.txt` のみ | **不一致（小）** |
+| **`data/README.html`** | AIP の構造を説明する HTML | **書いている**（2026-09-12〜） | 一致 |
 | **tagmanifest** | 公式例は `tagmanifest-md5.txt` | `tagmanifest-sha256.txt` | **不一致（実害なし）** |
 | **PREMIS rights** | `metadata/rights.csv` から生成 | `rights.csv` を作らず `rightsMD` も出さない | **不一致** |
 
@@ -318,8 +318,10 @@ MD5 を要求しているわけではない。SHA-256 に揃えているのは�
 | 5 | AM: bag の `metadata.csv` | `objects/a.txt` | `data/objects/a.txt` | bag 化するかどうかで `filename` の基点を変えるようにした。記入済みの `metadata.csv` を引き継ぐ場合も、パス列だけ合わせ直す |
 | 6 | AM: `checksum.sha256` の位置 | `metadata/submissionDocumentation/` のみ | `metadata/` 直下にも置く | 移動ではなく 2 本に分けた。理由は 3.1 の補足を参照（`core/fixity.py` と旧 SIP が旧位置を前提にしている） |
 | 7 | AM: `checksum.sha256` のパス表記 | `objects/<相対パス>` | `metadata/` 直下の方は接頭辞なし | 公式例（`beihai.tif`）に合わせた。`submissionDocumentation/` 側は従来どおり `objects/` 付き（読み手が違う） |
+| 9 | AIP: `data/README.html` | `data/logs/README.txt` のみ | `data/README.html` を書く | 日本語と英語で、これが何か・何が入っているか・どう読むか・**何を確認していないか**を書いた自己完結の HTML。外部の CSS も画像も参照しない。`bagit.make_bag` の前に書くので payload に入り、`manifest-sha256.txt` に載る。記述メタデータは複写していない（正本は METS の dmdSec で、2 か所に書くといずれ食い違う） |
 
-**後方互換について。** 1〜7 はファイルの配置と中身が変わる。
+**後方互換について。** 1〜7 はファイルの配置と中身が変わる（9 は
+ファイルを 1 つ足すだけなので、読み戻しには影響しない）。
 `core/sip_reader.py` は**新旧どちらの形も読む**ようにした。
 
 - `checksum.sha256`: 新（`metadata/` 直下・接頭辞なし）と
@@ -336,7 +338,6 @@ MD5 を要求しているわけではない。SHA-256 に揃えているのは�
 | # | 領域 | こちらの出力 | 相手の仕様 | 影響 | なぜ残したか |
 | --- | --- | --- | --- | --- | --- |
 | 8 | AM: PREMIS rights | `rights.csv` を作らず `rightsMD` も出さない | `metadata/rights.csv` から生成 | 中。利用条件が機械的に読めない | **機能追加が要る。** 権利情報（利用条件・根拠・期間）を入力する画面が無く、入力元が無いまま空の `rights.csv` を出しても意味がない |
-| 9 | AIP: `data/README.html` | `data/logs/README.txt` のみ | `data/README.html` | 小。人向けの説明 | **AIP を組み立てるのは `core/aip_pipeline.py` で、今回の作業範囲外。** 他の作業者が編集中のため触っていない |
 | 10 | AIP: tagmanifest | `tagmanifest-sha256.txt` | 公式例は `tagmanifest-md5.txt` | なし | **直さない。** BagIt 仕様上どちらも適法で、Archivematica が MD5 を要求しているわけではない。SHA-256 に揃えているのは意図した選択 |
 | 11 | AtoM: `culture` 列 | 出していない | 記述そのものの言語（`ja` / `en` …） | 小。AtoM の既定の言語で取り込まれる | **機能追加が要る。** 記述の言語を入力する欄が無い。`ja` を決め打ちすると英語で記述する利用者の記録に誤った言語が付く。9月12日の是正作業中に、1〜3 を直しても残ることが分かったので新たに記録した |
 
@@ -421,5 +422,5 @@ uv run pytest -q tests/test_sip_reader_compat.py
 ```
 
 **是正した 7 件は assert になっている。** 出力が仕様から外れると落ちる。
-残った 4 件は `KNOWN_GAPS` に「現状こうである」という形で入れてあるので、
+残った 3 件は `KNOWN_GAPS` に「現状こうである」という形で入れてあるので、
 **直したときにも落ちる。** どちらで落ちても、本書を更新する合図である。

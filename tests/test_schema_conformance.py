@@ -22,7 +22,9 @@ from lxml import etree
 from archival_packager.core import mets
 from archival_packager.core.aip_models import (
     AIPFile,
+    CheckOutcome,
     Derivative,
+    DerivativeCheck,
     DerivativePurpose,
     DescriptiveMetadata,
     PremisEvent,
@@ -161,6 +163,39 @@ class TestGeneratedMETSValidates:
         doc = build([f], descriptive=DescriptiveMetadata(title="識別と検査"))
         assert mets_schema.validate(doc), (
             "識別・検査のイベントを含む METS が適合しない:\n" + _explain(mets_schema)
+        )
+
+    @pytest.mark.parametrize(
+        "outcome", [CheckOutcome.PASSED, CheckOutcome.FAILED, CheckOutcome.SKIPPED]
+    )
+    def test_validation_events_validate(self, mets_schema, outcome):
+        """派生物の読み戻し確認（validation）を足しても適合すること。
+
+        **イベントを 1 種類足すたびにここを通す。** 要素名や出現順の制約は
+        「自分が想定した構造になっている」テストでは捕まらず、スキーマで
+        しか分からない。3 つの結果すべてを通すのは、失敗と未確認のときだけ
+        別の枝（linkingAgent が付く／付かない）を通るためである。
+        """
+        from archival_packager.core import aip_pipeline
+
+        f = a_file("objects/a.png", "u8")
+        derivative = Derivative(
+            purpose=DerivativePurpose.PRESERVATION,
+            path=Path("/x/a-preservation.tiff"),
+            relative_path="a-preservation.tiff",
+            size_bytes=10,
+            uuid="d8",
+            tool_name="pillow",
+            command_line="RGB → TIFF (非圧縮)",
+            sha256="b" * 64,
+            check=DerivativeCheck(outcome, "Pillow で再読込: RGB 8x8", agent="Pillow 12.3.0"),
+        )
+        f.derivatives.append(derivative)
+        aip_pipeline._append_validation_event(f, derivative, "2026-09-11T00:00:00Z")
+
+        doc = build([f], descriptive=DescriptiveMetadata(title="読み戻し確認"))
+        assert mets_schema.validate(doc), (
+            "validation イベントを含む METS が適合しない:\n" + _explain(mets_schema)
         )
 
 

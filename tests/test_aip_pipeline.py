@@ -560,3 +560,185 @@ class TestGuards:
         first, _ = run_aip(sip, tmp_path)
         second, _ = run_aip(sip, tmp_path)
         assert first.aip_path != second.aip_path
+
+
+class TestDerivativeValidationEndToEnd:
+    """作った派生物を開き直した結果が、AIP の記録に残ること。
+
+    **「検証していない」と「検証して通った」は別の事実である。** どちらも
+    METS からは同じに見えていた（イベントが無いだけ）。保存用の派生物が
+    実は読めないものだった、という壊れ方は開き直すまで分からない。
+
+    ここで確かめているのは読み戻せるかどうかだけで、**形式の適合性検査
+    （veraPDF / JHOVE 相当）ではない。** それらは Java 製で同梱できない。
+    """
+
+    def _notes(self, mets_path, event_type):
+        root = etree.fromstring(mets_path.read_bytes())
+        return root.xpath(
+            f"//premis:event[premis:eventType='{event_type}']"
+            "//premis:eventOutcomeDetailNote/text()",
+            namespaces=NS,
+        )
+
+    def _outcomes(self, mets_path, event_type):
+        root = etree.fromstring(mets_path.read_bytes())
+        return root.xpath(
+            f"//premis:event[premis:eventType='{event_type}']//premis:eventOutcome/text()",
+            namespaces=NS,
+        )
+
+    def test_event_type_is_the_premis_vocabulary_term(self, sip_with_image, tmp_path):
+        """**eventType は PREMIS の語彙どおり "validation"。**
+
+        独自の名前を付けると、他のシステムがこの AIP を読んだときに何の
+        記録なのか分からなくなる。綴りは固定する。
+        """
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+        assert self._outcomes(result.mets_path, "validation") == ["pass"]
+
+    def test_the_reading_tool_and_version_are_recorded(self, sip_with_image, tmp_path):
+        """何で開き直したかを残すこと。
+
+        「読めた」はその道具のその版の挙動でしかない。道具が分からないと、
+        後から同じ確認を再現できず、主張の範囲も読み取れない。
+        """
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+        assert any("Pillow" in n for n in self._notes(result.mets_path, "validation"))
+
+        root = etree.fromstring(result.mets_path.read_bytes())
+        agents = root.xpath(
+            "//premis:event[premis:eventType='validation']"
+            "//premis:linkingAgentIdentifierValue/text()",
+            namespaces=NS,
+        )
+        assert any("Pillow" in a for a in agents)
+
+    def test_unreadable_derivative_is_not_in_the_package(
+        self, sip_with_image, tmp_path, monkeypatch
+    ):
+        """**開き直せなかった派生物は成果物に入れない。**
+
+        中途半端な派生物を保存用として記録するほうが、変換できなかったと
+        記録するより悪い。後から見た人は「保存用がある」と信じてしまい、
+        原本ではなくそちらを使おうとする。
+
+        変換が終了コード 0 で返りながら読めないものを書く事故を模す。
+        """
+        def broken(src, dest):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"not a TIFF")
+            return "壊れた出力"
+
+        monkeypatch.setattr(aip_pipeline.normalizer.image_normalize, "to_tiff", broken)
+        result, messages = run_aip(sip_with_image, tmp_path, normalize=True)
+
+        assert result.derivative_count == 0
+        assert not (result.aip_path / "data" / "objects" / "写真-preservation.tiff").exists()
+        assert (result.aip_path / "data" / "objects" / "写真.png").is_file(), "原本は残す"
+        # 黙って落とさない。利用者に届くこと（report と画面の両方）。
+        assert any("読み戻せない" in w for w in result.warnings)
+        assert any("読み戻せない" in m for m in messages)
+
+    def test_a_discarded_derivative_is_recorded_as_a_failed_normalization(
+        self, sip_with_image, tmp_path, monkeypatch
+    ):
+        """捨てたことが記録から分かること。
+
+        normalization が success のまま派生物だけ無いと、METS を読んだ人は
+        「あるはずのものが見当たらない」状態に置かれる。validation の失敗と
+        合わせて、何が起きたのかが 1 か所で読み取れるようにする。
+        """
+        def broken(src, dest):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"not a TIFF")
+            return "壊れた出力"
+
+        monkeypatch.setattr(aip_pipeline.normalizer.image_normalize, "to_tiff", broken)
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+
+        assert self._outcomes(result.mets_path, "validation") == ["fail"]
+        assert self._outcomes(result.mets_path, "normalization") == ["fail"]
+        notes = self._notes(result.mets_path, "normalization")
+        assert any("破棄" in n for n in notes)
+        # どの規則が動こうとしたのかは残す（規則が無かったのと区別する）。
+        assert any('rule="image-to-tiff"' in n for n in notes)
+
+    def test_unsupported_output_format_is_skipped_not_passed(
+        self, sip_with_image, tmp_path, fake_tool, monkeypatch
+    ):
+        """読み戻す道具が無い形式を「確認して通った」にしない。
+
+        利用者の規則は任意の形式を出せる。黙って pass にすると、記録上は
+        検査済みに見えてしまう。派生物そのものは残す（確認していないだけで、
+        壊れていると判断したわけではない）。
+        """
+        fake = fake_tool(name="conv", output_text="converted")
+        (tmp_path / "rules.toml").write_text(
+            """
+[[rule]]
+id = "png-to-jp2"
+puid_in = ["fmt/11"]
+executor = "command"
+tool = "conv"
+args = ["{in}", "{out}"]
+out_extension = "jp2"
+""",
+            encoding="utf-8",
+        )
+        conversion_registry.reload(tmp_path / "rules.toml")
+        monkeypatch.setattr(aip_pipeline.normalizer, "locate", lambda tool: fake)
+
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+        assert result.derivative_count == 1, "確認できないことは破棄の理由にしない"
+        assert self._outcomes(result.mets_path, "validation") == ["skipped"]
+        assert any("未確認" in n for n in self._notes(result.mets_path, "validation"))
+
+    def test_no_validation_event_when_nothing_was_converted(self, sip, tmp_path):
+        """変換していないファイルに validation の event を付けないこと。
+
+        確認する対象が無いのに記録だけがあると、何を確認したのか分からない。
+        """
+        result, _ = run_aip(sip, tmp_path, normalize=True)
+        assert self._outcomes(result.mets_path, "validation") == []
+
+
+class TestReadmeHtml:
+    """人向けの案内を AIP の一番上に置く（Archivematica の AIP に合わせる）。
+
+    ここまでの説明はすべて METS / PREMIS の中にあり、XML を読める人にしか
+    届かない。**10 年後にこの bag を渡された人が、まず何を見ればよいか**を
+    平文で残す。
+    """
+
+    def test_written_at_the_data_root(self, sip, tmp_path):
+        result, _ = run_aip(sip, tmp_path)
+        assert (result.aip_path / "data" / "README.html").is_file()
+
+    def test_covered_by_the_payload_manifest(self, sip, tmp_path):
+        """**payload に入れた以上、マニフェストに載っていること。**
+
+        BagIt では data/ 配下に manifest に無いファイルがあると bag として
+        不正になる。`bagit.make_bag` の前に書いているかどうかで決まるので、
+        書く場所を動かすと静かに壊れる。
+        """
+        result, _ = run_aip(sip, tmp_path)
+        manifest = (result.aip_path / "manifest-sha256.txt").read_text(encoding="utf-8")
+        assert "data/README.html" in manifest
+        aip_pipeline.validate_aip(result.aip_path)  # bag として妥当なままであること
+
+    def test_points_at_the_actual_mets_file(self, sip, tmp_path):
+        """METS のファイル名は AIP ごとに違う。案内が合っていること。"""
+        result, _ = run_aip(sip, tmp_path)
+        text = (result.aip_path / "data" / "README.html").read_text(encoding="utf-8")
+        assert f"METS.{result.aip_uuid}.xml" in text
+
+    def test_says_what_was_not_checked(self, sip, tmp_path):
+        """**確認していないことを、確認したことと同じ場所に書く。**
+
+        読み戻し確認を形式適合性検査と読み違えられると、このパッケージは
+        実際より強い主張をしていることになる。
+        """
+        result, _ = run_aip(sip, tmp_path)
+        text = (result.aip_path / "data" / "README.html").read_text(encoding="utf-8")
+        assert "veraPDF" in text and "JHOVE" in text
