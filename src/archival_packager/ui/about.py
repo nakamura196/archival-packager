@@ -19,7 +19,7 @@ from ..core import applog
 
 _MONO = "Menlo, Consolas, monospace"
 
-PRIVACY_URL = "https://nakamura196.github.io/archival-packager-x/privacy-policy.html"
+PRIVACY_URL = "https://nakamura196.github.io/archival-packager/privacy-policy.html"
 STORE_URL = "https://apps.microsoft.com/detail/9N6XJD7THHPZ"
 CONTACT = "nakamura@hi.u-tokyo.ac.jp"
 

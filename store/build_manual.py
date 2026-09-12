@@ -91,7 +91,7 @@ para("提出に使うファイルは2つです。作業を始める前に手元�
 para("")
 para("(1) アプリ本体（MSIX ファイル・110MB）", bold=True)
 para("次のページを開き、ArchivalPackager-0.1.0-windows-x64.msix をダウンロードします。", indent=0.4)
-mono("https://github.com/nakamura196/archival-packager-x/releases/tag/v0.1.0")
+mono("https://github.com/nakamura196/archival-packager/releases/tag/v0.1.0")
 para("※ このファイルは 9月9日に差し替えています。それ以前にダウンロードしたものがあれば、"
      "取り直してください。対応言語の宣言などを直しています。", indent=0.4)
 para("")
@@ -137,7 +137,7 @@ mono("Productivity")
 para("サブカテゴリは指定しません。", indent=0.4)
 para("")
 para("Privacy policy URL（プライバシーポリシー）", bold=True)
-mono("https://nakamura196.github.io/archival-packager-x/privacy-policy.html")
+mono("https://nakamura196.github.io/archival-packager/privacy-policy.html")
 para("必須です。デスクトップアプリは、規約 10.5.1 で常に求められます。", indent=0.4)
 para("")
 para("Support contact info（サポート連絡先）", bold=True)
@@ -334,7 +334,7 @@ for line in [
     'runFullTrust は、これら同梱実行ファイルを子プロセスとして起動するために宣言しています。',
     " ",
     '個人情報の収集・送信はありません。',
-    'https://nakamura196.github.io/archival-packager-x/privacy-policy.html',
+    'https://nakamura196.github.io/archival-packager/privacy-policy.html',
 ]:
     mono(line if line.strip() else " ")
 para("")

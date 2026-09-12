@@ -114,9 +114,10 @@ uv run python scripts/differential_check.py --swift-app "/path/to/Archival Packa
 
 ## 既存実装との関係
 
-これは [`nakamura196/archival-packager`](https://github.com/nakamura196/archival-packager) の
-Swift 実装（macOS 専用、Developer ID 署名・公証済み）を、Windows にも配布できるように
-作り直すもの。
+これは [`nakamura196/archival-packager-swift`](https://github.com/nakamura196/archival-packager-swift)
+の Swift 実装（macOS 専用、Developer ID 署名・公証済み）を、Windows にも配布できるように
+作り直したもの。**現在はこちらが本体**で、Swift 版は更新を止めている
+（2026-09-12 にリポジトリ名を入れ替えた。以前この名前は Swift 版が使っていた）。
 
 **既存の Swift 実装は廃止しない。** 新実装が同等になるまではそちらが配布物であり、
 かつ**差分検証の正解データを出す参照実装**でもある。
@@ -209,7 +210,7 @@ Pillow なら wheel が両OS向けに同一版で提供され、libtiff も whee
 ## 移植中に見つけた現行実装の問題
 
 移植は現行実装の再読でもある。テストを書く過程で次が判明し、**Swift 側も修正済み**
-（[archival-packager#3](https://github.com/nakamura196/archival-packager/pull/3) でマージ）。
+（[archival-packager-swift#3](https://github.com/nakamura196/archival-packager-swift/pull/3) でマージ）。
 
 1. **完全性確認が `failed` を `skipped` と報告する場合がある。**
    マニフェスト記載のファイルが全て存在しないとき、`checked == 0` の判定が先に効いて

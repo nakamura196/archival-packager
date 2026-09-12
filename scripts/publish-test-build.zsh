@@ -16,7 +16,7 @@
 set -euo pipefail
 
 run_id="${1:?run-id を渡してください（gh run list で調べる）}"
-repo="nakamura196/archival-packager-x"
+repo="nakamura196/archival-packager"
 version="$(grep -m1 '^version = ' pyproject.toml | sed 's/.*"\(.*\)"/\1/')"
 name="ArchivalPackager-${version}-windows-x64.zip"
 work="$(mktemp -d)"

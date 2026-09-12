@@ -75,7 +75,7 @@ Productivity（生産性） ＞ サブカテゴリなし
 
 ## プライバシーポリシーの URL
 
-https://nakamura196.github.io/archival-packager-x/privacy-policy.html
+https://nakamura196.github.io/archival-packager/privacy-policy.html
 
 ## サポートの連絡先
 
@@ -121,7 +121,7 @@ Siegfried 1.11.6 (Apache-2.0) はファイル形式の判定用で、通信し�
 runFullTrust は、これら同梱実行ファイルを子プロセスとして起動するために宣言しています。
 
 個人情報の収集・送信はありません。
-https://nakamura196.github.io/archival-packager-x/privacy-policy.html
+https://nakamura196.github.io/archival-packager/privacy-policy.html
 ```
 
 削ったのは、番号付きの体裁、目的の説明、括弧内の例示（常駐保護・システムの変更・
