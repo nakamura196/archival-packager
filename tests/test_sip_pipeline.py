@@ -361,3 +361,56 @@ class TestReportContents:
         ]
         out = report.html_report(files, SIPMetadata("id", "t"), SIPOptions(), virus_status="未実施")
         assert "目視確認が必要な点はありません" in out
+
+
+class TestReportSaysWhyFormatsAreUnidentified:
+    """「未識別 54 件」とだけ書かない。
+
+    同梱ツールを持たないビルドで走らせると、全ファイルが未識別になる。
+    レポートがその理由を書いていないと、資料のほうに問題があるように読める
+    （実際にそう受け取られた）。ツールが無かったのか、識別した結果
+    分からなかったのかで、次にやることが違う。
+    """
+
+    def test_says_the_tool_was_missing(self, tmp_path, monkeypatch):
+        from archival_packager.core import bundled, sip_pipeline
+        from archival_packager.core.models import SIPMetadata, SIPOptions
+
+        monkeypatch.setattr(
+            bundled, "find", lambda name: None if name == "sf" else bundled.find(name)
+        )
+
+        src = tmp_path / "in"
+        src.mkdir()
+        (src / "a.txt").write_text("A\n", encoding="utf-8")
+        out = tmp_path / "out"
+        out.mkdir()
+
+        result = sip_pipeline.run(
+            input_path=src, output_parent=out,
+            metadata=SIPMetadata(identifier="x", title="t"),
+            options=SIPOptions(), progress=lambda _m: None,
+        )
+        report = (result.sip_path / "metadata" / "submissionDocumentation"
+                  / "report.txt").read_text(encoding="utf-8")
+        assert "フォーマット識別:" in report
+        assert "未同梱" in report, "ツールが無かったことが書かれていない"
+
+    def test_says_it_ran_when_it_ran(self, tmp_path):
+        from archival_packager.core import sip_pipeline
+        from archival_packager.core.models import SIPMetadata, SIPOptions
+
+        src = tmp_path / "in"
+        src.mkdir()
+        (src / "a.txt").write_text("A\n", encoding="utf-8")
+        out = tmp_path / "out"
+        out.mkdir()
+
+        result = sip_pipeline.run(
+            input_path=src, output_parent=out,
+            metadata=SIPMetadata(identifier="x", title="t"),
+            options=SIPOptions(), progress=lambda _m: None,
+        )
+        report = (result.sip_path / "metadata" / "submissionDocumentation"
+                  / "report.txt").read_text(encoding="utf-8")
+        assert "フォーマット識別: 実施" in report

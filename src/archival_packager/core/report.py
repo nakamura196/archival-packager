@@ -58,6 +58,7 @@ def text_report(
     options: SIPOptions,
     *,
     virus_status: str,
+    format_status: str = "実施",
     source_archive_note: str = "",
 ) -> str:
     total_bytes = sum(f.size_bytes for f in files)
@@ -85,6 +86,7 @@ def text_report(
         f"合計サイズ: {total_bytes} バイト",
         "",
         "処理サマリ:",
+        f"  フォーマット識別: {format_status}",
         f"  ウイルスチェック: {virus_status}",
         f"  個人情報(PII)スキャン: {_pii_summary(files, options)}",
         "  受入記録: accession.csv（原パス↔SHA-256）",
@@ -139,6 +141,7 @@ def html_report(
     options: SIPOptions,
     *,
     virus_status: str,
+    format_status: str = "実施",
 ) -> str:
     """ブラウザで開ける要約。
 
@@ -190,6 +193,7 @@ def html_report(
   <dt>梱包形式</dt><dd>{'BagIt bag' if options.make_bag else 'SIP ディレクトリ'}</dd>
   <dt>ファイル数</dt><dd>{len(files)}</dd>
   <dt>合計サイズ</dt><dd>{total_bytes} バイト</dd>
+  <dt>フォーマット識別</dt><dd>{e(format_status)}</dd>
   <dt>ウイルスチェック</dt><dd>{e(virus_status)}</dd>
   <dt>個人情報(PII)スキャン</dt><dd>{e(_pii_summary(files, options))}</dd>
 </dl>

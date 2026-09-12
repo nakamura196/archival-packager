@@ -69,14 +69,14 @@ def run(
         progress(f"対象ファイル: {len(files)} 件")
 
         files = _maybe_sanitize(files, options, progress)
-        files = _identify_formats(files, root, progress)
+        files, format_status = _identify_formats(files, root, progress)
         _compute_checksums(files, progress)
         virus_status = _scan_virus(files, root, options, progress)
         _scan_pii(files, options, progress)
 
         docs = _build_documents(
             files, root, scan_root, metadata, options, structured, virus_status,
-            source_note, progress,
+            format_status, source_note, progress,
         )
 
         progress("BagIt bag を組み立てています…" if options.make_bag else "SIP を組み立てています…")
@@ -160,12 +160,18 @@ def _maybe_sanitize(
 
 def _identify_formats(
     files: list[ScannedFile], root: Path, progress: Progress
-) -> list[ScannedFile]:
+) -> tuple[list[ScannedFile], str]:
+    """フォーマットを識別し、(ファイル, 何をしたか) を返す。
+
+    **「未識別 54 件」とだけ書かれても、担当者は何をすればよいか分からない。**
+    ツールが無くて識別しなかったのか、識別した結果どれにも当てはまらなかったのかで、
+    次にやることがまったく違う（前者は入れ直す、後者は目視で確かめる）。
+    """
     from . import bundled
 
     if bundled.find("sf") is None:
         progress("siegfried が同梱されていないため、フォーマット識別をスキップします。")
-        return files
+        return files, "スキップ（siegfried 未同梱。すべて未識別になります）"
 
     progress("フォーマットを識別しています（siegfried）…")
     try:
@@ -179,7 +185,7 @@ def _identify_formats(
         # ここで移管作業全体を落とすのは割に合わないので、警告にして続行する。
         detail = exc.message if isinstance(exc, SIPPipelineError) else str(exc)
         progress(f"フォーマット識別に失敗したためスキップします: {detail}")
-        return files
+        return files, f"スキップ（siegfried を実行できず: {detail[:80]}）"
 
     # siegfried が返すパス文字列と、こちらが持つ絶対パスを突き合わせる。
     # 表記の揺れ（シンボリックリンク・相対表記）に備えて解決したパスで引く。
@@ -195,7 +201,7 @@ def _identify_formats(
         f.format_basis = record.basis
         f.format_warning = record.warning
 
-    return files
+    return files, "実施（siegfried / PRONOM）"
 
 
 def _compute_checksums(files: list[ScannedFile], progress: Progress) -> None:
@@ -278,6 +284,7 @@ def _build_documents(
     options: SIPOptions,
     structured: bool,
     virus_status: str,
+    format_status: str,
     source_note: str,
     progress: Progress,
 ) -> SubmissionDocs:
@@ -304,9 +311,13 @@ def _build_documents(
         metadata_csv=provided or spreadsheets.metadata_template(files),
         dfxml_xml=dfxml.build(files, scan_root).decode("utf-8"),
         report_text=report.text_report(
-            files, metadata, options, virus_status=virus_status, source_archive_note=source_note
+            files, metadata, options, virus_status=virus_status,
+            format_status=format_status, source_archive_note=source_note
         ),
-        report_html=report.html_report(files, metadata, options, virus_status=virus_status),
+        report_html=report.html_report(
+            files, metadata, options, virus_status=virus_status,
+            format_status=format_status,
+        ),
         arrangement_map_csv=arrangement_map,
         pii_csv=spreadsheets.pii_report(files) if options.scan_pii else None,
     )
