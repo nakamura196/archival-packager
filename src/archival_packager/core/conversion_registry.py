@@ -1,6 +1,6 @@
 """正規化ルールの引き当て口（Archivematica FPR の極小版）。
 
-現行 Swift 実装の `Sources/AIP/ConversionRegistry.swift` に対応する。
+退役した Swift 実装の `Sources/AIP/ConversionRegistry.swift` に由来する。
 PUID をキーに「保存用の派生物をどのツールでどう作るか」を引く。
 
 ## 規則そのものは rule_table.py に移した
@@ -25,8 +25,9 @@ Swift 版は画像→TIFF に macOS 内蔵の `sips` を使っていた。これ
 
 PostScript/EPS→PDF の Ghostscript は引き続き外部プロセス。ただし**同梱しない**
 （AGPL-3.0 であり、MIT のアプリに同梱すると配布ライセンスの判断が要る。加えて
-macOS 向け公式ビルドが無い）。現行 Swift 版も同梱しておらず、PATH 上の gs を使う。
-gs が無い環境では変換されず、原本がそのまま保存され report に警告が出る。
+macOS 向け公式ビルドが無い）。Swift 版でも同梱しておらず PATH 上の gs を使っていたので、
+ここも同じ扱いにしてある。gs が無い環境では変換されず、原本がそのまま保存され
+report に警告が出る。
 """
 
 from __future__ import annotations

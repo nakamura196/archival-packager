@@ -1,6 +1,6 @@
 """ウイルス検査（ClamAV）。
 
-現行 Swift 実装の `Sources/SIP/ClamAV.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/ClamAV.swift` に由来する。
 
 同梱の `clamscan` と、取得済みの定義 DB があるときだけ実行する。
 どちらも無ければスキップする（検査できないことと、検査して検出なしだったことは

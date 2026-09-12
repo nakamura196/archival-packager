@@ -1,6 +1,6 @@
 """AIP 生成パイプライン（読み取り → 完全性確認 → 正規化 → METS → bag 化）。
 
-現行 Swift 実装の `Sources/AIP/AIPOrchestrator.swift` と `AIPBuilder.swift` に対応する。
+退役した Swift 実装の `Sources/AIP/AIPOrchestrator.swift` と `AIPBuilder.swift` に由来する。
 
     入力 = SIP Creator が出した SIP ディレクトリ または BagIt bag
     出力 = Archivematica 風 AIP（BagIt bag、data/METS.<uuid>.xml に PREMIS を埋める）

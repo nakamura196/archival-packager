@@ -1,6 +1,6 @@
 """チェックサム計算。
 
-現行 Swift 実装の `Sources/SIP/Checksums.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/Checksums.swift` に由来する。
 大きなファイルでもメモリ消費が一定になるよう、チャンク読み込みで
 SHA-256 をストリーム計算する（Swift 版は CryptoKit、こちらは hashlib）。
 """

@@ -1,6 +1,6 @@
 """ZIP の読み書き。
 
-現行 Swift 実装の `Sources/SIP/ZipImport.swift` と `ZipArchive.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/ZipImport.swift` と `ZipArchive.swift` に由来する。
 
 Swift 版は `/usr/bin/unzip` と `/usr/bin/zip` を起動していた。どちらも Windows には
 存在しないため、標準ライブラリ `zipfile` に置き換える。外部プロセスが要らなくなり、

@@ -1,6 +1,6 @@
 """SIP 生成パイプラインの共有データモデル。
 
-現行 Swift 実装の `Sources/SIP/Pipeline.swift` に対応する。各処理段
+退役した Swift 実装の `Sources/SIP/Pipeline.swift` に由来する。各処理段
 （フォーマット識別 / チェックサム / PII 走査 / ウイルス検査）が
 `ScannedFile` を順に埋めていき、最後に `SIPBuilder` がパッケージを組む。
 """

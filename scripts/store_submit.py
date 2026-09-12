@@ -49,7 +49,8 @@ API = "https://manage.devcenter.microsoft.com/v1.0/my"
 # 申請 JSON で値を埋めておく必要がある端末種別。
 # 複製で返ってくる申請には一部しか入っておらず、足りないまま PUT すると
 # 400 InvalidParameterValue で落ちる（2026-09-12 に遭遇）。
-DEVICE_FAMILIES = ("Desktop", "Mobile", "Xbox", "Holographic")
+#: エラーが名指しで要求してくる端末種別。**この 4 つは必ず入れる。**
+REQUIRED_DEVICE_FAMILIES = ("Desktop", "Mobile", "Xbox", "Holographic")
 
 ROOT = Path(__file__).resolve().parent.parent
 LISTING = ROOT / "store" / "listing-ja.md"
@@ -158,15 +159,20 @@ def ensure_device_families(submission: dict) -> dict:
         AllowTargetFutureDeviceFamilies needs to be initialized for all
         supported platform, [Desktop, Mobile, Xbox, Holographic]
 
-    入っている値は大文字小文字を問わず拾い、無いものは False で埋める。
-    このアプリはデスクトップ専用なので、勝手に True にしない。
+    **既に入っている種別は消さない。** 公式ドキュメントの申請オブジェクトの例には
+    `Team` を含む 5 種類が載っており、エラーが名指しする 4 つで dict を作り直すと、
+    複製元に入っていた `Team` を黙って削ることになる。
+    足りないものを足すだけにして、あるものはそのまま通す（2026-09-12 に修正）。
+
+    無いものは False で埋める。このアプリはデスクトップ専用なので、勝手に True にしない。
     """
     current = submission.get("allowTargetFutureDeviceFamilies") or {}
-    lowered = {str(k).lower(): v for k, v in current.items()}
-    submission["allowTargetFutureDeviceFamilies"] = {
-        family: bool(lowered.get(family.lower(), False))
-        for family in DEVICE_FAMILIES
-    }
+    filled = {str(k): bool(v) for k, v in current.items()}
+    seen = {k.lower() for k in filled}
+    for family in REQUIRED_DEVICE_FAMILIES:
+        if family.lower() not in seen:
+            filled[family] = False
+    submission["allowTargetFutureDeviceFamilies"] = filled
     return submission
 
 

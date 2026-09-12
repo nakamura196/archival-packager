@@ -1,6 +1,6 @@
 """画像の保存用正規化（→ 非圧縮 TIFF）。
 
-現行 Swift 実装は macOS 内蔵の `sips` を使っていた。Windows には無いので置き換えが要る。
+Swift 版は macOS 内蔵の `sips` を使っていた。Windows には無いので置き換えが要る。
 
 ## なぜ ImageMagick でなく Pillow か
 

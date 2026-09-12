@@ -1,6 +1,6 @@
 """SIP（または BagIt bag）の組み立て。
 
-現行 Swift 実装の `Sources/SIP/SIPBuilder.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/SIPBuilder.swift` に由来する。
 本家 sipcreator のレイアウトに倣う（折衷）:
 
     非bag: <pkg>/objects/...
@@ -13,7 +13,7 @@
            <pkg>/data/metadata/...
            <pkg>/{bagit.txt, bag-info.txt, manifest-sha256.txt, tagmanifest-sha256.txt}
 
-チェックサムは本家の MD5 ではなく SHA-256 を用いる（Swift 版から引き継ぐ改善）。
+チェックサムは本家の MD5 ではなく SHA-256 を用いる（Swift 版から引き継いだ改善）。
 
 ## checksum.sha256 が 2 箇所にあるのはなぜか（2026-09-12）
 
@@ -34,17 +34,17 @@
 
 Swift 版は bagit.txt / manifest / tagmanifest を手書きしていた。ここでは
 米国議会図書館の `bagit` パッケージ（BagIt 仕様のリファレンス実装）に委ねる。
-Python を移植先に選んだ最大の理由がこれで、次の 2 点が効く。
+Python で書き直した最大の理由がこれで、次の 2 点が効く。
 
 1. **仕様の細部を自前で持たなくてよい。** 例えば BagIt 仕様は、ファイル名に
    LF / CR / % を含む場合マニフェスト中でパーセントエンコードすることを要求する。
-   Swift 版はこれを行っておらず、該当する資料名で仕様非適合の bag を作る。
+   Swift 版はこれを行っておらず、該当する資料名では仕様非適合の bag ができていた。
 2. **検証ができる。** `bagit.Bag(path).validate()` で、生成した bag が
    仕様に適合し、かつペイロードがマニフェストと一致することを確認できる。
 
 副作用として bag-info.txt の `Bag-Software-Agent` は bagit.py のものになる。
-差分検証では Bagging-Date と併せて除外して比較する（どちらも生成時刻・生成主体を
-示す情報で、パッケージの中身とは独立）。
+Swift 版との差分検証でも、Bagging-Date と併せて除外して比較していた
+（どちらも生成時刻・生成主体を示す情報で、パッケージの中身とは独立）。
 """
 
 from __future__ import annotations

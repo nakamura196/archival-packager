@@ -1,6 +1,6 @@
 """完全性確認 — チェックサム・マニフェストの再ハッシュ照合。
 
-現行 Swift 実装の `Sources/AIP/Fixity.swift` に対応する。
+退役した Swift 実装の `Sources/AIP/Fixity.swift` に由来する。
 
 入力 SIP のマニフェストを読み、ペイロード各ファイルを実際に SHA-256 で
 再計算して一致を確かめる。不一致や読めないファイルがあれば相対パスを返す。
@@ -68,7 +68,7 @@ def verify(sip_root: Path, *, is_bag: bool) -> FixityStatus:
 
     # 不一致があるなら、照合できた件数が 0 でも failed。
     #
-    # 現行 Swift 実装はここで checked == 0 を先に見て skipped を返していた。
+    # Swift 版はここで checked == 0 を先に見て skipped を返していた。
     # そのため「マニフェストに記載されたファイルが全て存在しない」SIP に対して
     # 「マニフェストに有効な行がありません」= 検査せず飛ばした、と報告してしまう。
     # ファイルが消えている SIP を skipped と報告するのは、保存ツールとして

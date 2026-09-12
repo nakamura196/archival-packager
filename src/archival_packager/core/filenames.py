@@ -1,6 +1,6 @@
 """受入時のファイル名サニタイズ。
 
-現行 Swift 実装の `Sources/SIP/FilenameSanitizer.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/FilenameSanitizer.swift` に由来する。
 
 既定では呼ばれない（`SIPOptions.sanitize_filenames` が ON のときだけ適用）。
 OFF のときは日本語・特殊文字をそのまま保持する（「日本語のまま出力したい」要望への対応）。
@@ -9,14 +9,14 @@ OFF のときは日本語・特殊文字をそのまま保持する（「日本�
 accession.csv の「原パス（受入時）」に記録される。SIP 内の sanitize 後ファイルとは
 SHA-256 で突合できる。
 
-## 現行 Swift 版からの意図的な差分
+## Swift 版からの意図的な差分
 
 Swift 版は macOS 専用だったため Windows の**予約名**を考慮していない。
 `CON.txt` や `PRN` はどこにも作成できず、配布先で SIP の展開が失敗する。
 sanitize の目的が「どの OS でも安全な名前にすること」である以上、
 これは同じ趣旨の欠落とみなして対応する（`windows_reserved` の既定は True）。
 
-差分検証で現行実装と食い違うのは、予約名を含む入力を与えたときだけ。
+当時の差分検証で Swift 版と食い違ったのは、予約名を含む入力を与えたときだけだった。
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """DFXML (Digital Forensics XML) 出力。
 
-現行 Swift 実装の `Sources/SIP/DFXML.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/DFXML.swift` に由来する。
 
 本家 sipcreator は simsong/dfxml の walk_to_dfxml.py で生成する。当アプリは
 既に保持している path/size/mtime/SHA-256 から、ディレクトリ走査相当の

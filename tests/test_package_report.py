@@ -228,25 +228,54 @@ class TestSummary:
 class TestMaliciousMetsCannotReadLocalFiles:
     """細工された METS に手元のファイルを読み出させない（XXE）。
 
-    lxml 6.1.1 の既定でも実体は解決されないので、**今は落ちない**。
-    このテストは穴を塞いだ証明ではなく、**将来塞がらなくなったら気づくための番人**。
-    パーサの指定を外した／lxml の既定が変わった、のどちらでも赤くなる。
+    **これは実在した穴である。** lxml 6.1.1 の既定パーサは
+    `resolve_entities="internal"` で、外部**パラメータ**実体を経由した形なら
+    任意のローカルファイルを読み出す（2026-09-12 に実測。lxml 6.1.3 で上流修正）。
+
+    最初に書いたテストは**一般実体**の形しか試しておらず、対策を外しても落ちなかった。
+    そのため「既定でも安全なので対策は不要だった」と誤って結論しかけた。
+    **落ちないテストは、対策が要らない証拠ではなく、攻撃が弱い証拠である。**
+    ここでは両方の形を試す。
     """
 
-    def _package(self, tmp_path: Path, secret: Path) -> Path:
-        root = tmp_path / "わるいパッケージ"
+    def _package(self, tmp_path: Path, secret: Path, *, kind: str = "parameter") -> Path:
+        """kind="general" は一般実体、"parameter" は外部パラメータ実体。
+
+        後者が本命。前者は lxml 6.1.1 の既定でも「実体が未定義」で落ちるため、
+        これだけだと対策の有無を見分けられない。
+        """
+        root = tmp_path / f"わるいパッケージ-{kind}"
         (root / "data").mkdir(parents=True)
-        mets = f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE mets [
+        if kind == "general":
+            doctype = f'''<!DOCTYPE mets [
   <!ENTITY leak SYSTEM "file://{secret}">
-]>
+]>'''
+        else:
+            dtd = tmp_path / "ext.dtd"
+            dtd.write_text(
+                f'''<!ENTITY % file SYSTEM "file://{secret}">
+<!ENTITY % wrap "<!ENTITY leak '%file;'>">
+%wrap;
+''', encoding="utf-8")
+            doctype = f'''<!DOCTYPE mets [
+  <!ENTITY % ext SYSTEM "file://{dtd}">
+  %ext;
+]>'''
+        mets = f"""<?xml version="1.0" encoding="UTF-8"?>
+{doctype}
 <mets:mets xmlns:mets="http://www.loc.gov/METS/"
            xmlns:xlink="http://www.w3.org/1999/xlink">
-  <mets:metsHdr CREATEDATE="2026-09-12T00:00:00Z"/>
+  <mets:metsHdr CREATEDATE="2026-09-12T00:00:00Z">
+    <mets:agent ROLE="CREATOR" TYPE="OTHER">
+      <!-- 実体は「要素の中身」に置く。XML は属性値の中に外部実体を書くことを
+           禁じているので、属性に置くと攻撃そのものが成立しない。 -->
+      <mets:name>&leak;</mets:name>
+    </mets:agent>
+  </mets:metsHdr>
   <mets:fileSec>
     <mets:fileGrp USE="original">
       <mets:file ID="f1">
-        <mets:FLocat LOCTYPE="URL" xlink:href="&leak;"/>
+        <mets:FLocat LOCTYPE="URL" xlink:href="objects/a.txt"/>
       </mets:file>
     </mets:fileGrp>
   </mets:fileSec>
@@ -256,27 +285,60 @@ class TestMaliciousMetsCannotReadLocalFiles:
         (root / "data" / "METS.xml").write_text(mets, encoding="utf-8")
         return root
 
-    def test_secret_does_not_leak(self, tmp_path: Path):
-        secret = tmp_path / "秘密.txt"
+    @pytest.mark.parametrize("kind", ["general", "parameter"])
+    def test_secret_does_not_leak(self, tmp_path: Path, kind: str):
+        # 名前は ASCII にする。file:// URL に日本語が入ると解決されず、
+        # 攻撃が「成功したが中身は空」になって、テストが無言で無力化する。
+        secret = tmp_path / "secret.txt"
         secret.write_text("TOP-SECRET-VALUE", encoding="utf-8")
-        root = self._package(tmp_path, secret)
+        root = self._package(tmp_path, secret, kind=kind)
 
         try:
             report = package_report.read(root)
-        except Exception:
+        except Exception as exc:
             # 読めずに失敗するのは構わない。漏れないことが要件。
+            assert "TOP-SECRET-VALUE" not in str(exc)
             return
 
-        blob = repr(report)
-        assert "TOP-SECRET-VALUE" not in blob
+        assert "TOP-SECRET-VALUE" not in repr(report)
 
-    def test_does_not_crash_the_viewer(self, tmp_path: Path):
-        """壊れた入力で例外を投げてよいが、黙って中身を読んではいけない。"""
-        secret = tmp_path / "秘密.txt"
+    def test_the_module_parser_blocks_it(self, tmp_path: Path):
+        """**これが本体の検査。** モジュールが使うパーサそのものを当てる。
+
+        `read()` の戻り値を見る形にしていたときは、実体の値が表に出ない経路だったため、
+        対策を外しても緑のままだった。**守っている当人を直接試すこと。**
+        """
+        from lxml import etree
+
+        from archival_packager.core import package_report as pr
+
+        secret = tmp_path / "secret.txt"
         secret.write_text("TOP-SECRET-VALUE", encoding="utf-8")
-        root = self._package(tmp_path, secret)
+        root = self._package(tmp_path, secret, kind="parameter")
+        mets = root / "data" / "METS.xml"
 
+        doc = etree.parse(str(mets), pr._SAFE_PARSER)
+        assert "TOP-SECRET-VALUE" not in etree.tostring(doc, encoding="unicode")
+
+    def test_the_parameter_entity_form_is_the_one_that_matters(self, tmp_path: Path):
+        """対策を外したときに実際に漏れる形であることを、素の lxml で確かめる。
+
+        このテスト自体が「攻撃ペイロードが有効であること」の検査。
+        ここが通らなくなったら、上のテストは何も守っていない。
+        """
+        from lxml import etree
+
+        # 名前は ASCII にする。file:// URL に日本語が入ると解決されず、
+        # 攻撃が「成功したが中身は空」になって、テストが無言で無力化する。
+        secret = tmp_path / "secret.txt"
+        secret.write_text("TOP-SECRET-VALUE", encoding="utf-8")
+        root = self._package(tmp_path, secret, kind="parameter")
+        mets = root / "data" / "METS.xml"
+
+        leaked = ""
         try:
-            package_report.read(root)
-        except Exception as exc:
-            assert "TOP-SECRET-VALUE" not in str(exc)
+            doc = etree.parse(str(mets))          # 既定パーサ＝対策なし
+            leaked = etree.tostring(doc, encoding="unicode")
+        except Exception:
+            pytest.skip("この lxml の既定パーサでは外部実体が解決されない（上流で修正済み）")
+        assert "TOP-SECRET-VALUE" in leaked, "攻撃が効いていない。ペイロードを見直すこと"

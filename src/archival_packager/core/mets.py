@@ -1,6 +1,6 @@
 """METS / PREMIS の生成。
 
-現行 Swift 実装の `Sources/AIP/METSWriter.swift` と `PREMISWriter.swift` に対応する。
+退役した Swift 実装の `Sources/AIP/METSWriter.swift` と `PREMISWriter.swift` に由来する。
 amdSec（PREMIS object/event/agent を内包）/ fileSec / structMap を 1 つの METS にまとめる。
 admID・fileID を 3 セクション間で一貫させるのが要点。
 
@@ -16,7 +16,7 @@ Swift 版は XML を文字列連結で作っており、次の弱点があった
 lxml で組めば 1 と 2 は原理的に起こらない（テキストは常にエスケープされ、
 木構造なので閉じ忘れも起こらない）。3 も **公式の XSD で検証している**
 （tests/test_schema_conformance.py。スキーマは tests/schemas/ に置いてある）。
-これが Python を移植先に選んだ理由の一つ。
+これが Python で書き直した理由の一つ。
 
 ## 木を丸ごとは持たない（2026-09-12）
 

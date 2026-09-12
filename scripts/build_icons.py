@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """アプリのアイコンを描いて、必要な形に書き出す。
 
-描画そのものは Swift 版（nakamura196/archival-packager）の
+描画そのものは、退役した Swift 実装（nakamura196/archival-packager-swift）の
 scripts/build_icon.py から持ってきた。**同じ見た目にするため。**
 macOS 版と Windows 版でアイコンが違うと、同じアプリだと分からなくなる。
 
@@ -24,7 +24,7 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# 以下、色と寸法は Swift 版と同じ値。変えると両OSで見た目がずれる。
+# 以下、色と寸法は Swift 版から引き継いだ値。変えると両OSで見た目がずれる。
 MASTER = 1024
 
 BG_TOP = (28, 110, 140)      # deep teal-blue

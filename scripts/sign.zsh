@@ -16,7 +16,7 @@
 #
 # zip 内のデータは署名できないため、バイナリは .app のバンドル内
 # (Contents/Resources/bin/) に置き、個別に署名する必要がある。
-# これは現行 aip（Swift 版）が Resources/bin/ に置いているのと同じ構成。
+# これは退役した Swift 実装が Resources/bin/ に置いていたのと同じ構成。
 #
 # 署名の取りこぼしに注意
 # ----------------------
@@ -44,7 +44,7 @@ for required in sf default.sig clamscan freshclam; do
 done
 
 # codesign のセキュアタイムスタンプ取得はネットワーク次第で確率的に失敗するため
-# リトライで吸収する（現行 aip の export-devid.sh と同じ方針）。
+# リトライで吸収する（Swift 版の export-devid.sh と同じ方針）。
 retry() {
   local n=1
   until "$@"; do

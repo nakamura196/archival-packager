@@ -126,19 +126,39 @@ class TestEnsureDeviceFamilies:
         assert sub["allowTargetFutureDeviceFamilies"] == {
             "Desktop": True, "Mobile": False, "Xbox": False, "Holographic": False}
 
+    def test_keeps_families_we_do_not_know_about(self):
+        """複製元にある種別を消さない。
+
+        エラーが名指しするのは 4 つだが、公式の申請オブジェクトの例には
+        `Team` を含む 5 種類が載っている。4 つで作り直すと `Team` が黙って消え、
+        こちらの知らない設定を勝手に落とすことになる（2026-09-12 の指摘）。
+        """
+        sub = {"allowTargetFutureDeviceFamilies": {"Desktop": True, "Team": True}}
+        store_submit.ensure_device_families(sub)
+        got = sub["allowTargetFutureDeviceFamilies"]
+        assert got["Team"] is True
+        assert set(got) == {"Desktop", "Team", "Mobile", "Xbox", "Holographic"}
+
     def test_fills_when_absent(self):
         sub = {}
         store_submit.ensure_device_families(sub)
         assert set(sub["allowTargetFutureDeviceFamilies"]) == set(
-            store_submit.DEVICE_FAMILIES)
+            store_submit.REQUIRED_DEVICE_FAMILIES)
 
-    def test_keeps_existing_values_case_insensitively(self):
+    def test_does_not_duplicate_a_family_that_differs_only_in_case(self):
+        """大文字小文字だけ違うキーを二重に持たせない。
+
+        返ってきたキーは**書き換えない**（こちらが知らない表記を勝手に直すと、
+        相手の期待とずれたときに原因が追えなくなる）。足りないものだけ足す。
+        """
         sub = {"allowTargetFutureDeviceFamilies": {"desktop": True, "XBOX": True}}
         store_submit.ensure_device_families(sub)
         got = sub["allowTargetFutureDeviceFamilies"]
-        assert got["Desktop"] is True
-        assert got["Xbox"] is True
-        assert got["Mobile"] is False
+        assert got["desktop"] is True          # 元のキーのまま残る
+        assert got["XBOX"] is True
+        assert "Desktop" not in got            # 二重に生やさない
+        assert "Xbox" not in got
+        assert got["Mobile"] is False          # 足りないものは足す
 
     def test_does_not_invent_true(self):
         """デスクトップ専用のアプリを、勝手に他の端末に広げない。"""

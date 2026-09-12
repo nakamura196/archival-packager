@@ -1,6 +1,6 @@
 """siegfried によるフォーマット識別。
 
-現行 Swift 実装の `Sources/SIP/Siegfried.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/Siegfried.swift` に由来する。
 
 同梱の `sf` を使って入力ツリーを再帰的に識別し、PRONOM PUID / フォーマット名 /
 MIME などを取得する。シグネチャ DB（default.sig）も同梱し `-home` で参照することで
@@ -86,7 +86,7 @@ def _records_from(output: object) -> dict[str, SiegfriedRecord]:
     """siegfried の -json 出力を SiegfriedRecord へ変換する。
 
     欠落や空文字に対して頑健にする（Swift 版が decodeIfPresent で全項目を
-    optional にしているのと同じ方針）。siegfried のバージョン差でフィールドが
+    optional にしていたのと同じ方針）。siegfried のバージョン差でフィールドが
     増減しても、識別できたものだけを拾って先へ進む。
     """
     if not isinstance(output, dict):

@@ -1,6 +1,6 @@
 """AIP 生成パイプラインの共有モデル。
 
-現行 Swift 実装の `Sources/AIP/AIPPipeline.swift` に対応する。
+退役した Swift 実装の `Sources/AIP/AIPPipeline.swift` に由来する。
 
 入力 = SIP Creator が出した SIP ディレクトリ または BagIt bag。
 出力 = Archivematica 風 AIP（BagIt bag、data/METS.xml に PREMIS を埋める）。

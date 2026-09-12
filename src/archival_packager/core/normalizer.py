@@ -1,6 +1,6 @@
 """正規化の実行。
 
-現行 Swift 実装の `Sources/AIP/Normalizer.swift` に対応する。
+退役した Swift 実装の `Sources/AIP/Normalizer.swift` に由来する。
 1 原本に NormalizationRule を適用し、保存用の派生物を生成する。
 **原本は読むだけで変更しない**（保存対象そのものを書き換えてはならない）。
 

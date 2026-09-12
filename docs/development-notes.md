@@ -1,21 +1,26 @@
-# 開発の記録（移植のいきさつ）
+# 開発の記録（Swift 版から書き直すまで）
 
-このアプリは、macOS 専用の Swift 実装（`nakamura196/archival-packager-swift`）を
-Flet / Python へ移植したもの。**移植の途中経過は README から外して、ここに移した。**
-公開リポジトリの入口に進捗表や「次にやること」が並んでいても、読む人の役に立たないため。
+このアプリは、もともと macOS 専用の Swift 実装だった。それを Flet / Python で
+書き直したのが、いま公開しているこの実装である。
 
-記録として残すのは、当時の判断の理由が後から辿れなくなると、同じ検討を繰り返すことになるから。
+**Swift 版は 2026-09-12 に退役した。** リポジトリは
+`nakamura196/archival-packager-swift` へ改名し、private のまま更新を止めている。
+以後、配布物はこの Python 実装だけである。
+
+このページは**当時の記録**で、現在の使い方や仕様は書いていない（それは README にある）。
+残しているのは、当時の判断の理由が辿れなくなると同じ検討を繰り返すことになるからで、
+書きかけの計画表として読むものではない。
 
 ---
 
-## 現在の状態
+## 到達した状態（退役の時点）
 
-移植は完了し、署名済み `.app` まで通っている。
+Swift 版で出来ていたことはすべて通り、署名済み `.app` と Windows ビルドまで揃った。
 
 | | 状態 |
 |---|---|
-| コア移植（SIP / AIP 全モジュール） | ✅ 完了（450 テスト） |
-| **現行実装との出力一致** | ✅ **差分なし** |
+| コア（SIP / AIP 全モジュール） | ✅ 完了（450 テスト） |
+| **Swift 版との出力一致** | ✅ **差分なし** |
 | UI（3 モード） | ✅ パッケージ版で起動確認済み |
 | Developer ID 署名 | ✅ 未署名 Mach-O ゼロ |
 | **公証（Apple）** | ✅ **Accepted / `spctl: accepted`**（ClamAV 同梱後・357MB） |
@@ -26,7 +31,7 @@ Flet / Python へ移植したもの。**移植の途中経過は README から�
 | Windows のコード署名 | ✅ Microsoft ストア経由で解決（ストア側が署名する） |
 | ストア公開 | ✅ 2026-09-11 公開 / 更新は API で自動化（`scripts/store_submit.py`） |
 
-### 次にやること
+### 途中でつまずいた点と、その決着
 
 1. ~~**Windows ビルドを本実装で再確認。**~~ **完了（2026-09-08）。**
    `workflow_dispatch` で `build_windows: true` を実行し、ビルド・同梱バイナリの
@@ -47,16 +52,21 @@ Flet / Python へ移植したもの。**移植の途中経過は README から�
    評判が貯まるまで警告が出る）ので、配布数の少ない研究用アプリでは
    ストア経由が唯一の現実解だった。
 
-3. **Ghostscript のライセンス整理。** 同梱しない判断は暫定。PostScript/EPS の
-   変換が実運用で必要になるなら、AGPL のまま同梱してよいか（あるいは Artifex の
-   商用ライセンスを取るか）を決める必要がある。それまでは PATH 上の `gs` を使う。
+3. ~~**Swift 版からいつ切り替えるか。**~~ **完了（2026-09-12）。** 差分検証が通り、
+   公証・同梱・ストア公開まで揃ったので、このリポジトリを公開し、Swift 版は
+   `nakamura196/archival-packager-swift` へ改名して private のまま退役させた。
+   **両方を並行して配ることはしていない。** 同じ資料から 2 つの実装で作った
+   パッケージが世に出ると、どちらが「正」なのか後から説明できなくなる。
 
-4. **いつ Swift 版から切り替えるか。** 差分検証が通り、公証・同梱まで揃った。
-   並行運用をいつまで続けるかを決められる状態にある。
+### 保留のままにした判断
 
-## 移植の検証方法
+**Ghostscript のライセンス整理。** 同梱しない判断は暫定のまま。PostScript/EPS の
+変換が実運用で必要になったら、AGPL のまま同梱してよいか（あるいは Artifex の
+商用ライセンスを取るか）を決める必要がある。それまでは PATH 上の `gs` を使う。
 
-**現行 Swift 実装との差分検証**が、この移植で最も効く検証手段。
+## 当時の検証方法 — Swift 版との差分検証
+
+書き直しの検証としては、**Swift 版との出力差分検証**が最も効いた。
 
 ```
 uv run python scripts/differential_check.py --swift-app "/path/to/Archival Packager.app"
@@ -64,25 +74,27 @@ uv run python scripts/differential_check.py --swift-app "/path/to/Archival Packa
 
 同じ入力を両実装に食わせ、生成時刻・UUID・`Bag-Software-Agent` を伏せて突き合わせる。
 単体テストは「自分が想定した仕様」を固定するが、こちらは
-**「現行実装が実際にやっていること」**と突き合わせる。実際にこの検証だけが見つけた
+**「先行実装が実際にやっていたこと」**と突き合わせられる。この検証だけが見つけた
 差異がある（`ByteCountFormatter` のロケール依存で `99 バイト` が `99 bytes` になっていた）。
 
-## 既存実装との関係
+**いまは走らせられない。** 比較相手の `.app` が配布されていないため。
+スクリプト（`scripts/differential_check.py`）は当時の手順の記録として残してある。
+
+## 退役した Swift 実装との関係
 
 これは [`nakamura196/archival-packager-swift`](https://github.com/nakamura196/archival-packager-swift)
-の Swift 実装（macOS 専用、Developer ID 署名・公証済み）を、Windows にも配布できるように
-作り直したもの。**現在はこちらが本体**で、Swift 版は更新を止めている
-（2026-09-12 にリポジトリ名を入れ替えた。以前この名前は Swift 版が使っていた）。
+（macOS 専用、Developer ID 署名・公証済み、現在は private）を、Windows にも配布できるように
+書き直したもの。2026-09-12 にリポジトリ名を入れ替えた。`nakamura196/archival-packager`
+という名前は、以前は Swift 版が使っていた。
 
-**既存の Swift 実装は廃止しない。** 新実装が同等になるまではそちらが配布物であり、
-かつ**差分検証の正解データを出す参照実装**でもある。
+Swift 版のソースは残してあるが、更新も配布もしていない。
 
-## 移植中に見つけた現行実装の問題
+## 書き直しの過程で見つかった Swift 版の問題
 
-移植は現行実装の再読でもある。テストを書く過程で次が判明し、**Swift 側も修正済み**
+書き直しは先行実装の再読でもある。テストを書く過程で次が判明し、**Swift 側も修正した**
 （[archival-packager-swift#3](https://github.com/nakamura196/archival-packager-swift/pull/3) でマージ）。
 
-1. **完全性確認が `failed` を `skipped` と報告する場合がある。**
+1. **完全性確認が `failed` を `skipped` と報告することがあった。**
    マニフェスト記載のファイルが全て存在しないとき、`checked == 0` の判定が先に効いて
    「マニフェストに有効な行がありません」を返す。ペイロードが消えている SIP を
    「検査せず飛ばした」と報告することになる。
@@ -90,7 +102,7 @@ uv run python scripts/differential_check.py --swift-app "/path/to/Archival Packa
 2. **PREMIS の `eventIdentifierValue` を XML 生成のたびに振っていた。**
    同じ入力から 2 回生成すると別の出力になり、差分検証ができなかった。
 
-3. **`accession.csv` の解析が引用フィールド内の改行を扱えない。**
+3. **`accession.csv` の解析が引用フィールド内の改行を扱えなかった。**
    先に行で切ってからパースするため、原理的に扱えない。書き出し側は改行を含む値を
    引用で囲むので、自分が書いた CSV を読み戻せない状態だった。
 
@@ -99,7 +111,7 @@ uv run python scripts/differential_check.py --swift-app "/path/to/Archival Packa
 当初は上記に加えて 2 件を問題として挙げていたが、読み直したところ**誤りだった**。
 記録として残しておく。
 
-- **`structMap` の並び順**：`localizedStandardCompare` でソート済み。問題なし。
+- **`structMap` の並び順**：`localizedStandardCompare` でソート済みだった。問題なし。
 - **DFXML の `esc()` が `'` を扱わない**：`esc` は text ノードにのみ使われており、
   text 内の `'` はエスケープ不要。属性も `"` 区切りなので問題なし。
 

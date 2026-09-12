@@ -1,6 +1,6 @@
 """入力ツリーの走査。
 
-現行 Swift 実装の `Sources/SIP/Orchestrator.swift` の `scan` に対応する。
+退役した Swift 実装の `Sources/SIP/Orchestrator.swift` の `scan` に由来する。
 """
 
 from __future__ import annotations

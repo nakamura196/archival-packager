@@ -1,7 +1,7 @@
 """人間可読レポート（テキスト / HTML）。
 
-現行 Swift 実装の `Sources/SIP/Orchestrator.swift` の `makeReportText` と
-`HTMLReport.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/Orchestrator.swift` の `makeReportText` と
+`HTMLReport.swift` に由来する。
 
 このレポートは「担当者が目視で確認すべき点」を上に集める。未識別・拡張子不一致・
 ウイルス検出・PII 候補は、機械的に処理を止める理由にはならないが、

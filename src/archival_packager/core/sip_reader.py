@@ -1,6 +1,6 @@
 """入力 SIP の読み取り。
 
-現行 Swift 実装の `Sources/AIP/SIPReader.swift` に対応する。
+退役した Swift 実装の `Sources/AIP/SIPReader.swift` に由来する。
 
 SIP（または bag）を走査して、objects/ 配下の原本一覧を AIPFile として返す。
 SHA-256 とフォーマット識別(PUID) は SIP 段の成果物から**継承**する。

@@ -1,6 +1,6 @@
 """PII 走査用のテキスト抽出。
 
-現行 Swift 実装の `Sources/SIP/DocumentText.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/DocumentText.swift` に由来する。
 
 既定では PII 走査はプレーンテキストだけが対象で、PDF はバイナリとしてスキップされて
 いた（PDF 中のメール・電話番号等が検査されなかった）。PDF はテキストを抽出してから

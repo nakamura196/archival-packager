@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<!--
-	  現行 aip（Resources/ArchivalPackager.entitlements）と同じ構成に揃えている。
+	  退役した Swift 実装（Resources/ArchivalPackager.entitlements）と同じ構成に揃えている。
 	  Developer ID 配布・非サンドボックス・hardened runtime のみ。
 
 	  App Sandbox を意図的に無効にしている理由は aip と同じで、有効だと

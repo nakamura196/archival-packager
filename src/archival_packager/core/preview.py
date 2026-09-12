@@ -1,12 +1,12 @@
 """生成物の中身を見せるための読み取りと色分け。
 
-Swift 版（nakamura196/archival-packager）の ResultViewer.swift に対応する。
+退役した Swift 実装（`nakamura196/archival-packager-swift`）の ResultViewer.swift に由来する。
 **画面から切り離してある。** 表示の良し悪しは人が見て判断するものだが、
 「どこまで読むか」「何をバイナリとみなすか」「どこで色を変えるか」は
 規則が決まっており、機械で確かめられる。
 
 外部ライブラリは使わない。配布物を太らせたくないのと、同梱している
-ものと揃えるため（Swift 版も自前で書いている）。
+ものと揃えるため（Swift 版も自前で書いていた）。
 """
 
 from __future__ import annotations

@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""現行 Swift 実装との出力差分検証。
+"""退役した Swift 実装との出力差分検証（現在は実行できない）。
 
-同じ入力から現行 aip（Swift）と新実装で SIP/AIP を生成し、生成時刻や UUID など
-本質的に変わる情報を除いて一致するかを確かめる。移植の検証としては、
-個々の単体テストよりこれが効く。単体テストは「自分が想定した仕様」を固定するが、
-これは「現行実装が実際にやっていること」と突き合わせる。
+**この道具は役目を終えている。** 相手にしていた macOS 専用の Swift 実装
+（`nakamura196/archival-packager-swift`、private）は 2026-09-12 に退役し、
+比較対象の `.app` が配布されていない。**いま走らせても比較相手が用意できない。**
+当時どう突き合わせていたかの記録として残してある。
 
-## 使い方
+同じ入力から Swift 版と Python 版で SIP/AIP を生成し、生成時刻や UUID など
+本質的に変わる情報を除いて一致するかを確かめていた。書き直しの検証としては、
+個々の単体テストよりこれが効いた。単体テストは「自分が想定した仕様」を固定するが、
+こちらは「先行実装が実際にやっていたこと」と突き合わせられる。
+
+## 当時の使い方
 
     uv run python scripts/differential_check.py --swift-app /path/to/Archival\\ Packager.app
 
-現行実装には --headless sip|aip|full があるのでスクリプトから駆動できる。
-.app が無い場合は SWIFT_APP 環境変数、または --swift-app で指定する。
+Swift 版には --headless sip|aip|full があったのでスクリプトから駆動できた。
+.app の場所は SWIFT_APP 環境変数、または --swift-app で指定する。
 
 ## 何を比較し、何を除外するか
 
@@ -27,8 +32,8 @@
   - Bag-Software-Agent（bagit.py と自前実装で必ず異なる）
   - Payload-Oxum 以外の bag-info 生成系項目
 
-除外した項目は「一致しないことが分かっている」ものだけに限る。判断に迷うものは
-除外せず、差分として出して人が見る。
+除外した項目は「一致しないことが分かっている」ものだけに限った。判断に迷うものは
+除外せず、差分として出して人が見る方針だった。
 """
 
 from __future__ import annotations
@@ -111,7 +116,7 @@ def make_sample_input(root: Path) -> Path:
     """両実装に同じものを食わせる入力ツリー。
 
     日本語名・空白・入れ子・拡張子と中身の食い違い・空ファイルを含める。
-    「普通のファイルだけ一致した」では移植の検証にならない。
+    「普通のファイルだけ一致した」では書き直しの検証にならない。
     """
     src = root / "input"
     (src / "文書 2024" / "sub").mkdir(parents=True)
@@ -128,7 +133,7 @@ def make_sample_input(root: Path) -> Path:
 
 
 def run_swift(app: Path, mode: str, input_path: Path, out: Path) -> Path:
-    """現行 Swift 実装を --headless で走らせ、生成物のディレクトリを返す。"""
+    """Swift 版を --headless で走らせ、生成物のディレクトリを返す。"""
     exe = next((app / "Contents" / "MacOS").iterdir())
     out.mkdir(parents=True, exist_ok=True)
 
@@ -232,19 +237,19 @@ def _first_difference(left: str, right: str) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="現行 Swift 実装との出力差分検証")
+    parser = argparse.ArgumentParser(description="退役した Swift 実装との出力差分検証")
     parser.add_argument(
         "--swift-app",
         type=Path,
         default=Path(os.environ["SWIFT_APP"]) if os.environ.get("SWIFT_APP") else None,
-        help="現行実装の .app（--headless で駆動する）",
+        help="Swift 版の .app（--headless で駆動する）",
     )
     parser.add_argument("--keep", action="store_true", help="作業ディレクトリを残す")
     args = parser.parse_args()
 
     if args.swift_app is None or not args.swift_app.exists():
         print(
-            "現行実装の .app を指定してください（--swift-app または SWIFT_APP）。\n"
+            "Swift 版の .app を指定してください（--swift-app または SWIFT_APP）。\n"
             "  例: uv run python scripts/differential_check.py \\\n"
             "        --swift-app ~/git/kim/aip/app/build/dd_rel/.../Archival\\ Packager.app",
             file=sys.stderr,
@@ -262,7 +267,7 @@ def main() -> int:
 
         print(f"比較したファイル: {report.compared} 件")
         if report.ok:
-            print("差分なし。移植後の出力は現行実装と一致しています。")
+            print("差分なし。Python 版の出力は Swift 版と一致しています。")
             return 0
 
         print(f"\n差分 {len(report.diffs)} 件:\n")
@@ -273,7 +278,7 @@ def main() -> int:
                     print(f"      {line}")
         print(
             "\n注: 生成日時・UUID・Bag-Software-Agent は比較前に伏せています。"
-            "\n    ここに出た差分は、移植の齟齬か、意図的な仕様変更のどちらかです。"
+            "\n    ここに出た差分は、書き直しの齟齬か、意図的な仕様変更のどちらかです。"
         )
         return 1
 

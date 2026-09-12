@@ -1,6 +1,6 @@
 """受入記録の解析と、配列前後の突合。
 
-現行 Swift 実装の `Sources/SIP/Accession.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/Accession.swift` に由来する。
 
 受入時点（配列前）に書いた accession.csv を後から読み込み、配列後のファイル群と
 突き合わせて「配列前パス → 配列後パス」の対応表（arrangement-map.csv）を作る。
@@ -14,7 +14,7 @@
 Swift 版は RFC 4180 風のパーサを手書きしていた。標準の csv モジュールは
 引用符・二重化・引用内の改行をすべて扱うので、自前実装をやめる。
 特に「引用フィールド内の改行」は手書きの行分割では原理的に扱えない
-（Swift 版は先に行で切っているため、値に改行を含む accession.csv を正しく読めない）。
+（Swift 版は先に行で切っていたため、値に改行を含む accession.csv を正しく読めなかった）。
 """
 
 from __future__ import annotations

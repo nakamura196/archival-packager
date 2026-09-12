@@ -1,6 +1,6 @@
 """スプレッドシート（CSV）生成。
 
-現行 Swift 実装の `Sources/SIP/DescriptiveSpreadsheet.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/DescriptiveSpreadsheet.swift` に由来する。
 
 本家 sipcreator に倣い「記述メタデータ」と「技術メタデータ」を分離する:
 

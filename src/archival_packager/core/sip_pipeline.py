@@ -1,6 +1,6 @@
 """SIP 生成パイプライン全体のオーケストレーション。
 
-現行 Swift 実装の `Sources/SIP/Orchestrator.swift` に対応する。
+退役した Swift 実装の `Sources/SIP/Orchestrator.swift` に由来する。
 
 入力フォルダ走査 → フォーマット識別 → SHA-256 → 走査（ウイルス/PII）
 → スプレッドシート → SIP/BagIt 組み立て → レポート、の順で駆動する。

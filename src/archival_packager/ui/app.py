@@ -1,7 +1,7 @@
 """Archival Packager の画面。
 
-現行 Swift 版の SwiftUI 画面（ArchivalPackagerApp / FullRootView / ContentView /
-AIPContentView / ResultViewer）に対応する。
+退役した Swift 実装の SwiftUI 画面（ArchivalPackagerApp / FullRootView / ContentView /
+AIPContentView / ResultViewer）に由来する。
 
 3 つのモードを 1 つのアプリに収める:
 
@@ -762,7 +762,7 @@ def main(page: ft.Page) -> None:
     )
 
     #: 本画面とビューアを入れ替える器。ビューアはツリーと中身に幅が要るので、
-    #: 並べて置かず、画面ごと切り替える（Swift 版も同じ作り）。
+    #: 並べて置かず、画面ごと切り替える（Swift 版も同じ作りだった）。
     shell = ft.Container(main_view, expand=True)
 
     def close_viewer() -> None:

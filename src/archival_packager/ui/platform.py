@@ -1,6 +1,6 @@
 """OS 依存の小さな操作。
 
-現行 Swift 版は AppKit（NSWorkspace）を直接呼んでいた。Windows でも動かす必要が
+Swift 版は AppKit（NSWorkspace）を直接呼んでいた。Windows でも動かす必要が
 あるので、OS 差はここに閉じ込める。UI の他の部分からは OS を意識しない。
 """
 
