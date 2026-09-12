@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
-from archival_packager.core import clamav, report, scan as scan_mod, sip_pipeline, zip_io
+from archival_packager.core import bundled, clamav, report, scan as scan_mod, sip_pipeline, zip_io
 from archival_packager.core.models import (
     PIIFinding,
     ScannedFile,
@@ -396,6 +396,9 @@ class TestReportSaysWhyFormatsAreUnidentified:
         assert "フォーマット識別:" in report
         assert "未同梱" in report, "ツールが無かったことが書かれていない"
 
+    @pytest.mark.skipif(
+        bundled.find("sf") is None, reason="同梱 sf が無い環境では識別が走らない"
+    )
     def test_says_it_ran_when_it_ran(self, tmp_path):
         from archival_packager.core import sip_pipeline
         from archival_packager.core.models import SIPMetadata, SIPOptions

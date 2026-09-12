@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from archival_packager.core import aip_pipeline, package_report, sip_pipeline
+from archival_packager.core import aip_pipeline, bundled, package_report, sip_pipeline
 from archival_packager.core.aip_models import AIPOptions
 from archival_packager.core.models import SIPMetadata, SIPOptions
 
@@ -140,6 +140,14 @@ class TestSubmissionDocuments:
         assert report.overview.original_count > 0
 
 
+#: 同梱の siegfried が無い環境（Linux の CI）では、識別そのものが走らない。
+#: フォーマット名を確かめるテストは、そこでは意味を持たない。
+needs_siegfried = pytest.mark.skipif(
+    bundled.find("sf") is None, reason="同梱 sf が無い環境"
+)
+
+
+@needs_siegfried
 class TestNormalizedCopiesAreNamed:
     """変換して作ったファイルにも、フォーマット名を付けること。
 
