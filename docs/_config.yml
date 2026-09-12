@@ -1,9 +1,11 @@
-# GitHub Pages（このフォルダだけを公開サイトとして配信する）の設定。
+# GitHub Pages（このフォルダを公開サイトとして配信する）の設定。
 #
-# リポジトリ本体は private のまま。Pages の公開元を docs/ にすると、
-# **docs/ の中身だけ**がサイトとして配信される。ソースコードは出ない。
+# **2026-09-12 にリポジトリ本体を公開した。** それまでは private で、
+# docs/ だけが外から見える状態だった。いまはソースも公開されている。
 #
-# 逆に言えば、docs/ に置いたものは誰でも見られる。ここに機密を置かないこと。
+# 改名するとリダイレクトされない。Pages の URL は掲載情報や審査で
+# 参照されるので、リポジトリ名を変えるときは URL の差し替えも必ず行うこと
+# （実際に 0.1.6 の審査が、切れた URL で差し戻された）。
 title: Archival Packager
-description: OAIS の情報パッケージ（SIP / AIP）を作成するデスクトップアプリ
+description: Builds OAIS information packages (SIP / AIP) — macOS and Windows
 theme: jekyll-theme-minimal

@@ -1,5 +1,93 @@
 # Archival Packager
 
+A desktop application that builds OAIS information packages — a Submission
+Information Package (SIP) and an Archival Information Package (AIP) — from
+born-digital and digitised files. One codebase, macOS and Windows.
+
+By Satoru Nakamura (The University of Tokyo) and Boyoung Kim
+(National Institutes for the Humanities).
+Kim designed the preservation workflow and the practitioner requirements;
+Nakamura wrote the implementation. The application automates the parts of that
+workflow that are mechanically determined.
+
+[English](#english) · [日本語](#日本語)
+
+## English
+
+### Why it exists
+
+Long-term digital preservation has an international standard, OAIS, and mature
+open-source implementations such as Archivematica. Deploying and running them,
+however, takes technical capacity that many small archives do not have. This
+application covers the first step of that work — accession and packaging —
+without requiring the operator to install anything or to use a command line.
+
+### Download
+
+| Platform | Where |
+| --- | --- |
+| Windows | [Microsoft Store](https://apps.microsoft.com/detail/9N6XJD7THHPZ) |
+| macOS | [Releases](https://github.com/nakamura196/archival-packager/releases/latest) (signed and notarised `.dmg`) |
+
+No separate installation is needed. Format identification and virus scanning
+tools are bundled.
+
+### What it does
+
+- Format identification with Siegfried against the PRONOM registry
+- Virus scanning with ClamAV
+- Checksums (SHA-256)
+- Technical metadata in DFXML
+- Descriptive spreadsheet for AtoM / ISAD(G), a technical inventory and an
+  accession record
+- Detection of candidate personal information (My Number, payment card,
+  telephone, email and postal code — five categories only; results are masked)
+- SIP, optionally serialised as a BagIt bag
+- AIP as a BagIt bag with METS carrying embedded PREMIS, recording what was
+  done, when, with which tool and with what outcome
+
+### Design commitments
+
+- **Nothing to install.** The tools used for identification and scanning ship
+  with the application.
+- **Originals are never modified.** Files are read only; preservation copies are
+  written separately.
+- **Output is meant to travel.** Package structure and descriptive metadata are
+  matched field by field against the published specifications of Archivematica
+  and AtoM, so that an organisation can move to those systems later.
+
+### Known limits
+
+Please read [既知の限界](#既知の限界) (Japanese) before relying on this in
+production. In short: normalisation covers images and PostScript/EPS only;
+there is no format validation (no JHOVE or veraPDF equivalent); the personal
+information scan looks at five categories and has measured limits
+([docs/pii-accuracy.md](docs/pii-accuracy.md)); and interoperability has been
+checked against specifications but not yet against a running AtoM or
+Archivematica instance ([docs/interoperability.md](docs/interoperability.md)).
+
+The interface is Japanese and English.
+
+### Documentation
+
+| Document | Contents |
+| --- | --- |
+| [docs/interoperability.md](docs/interoperability.md) | Field-by-field comparison with AtoM and Archivematica specifications |
+| [docs/pii-accuracy.md](docs/pii-accuracy.md) | Measured precision and recall of the personal information scan |
+| [docs/performance.md](docs/performance.md) | Time and memory at 100 to 50,000 files |
+| [docs/rules.md](docs/rules.md) | Adding your own normalisation rules |
+| [docs/atom-verification.md](docs/atom-verification.md) | How to verify against a running AtoM |
+
+### Licence
+
+MIT for this application. Bundled third-party components keep their own
+licences — see [NOTICE](NOTICE), which also explains the ClamAV (GPL-2.0)
+source availability obligation.
+
+---
+
+# 日本語
+
 born-digital / デジタル化ファイルから **SIP（受入）** と **AIP（長期保存）** を作る
 デスクトップアプリ。**macOS と Windows の両方**を 1 つのコードベースから出す。
 
@@ -8,51 +96,14 @@ born-digital / デジタル化ファイルから **SIP（受入）** と **AIP�
 保存ワークフローの設計と実務側の要件は金が、実装は中村が担当している。
 アプリが自動化しているのは、策定したワークフローのうち機械的に決まる部分。
 
-## 現在の状態
+## ダウンロード
 
-移植は完了し、署名済み `.app` まで通っている。
+| | |
+| --- | --- |
+| Windows | [Microsoft Store](https://apps.microsoft.com/detail/9N6XJD7THHPZ) |
+| macOS | [Releases](https://github.com/nakamura196/archival-packager/releases/latest)（署名・公証済みの `.dmg`） |
 
-| | 状態 |
-|---|---|
-| コア移植（SIP / AIP 全モジュール） | ✅ 完了（450 テスト） |
-| **現行実装との出力一致** | ✅ **差分なし** |
-| UI（3 モード） | ✅ パッケージ版で起動確認済み |
-| Developer ID 署名 | ✅ 未署名 Mach-O ゼロ |
-| **公証（Apple）** | ✅ **Accepted / `spctl: accepted`**（ClamAV 同梱後・357MB） |
-| フォーマット識別（siegfried） | ✅ 同梱・起動確認済み |
-| ウイルス検査（ClamAV） | ✅ 同梱・自作シグネチャで検出まで確認 |
-| 画像 → TIFF（Pillow） | ✅ アプリ内変換・通しで確認 |
-| Windows ビルド | ✅ 本実装で通過（2026-09-08 の CI。同梱ツールの起動確認まで） |
-| Windows のコード署名 | ✅ Microsoft ストア経由で解決（ストア側が署名する） |
-| ストア公開 | ✅ 2026-09-11 公開 / 更新は API で自動化（`scripts/store_submit.py`） |
-
-### 次にやること
-
-1. ~~**Windows ビルドを本実装で再確認。**~~ **完了（2026-09-08）。**
-   `workflow_dispatch` で `build_windows: true` を実行し、ビルド・同梱バイナリの
-   取得と配置・起動確認まで通した（run 34283085312）。成果物は
-   `archival-packager-windows-unsigned`（109MB）。
-
-   7 月に止まっていたのは Actions の支出上限（`The job was not started because ...
-   your spending limit needs to be increased`）で、これは解消済み。
-
-   **最初の 1 回はスモークテストだけが落ちた。** `sf.exe` に `-home` を渡しておらず、
-   ユーザ領域の署名 DB を探しに行って FATAL になっていた。アプリ（`core/siegfried.py`）は
-   常に `-home` を渡すので、**確認だけがアプリと違う呼び方をしていた**ことになる。
-   macOS 側は `release.zsh` で同じ直しを入れてあった（ea9a214）。同じ間違いが 2 か所にあった。
-
-2. ~~**Windows のコード署名。**~~ **解決（2026-09-11）。** Microsoft ストアで
-   公開したため、署名はストア側が行う。証明書の購入は不要になった。
-   有償の OV/EV を買っても SmartScreen の警告は消えない（2024 年の仕様変更で、
-   評判が貯まるまで警告が出る）ので、配布数の少ない研究用アプリでは
-   ストア経由が唯一の現実解だった。
-
-3. **Ghostscript のライセンス整理。** 同梱しない判断は暫定。PostScript/EPS の
-   変換が実運用で必要になるなら、AGPL のまま同梱してよいか（あるいは Artifex の
-   商用ライセンスを取るか）を決める必要がある。それまでは PATH 上の `gs` を使う。
-
-4. **いつ Swift 版から切り替えるか。** 差分検証が通り、公証・同梱まで揃った。
-   並行運用をいつまで続けるかを決められる状態にある。
+導入作業は要らない。識別と検査に使う外部ツールは同梱している。
 
 ## 既知の限界
 
@@ -60,61 +111,66 @@ born-digital / デジタル化ファイルから **SIP（受入）** と **AIP�
 
 ### 正規化（保存用フォーマットへの変換）の範囲が狭い
 
-変換するのは次の 2 系統だけで、それ以外は**原本のまま保存**される。
+**組み込みの規則は 2 系統だけ**で、それ以外は原本のまま保存される。
 
 | 入力 | 出力 | 使う道具 | 実際に動くか |
 |---|---|---|---|
-| PNG / JPEG / GIF / BMP（16 PUID） | TIFF | Pillow（アプリ内） | ✅ 常に動く |
-| PostScript / EPS（8 PUID） | PDF | Ghostscript | ⚠️ **同梱していない**ので、利用者の PATH に `gs` がある環境だけ |
+| PNG / JPEG / GIF / BMP（16 PUID） | TIFF | Pillow（アプリ内蔵） | 常に動く |
+| PostScript / EPS（8 PUID） | PDF | Ghostscript | **同梱していない**ので、PATH に `gs` がある環境だけ |
 
-つまり、**Office 文書・音声・動画・CAD などは一切変換されない。**
+つまり、既定では **Office 文書・音声・動画・CAD は変換されない。**
 原本のまま保存され、その旨が report に記録される。
 
-加えて、派生物の用途は**保存用（preservation）だけ**である。
-`DerivativePurpose` には `ACCESS` も定義してあるが、規則表が常に `None` を返すため
-**利用用の派生物もサムネイルも作られない**。
+**規則は利用者が足せる。** 書式と置き場は [docs/rules.md](docs/rules.md) を参照。
+足せるのは「利用者の環境に既にあるコマンドを呼ぶ」規則で、アプリが外部のコードを
+読み込むことはない。使った規則表そのものは AIP に同梱されるので、後から
+「どの規則で作られたか」をパッケージ単体で辿れる。
 
-### Archivematica との違い
+ただし**足りないのは規則表ではなく、変換する道具のほう**である。範囲を広げるには
+LibreOffice（Office → PDF/A）や ffmpeg（音声・動画）が要るが、同梱すると
+「インストール不要」が壊れ、ライセンスの判断も要る（Ghostscript を同梱しない理由は後述）。
 
-Archivematica の FPR（Format Policy Registry）は、PUID ごとに
-preservation / access / thumbnail / characterize / validate といった
-複数の用途の規則を持ち、**画面から追加・編集でき**、中央の FPR サーバと同期できる。
+### 利用用の派生物とサムネイルは作らない
 
-本アプリの規則表は `core/conversion_registry.py` に**直書き**で、利用者は追加できない。
-Archivematica FPR の極小版と考えてよい。
+`DerivativePurpose` に `ACCESS` を定義してあるが、**作らない。**
 
-### なぜ広げていないか
+利用用の派生物とサムネイルは DIP（提供用情報パッケージ）に属するものであり、
+このアプリが作るのは SIP と AIP だけである。品質を落とした派生物を AIP に入れても
+保存上の価値はなく、容量が増えるだけになる。提供は下流のシステムの役割と考えている。
 
-**足りないのは規則表ではなく、変換する道具のほうである。** 規則だけ足しても動かない。
+### 検証（validate）の機能がない
 
-範囲を広げるには LibreOffice（Office → PDF/A）・ffmpeg（音声・動画）・ImageMagick
-などが要るが、いずれも次のどちらかに抵触する。
+保存用に変換した PDF が PDF/A として妥当か、TIFF が仕様に適合しているかを
+**確かめていない。** Archivematica は veraPDF や JHOVE で検査している。
+相当する機能は入っていない。
 
-- **「インストール不要」を壊す。** 同梱すると配布物が数百 MB 単位で膨らむ
-- **ライセンスの判断が要る。** Ghostscript は AGPL-3.0 で、MIT のアプリに同梱するなら
-  整理が必要（詳細は「Ghostscript を同梱しない理由」）
+識別（これは何形式か）と検証（その形式として正しいか）は別の工程で、
+本アプリが行っているのは識別までである。
 
-さらに、長期保存の観点でもう 1 つ制約がある。**同じ資料から作った保存用派生物の
-バイト列が環境によって変わると、どちらが「正」なのか説明できない。**
-ImageMagick をやめて Pillow にしたのも同じ理由である（詳細は後述）。
-利用者が任意の外部ツールを差し込める仕組みにすると、この性質は失われる。
+### 相互運用は仕様との突合までしか確かめていない
 
-### 広げるなら満たすべき条件
+パッケージ構造と記述メタデータは、Archivematica と AtoM の公式仕様と項目単位で
+突き合わせてある（[docs/interoperability.md](docs/interoperability.md)）。
+**ただし、実際に両システムに読み込ませたわけではない。**
+実機で確かめる手順は [docs/atom-verification.md](docs/atom-verification.md) に置いた。
 
-将来、規則を足せるようにする場合は、最低限これらが要る。
+### 個人情報の検出は 5 種別だけ
 
-1. 使った道具の**名前と版**を PREMIS の `eventDetail` に記録する（現在も記録している）
-2. 同梱していない道具で作った派生物は、**その環境に依存して作られた**ことが
-   パッケージから読み取れるようにする
-3. 道具が無い環境で同じ AIP を作り直したとき、**黙って内容が変わらない**こと
-   （現在は「変換ツールが無いため原本のまま保存」と report に出る）
+マイナンバー、クレジットカード番号、電話番号、メールアドレス、郵便番号。
+**氏名・住所・生年月日・口座番号などは見ていない。**
+
+適合率・再現率の実測値と、原理的な限界（12 桁は約 1/11 で検査用数字を偶然通る、など）は
+[docs/pii-accuracy.md](docs/pii-accuracy.md) にある。
+**「検出されなかった」は「個人情報が無い」ではない。**
 
 ### その他
 
-- 画面は日本語のみ
 - ウイルス定義データベースは同梱していない（アプリの設定画面から取得する）
+- 画面は日本語と英語。**report や CSV の見出しなどパッケージの中身は日本語のまま**
+  （言語で変わると、別の言語で作ったパッケージを読み戻せなくなるため）
 - `datetime` を素のまま扱っている箇所が残っている（ruff の DTZ 規則は未有効）。
   Windows で実際に事故を起こした種類なので、順次直す
+- 規模の目安は [docs/performance.md](docs/performance.md)。5 万件で約 110 秒・430 MiB
 
 ## 使い方（開発）
 
@@ -160,29 +216,6 @@ uv run pytest              # 速い。API 存在チェックも含む
 uv run flet run .          # 開発モード。ビルドより遥かに速く同じ問題を捕まえる
 ./scripts/build.zsh macos  # 最終確認。FilePicker の問題はここでしか出なかった
 ```
-
-## 移植の検証方法
-
-**現行 Swift 実装との差分検証**が、この移植で最も効く検証手段。
-
-```
-uv run python scripts/differential_check.py --swift-app "/path/to/Archival Packager.app"
-```
-
-同じ入力を両実装に食わせ、生成時刻・UUID・`Bag-Software-Agent` を伏せて突き合わせる。
-単体テストは「自分が想定した仕様」を固定するが、こちらは
-**「現行実装が実際にやっていること」**と突き合わせる。実際にこの検証だけが見つけた
-差異がある（`ByteCountFormatter` のロケール依存で `99 バイト` が `99 bytes` になっていた）。
-
-## 既存実装との関係
-
-これは [`nakamura196/archival-packager-swift`](https://github.com/nakamura196/archival-packager-swift)
-の Swift 実装（macOS 専用、Developer ID 署名・公証済み）を、Windows にも配布できるように
-作り直したもの。**現在はこちらが本体**で、Swift 版は更新を止めている
-（2026-09-12 にリポジトリ名を入れ替えた。以前この名前は Swift 版が使っていた）。
-
-**既存の Swift 実装は廃止しない。** 新実装が同等になるまではそちらが配布物であり、
-かつ**差分検証の正解データを出す参照実装**でもある。
 
 ## なぜ Flet（Python）か
 
@@ -268,32 +301,6 @@ Pillow なら wheel が両OS向けに同一版で提供され、libtiff も whee
   DB 検証まで届かず、**取得は成功したように見えて検査が 0 件になる**。
 - **`install_name_tool` は署名を壊す**。arm64 では署名が無効な実行ファイルは
   起動時に SIGKILL される（`rc=137`。エラーメッセージも出ない）。
-
-## 移植中に見つけた現行実装の問題
-
-移植は現行実装の再読でもある。テストを書く過程で次が判明し、**Swift 側も修正済み**
-（[archival-packager-swift#3](https://github.com/nakamura196/archival-packager-swift/pull/3) でマージ）。
-
-1. **完全性確認が `failed` を `skipped` と報告する場合がある。**
-   マニフェスト記載のファイルが全て存在しないとき、`checked == 0` の判定が先に効いて
-   「マニフェストに有効な行がありません」を返す。ペイロードが消えている SIP を
-   「検査せず飛ばした」と報告することになる。
-
-2. **PREMIS の `eventIdentifierValue` を XML 生成のたびに振っていた。**
-   同じ入力から 2 回生成すると別の出力になり、差分検証ができなかった。
-
-3. **`accession.csv` の解析が引用フィールド内の改行を扱えない。**
-   先に行で切ってからパースするため、原理的に扱えない。書き出し側は改行を含む値を
-   引用で囲むので、自分が書いた CSV を読み戻せない状態だった。
-
-### 誤検出だったもの
-
-当初は上記に加えて 2 件を問題として挙げていたが、読み直したところ**誤りだった**。
-記録として残しておく。
-
-- **`structMap` の並び順**：`localizedStandardCompare` でソート済み。問題なし。
-- **DFXML の `esc()` が `'` を扱わない**：`esc` は text ノードにのみ使われており、
-  text 内の `'` はエスケープ不要。属性も `"` 区切りなので問題なし。
 
 ## 実装のドキュメント
 
