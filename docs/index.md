@@ -30,6 +30,7 @@ written separately.
 
 ### Links
 
+- [How to use it](usage.md) — the interface and the command line
 - [Source code](https://github.com/nakamura196/archival-packager) (MIT)
 - [Privacy policy](privacy-policy.md)
 
@@ -65,6 +66,7 @@ Contact: nakamura@hi.u-tokyo.ac.jp
 
 ### リンク
 
+- [使い方](usage.md) — 画面とコマンドライン
 - [ソースコード](https://github.com/nakamura196/archival-packager)（MIT）
 - [プライバシーポリシー](privacy-policy.md)
 

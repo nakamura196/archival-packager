@@ -22,6 +22,12 @@ starting with `docs/` — not as a side effect of another change.
 `README.md` and `docs/index.md` carry an English section first, then Japanese.
 Keep that order when editing them.
 
+## Where the open work is
+
+Outstanding work lives in GitHub Issues, not in this file and not in `README.md`. Decisions that
+were made *not* to do something are recorded there too, as closed issues with the reasoning — so
+that the same question does not get re-argued from scratch.
+
 ## What this project is
 
 This is the canonical implementation. The macOS-only Swift implementation it

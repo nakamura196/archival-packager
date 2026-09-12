@@ -46,6 +46,11 @@ tools are bundled.
 - AIP as a BagIt bag with METS carrying embedded PREMIS, recording what was
   done, when, with which tool and with what outcome
 
+There is also a command line (`archival-packager sip` / `aip` / `inspect` /
+`check`) for scripted transfers and for CI. **It works only when running from
+source** — arguments do not reach the packaged builds. See
+[docs/usage.md](docs/usage.md).
+
 ### Design commitments
 
 - **Nothing to install.** The tools used for identification and scanning ship
@@ -72,6 +77,7 @@ The interface is Japanese and English.
 
 | Document | Contents |
 | --- | --- |
+| [docs/usage.md](docs/usage.md) | Operator's manual — the window and the command line |
 | [docs/interoperability.md](docs/interoperability.md) | Field-by-field comparison with AtoM and Archivematica specifications |
 | [docs/pii-accuracy.md](docs/pii-accuracy.md) | Measured precision and recall of the personal information scan |
 | [docs/performance.md](docs/performance.md) | Time and memory at 100 to 50,000 files |
@@ -178,7 +184,13 @@ LibreOffice（Office → PDF/A）や ffmpeg（音声・動画）が要るが、�
 uv sync
 uv run flet run .                 # 開発モードで起動
 uv run pytest                     # テスト
+uv run archival-packager check    # コマンドラインから（同梱ツールの状態を見る）
 ```
+
+移管処理を自動化したい場合は、コマンドライン入口があります
+（`sip` / `aip` / `inspect` / `check`）。**配布版では使えません**
+（包んだアプリには引数が届かないため）。使い方は
+[docs/usage.md](docs/usage.md)（画面とコマンドラインの両方の手順書）。
 
 配布物のビルド（macOS）:
 
@@ -304,6 +316,7 @@ Pillow なら wheel が両OS向けに同一版で提供され、libtiff も whee
 
 ## 実装のドキュメント
 
+- 利用者向けの手順書（画面とコマンドライン）: [`docs/usage.md`](docs/usage.md)
 - 技術検証と、そこで判明した落とし穴: [`spike/README.md`](spike/README.md)
 - 各モジュールの設計判断はコード内のモジュール docstring に書いてある
   （「なぜそうしたか」を残す場所として、別ファイルよりコードの近くが良いと判断した）
