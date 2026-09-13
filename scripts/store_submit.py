@@ -308,6 +308,39 @@ def check_credentials() -> int:
     return 0
 
 
+def watch_pending() -> int:
+    """進行中の申請の状態だけを見届ける。**何も変えない。**
+
+    確定したあと状態の問い合わせで落ちると、それまでは手立てが無かった。
+    `--resume` は掲載情報を当て直して確定もやり直すので、既に確定した申請には
+    使えない。2026-09-12、確定の直後に status が 403 を返し、
+    「送ったが、どうなったか分からない」状態になった。読むだけの入口を分けておく。
+    """
+    missing = [k for k in ("STORE_TENANT_ID", "STORE_CLIENT_ID",
+                           "STORE_CLIENT_SECRET", "STORE_ID")
+               if not os.environ.get(k)]
+    if missing:
+        print(f"環境変数がありません: {', '.join(missing)}。"
+              f"op run --env-file=store/.env -- で実行してください。", file=sys.stderr)
+        return 1
+
+    store_id = os.environ["STORE_ID"]
+    token = token_for(os.environ["STORE_TENANT_ID"],
+                      os.environ["STORE_CLIENT_ID"],
+                      os.environ["STORE_CLIENT_SECRET"])
+    app = _request("GET", f"{API}/applications/{store_id}", token=token)
+    pending = (app.get("pendingApplicationSubmission") or {}).get("id")
+    if not pending:
+        print("進行中の申請はありません（公開済みです）。")
+        return 0
+
+    print(f"進行中の申請 {pending} の状態を見ます…")
+    state = wait(token, store_id, pending)
+    print(f"結果: {state}")
+    return 0 if state not in ("CommitFailed", "PreProcessingFailed",
+                              "CertificationFailed") else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--msix", type=Path, help="差し替える MSIX。省略すると掲載情報だけ更新")
@@ -318,10 +351,15 @@ def main() -> int:
                         help="進行中の申請を引き継ぐ。確定の途中で落ちたとき用")
     parser.add_argument("--skip-upload", action="store_true",
                         help="パッケージの送信を省く。既に上げ終わっているとき用")
+    parser.add_argument("--status", action="store_true",
+                        help="進行中の申請の状態だけ見届ける。読むだけで、何も変えない")
     args = parser.parse_args()
 
     if args.check:
         return check_credentials()
+
+    if args.status:
+        return watch_pending()
 
     listing = listing_from_markdown()
     print("掲載情報を読みました:")
