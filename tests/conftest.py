@@ -55,7 +55,9 @@ def fake_tool(tmp_path: Path):
                 # %~2 で引用符を外す。> を先に置かないと echo に食われる。
                 lines.append(f'> "%~2" echo {output_text}')
             lines.append(f"exit /b {exit_code}")
-            path.write_text("\r\n".join(lines) + "\r\n", encoding="ascii")
+            # 改行は自分で決める。newline を省くと Windows で \r\n が
+            # \r\r\n になる（tests/test_sip_pipeline.py の同じ罠を参照）。
+            path.write_text("\r\n".join(lines) + "\r\n", encoding="ascii", newline="")
         else:
             path = tmp_path / name
             lines = ["#!/bin/sh"]

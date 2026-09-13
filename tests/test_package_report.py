@@ -243,22 +243,28 @@ class TestMaliciousMetsCannotReadLocalFiles:
 
         後者が本命。前者は lxml 6.1.1 の既定でも「実体が未定義」で落ちるため、
         これだけだと対策の有無を見分けられない。
+
+        **URL は `Path.as_uri()` で組み立てる。** `file://` に文字列連結で
+        パスを足すと、Windows では円記号区切りのパスがそのまま並んだ不正な URI に
+        なり、lxml が DOCTYPE の時点で構文エラーを投げる。守っている当人を試す前に
+        落ちるので、攻撃が成立していないだけなのに「防いだ」ようにも見える
+        （2026-09-13、Windows の CI で発覚）。
         """
         root = tmp_path / f"わるいパッケージ-{kind}"
         (root / "data").mkdir(parents=True)
         if kind == "general":
             doctype = f'''<!DOCTYPE mets [
-  <!ENTITY leak SYSTEM "file://{secret}">
+  <!ENTITY leak SYSTEM "{secret.as_uri()}">
 ]>'''
         else:
             dtd = tmp_path / "ext.dtd"
             dtd.write_text(
-                f'''<!ENTITY % file SYSTEM "file://{secret}">
+                f'''<!ENTITY % file SYSTEM "{secret.as_uri()}">
 <!ENTITY % wrap "<!ENTITY leak '%file;'>">
 %wrap;
 ''', encoding="utf-8")
             doctype = f'''<!DOCTYPE mets [
-  <!ENTITY % ext SYSTEM "file://{dtd}">
+  <!ENTITY % ext SYSTEM "{dtd.as_uri()}">
   %ext;
 ]>'''
         mets = f"""<?xml version="1.0" encoding="UTF-8"?>

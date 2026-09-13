@@ -311,8 +311,11 @@ class TestStructuredInput:
         (src / "objects").mkdir(parents=True)
         (src / "objects" / "a.txt").write_text("x", encoding="utf-8")
         (src / "metadata").mkdir()
-        (src / "metadata" / "metadata.csv").write_text(
-            "filename,dc.title\r\nobjects/a.txt,記入済みタイトル\r\n", encoding="utf-8"
+        # **改行はバイト列で書く。** write_text は Windows で \n を \r\n に直すので、
+        # \r\n と書くと \r\r\n になり、読み戻したとき空行が挟まって行がずれる
+        # （2026-09-13、Windows の CI で発覚）。CSV の改行は RFC 4180 の CRLF。
+        (src / "metadata" / "metadata.csv").write_bytes(
+            "filename,dc.title\r\nobjects/a.txt,記入済みタイトル\r\n".encode()
         )
 
         result, _ = run(src, tmp_path, make_bag=True)
@@ -326,8 +329,11 @@ class TestStructuredInput:
         (src / "objects").mkdir(parents=True)
         (src / "objects" / "a.txt").write_text("x", encoding="utf-8")
         (src / "metadata").mkdir()
-        (src / "metadata" / "metadata.csv").write_text(
-            "filename,dc.title\r\nobjects/a.txt,記入済みタイトル\r\n", encoding="utf-8"
+        # **改行はバイト列で書く。** write_text は Windows で \n を \r\n に直すので、
+        # \r\n と書くと \r\r\n になり、読み戻したとき空行が挟まって行がずれる
+        # （2026-09-13、Windows の CI で発覚）。CSV の改行は RFC 4180 の CRLF。
+        (src / "metadata" / "metadata.csv").write_bytes(
+            "filename,dc.title\r\nobjects/a.txt,記入済みタイトル\r\n".encode()
         )
 
         result, messages = run(src, tmp_path)
