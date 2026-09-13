@@ -313,6 +313,21 @@ class TestMaliciousMetsCannotReadLocalFiles:
 
         `read()` の戻り値を見る形にしていたときは、実体の値が表に出ない経路だったため、
         対策を外しても緑のままだった。**守っている当人を直接試すこと。**
+
+        要件は「秘密が漏れないこと」であって、解析が成功することではない。
+        防ぎ方は環境によって 2 通りに分かれる（2026-09-13 に実測）。
+
+          macOS  : 解析は通り、`&leak;` は値を持たない
+          Windows: `Entity 'leak' not defined` で解析が中断する
+
+        libxml2 の版や構成の違いで、未定義の実体を落とすかエラーにするかが
+        変わる。**どちらも安全なので、どちらも通す。** 以前は解析の成功まで
+        求めていたため、Windows で「防げているのに落ちる」状態になっていた。
+
+        例外を許すと「何が起きても通るテスト」になりかねないが、すぐ下の
+        `test_the_parameter_entity_form_is_the_one_that_matters` が、同じ
+        ペイロードが素の lxml では実際に漏れることをその環境で確かめている。
+        あちらが通っている限り、ここは攻撃が有効な状態で防御を試している。
         """
         from lxml import etree
 
@@ -323,7 +338,11 @@ class TestMaliciousMetsCannotReadLocalFiles:
         root = self._package(tmp_path, secret, kind="parameter")
         mets = root / "data" / "METS.xml"
 
-        doc = etree.parse(str(mets), pr._SAFE_PARSER)
+        try:
+            doc = etree.parse(str(mets), pr._SAFE_PARSER)
+        except etree.XMLSyntaxError as exc:
+            assert "TOP-SECRET-VALUE" not in str(exc), "エラーの本文に漏れている"
+            return
         assert "TOP-SECRET-VALUE" not in etree.tostring(doc, encoding="unicode")
 
     def test_the_parameter_entity_form_is_the_one_that_matters(self, tmp_path: Path):
