@@ -14,6 +14,23 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _japanese_interface():
+    """画面の言語を既定（日本語）に固定する。
+
+    `i18n` は利用者の設定ファイル（`settings.json`）から言語を読む。
+    **開発機で画面を英語にしていると、UI のテストが 2 件落ちた。**
+    テストは「実行」のような日本語のラベルで部品を探しているため。
+    利用者の設定でテストの結果が変わってはいけないので、ここで固定する。
+    """
+    from archival_packager import i18n
+
+    before = i18n.current_language()
+    i18n._current = i18n.DEFAULT
+    yield
+    i18n._current = before
+
+
 @pytest.fixture
 def fake_tool(tmp_path: Path):
     """終了コードと標準エラーを指定できる、偽の外部ツールを作る。

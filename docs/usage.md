@@ -4,16 +4,184 @@
 
 ## English
 
-This is the operator's manual: how to use the application from its window, and
-how to use it from the command line.
+This is the operator's manual: how to install the application, how to use it
+from its window, and how to use it from the command line.
+
+**Read [Known limits](../README.md#known-limits) before you rely on it.** The
+short version is at the end of this section.
+
+### Installing
+
+| Platform | Where | Notes |
+| --- | --- | --- |
+| Windows 10/11 | [Microsoft Store](https://apps.microsoft.com/detail/9N6XJD7THHPZ) | Installs and updates like any other Store application |
+| macOS 12+ | [Releases](https://github.com/nakamura196/archival-packager/releases/latest) | A signed and notarised `.dmg`. Drag the application into Applications |
+
+Nothing else has to be installed. Siegfried (format identification) and ClamAV
+(virus scanning) are bundled.
+
+**The first launch takes a few minutes** and the window may appear to do
+nothing. The Python runtime inside the application (about 100 MB) is being
+unpacked. Later launches are quick.
+
+macOS may say the application cannot be opened because the developer cannot be
+verified. It is signed with a Developer ID and notarised by Apple, so this
+normally does not happen; if it does, open it once from the right-click menu
+("Open") rather than by double-clicking.
+
+### Switching the interface to English
+
+The language selector is at the **top right of the window**, next to the
+version number. It is placed in the header on purpose: someone who reads only
+English should not have to find it inside a Japanese screen. The choice is
+remembered.
+
+**The interface is translated. The packages are not.** Column headings in the
+CSV files, the text of `report.txt`, and the PREMIS event records are written
+in Japanese whatever the interface language is. This is deliberate: an
+information package is meant to last decades, and `core/sip_reader.py` reads
+those headings back. If the headings changed with the interface language, a SIP
+made in English could not be read by an application set to Japanese, and the
+other way round.
+
+So a non-Japanese reader gets an English interface over packages whose
+spreadsheets and reports are in Japanese. Translating the package contents is
+open work — see [issue #11](https://github.com/nakamura196/archival-packager/issues/11).
+
+### Using the window
+
+![The main window, in English](images/main-en.png)
+
+*The window as it opens (macOS, v0.1.6). Windows looks the same apart from the
+window frame.*
+
+#### 1. Choose what to create
+
+Three choices at the top:
+
+| Choice | What it does |
+| --- | --- |
+| Create a SIP | Builds a **submission package** from a folder (or ZIP) of source material |
+| Create an AIP | Builds a **preservation package** from a SIP that already exists |
+| From source material through to an AIP | Does both, one after the other |
+
+Normally you accession with "Create a SIP", check what it found, and only then
+go on to the AIP. They are separate steps because **there are things a person
+has to look at while the material is still a SIP**: personal information
+candidates, files whose extension disagrees with their content, and files whose
+format could not be identified.
+
+#### 2. Choose the input and the destination
+
+- **Input** — the folder holding the material to accession. A ZIP can be given instead.
+- **Destination** — where the package is written. Keep it outside the input folder.
+
+The input folder is **only read**. Nothing is ever written into it.
+
+#### 3. Choose the options
+
+"Options" is collapsed when the window opens, and the line under it says which
+options are on ("Defaults" when none are).
+
+| Option | What changes |
+| --- | --- |
+| Wrap the output as a BagIt bag | Writes the SIP as a BagIt bag (`bagit.txt` and `manifest-sha256.txt`) |
+| Scan for personally identifiable information (PII) | Looks for email addresses, phone numbers, Japanese individual numbers, card numbers and Japanese postal codes, and lists candidates in `pii-report.csv` |
+| Run a virus scan | Scans with the bundled ClamAV. **The definition database has to be downloaded first** (below) |
+| Sanitize file names | Repairs characters that cannot be used and names that are too long. The original names are kept in `accession.csv` |
+| Serialize the output as a ZIP | Packs the finished package into an uncompressed ZIP, for handing over |
+| Normalize to preservation formats (AIP) | Converts images to TIFF and PostScript/EPS to PDF while building the AIP |
+
+The PII scan recognises **five categories, all defined around Japanese
+conventions** — Japanese individual numbers (マイナンバー) and Japanese postal
+codes in particular. Email addresses and card numbers are not
+Japan-specific; phone numbers assume Japanese digit counts. Measured precision
+and recall are in [docs/pii-accuracy.md](pii-accuracy.md).
+
+#### 4. Enter the descriptive metadata
+
+- **Identifier** — the identifier of the transfer (e.g. `2026-transfer-general-affairs`). It becomes the folder name.
+- **Title** — required. The name of the body of material.
+
+"Dates", "Scope and content" and "Archivist" are optional. The archivist's name
+is recorded in the AIP's PREMIS events as the agent that performed the work.
+
+What you enter here is written into the package as the accession record.
+
+#### 5. Run it, and read what it says
+
+"Run" shows progress, then the location of the finished package and a list
+headed **"Points to check by eye"**. Four kinds appear there:
+
+- `ウイルス検出:` — a file the virus scanner flagged, with the signature name
+- `PII候補:` — a file holding something that looks like personal information, and how many
+- `未識別:` — a file whose format could not be identified
+- `拡張子不一致:` — a file whose extension disagrees with its actual format
+
+These lines keep their Japanese prefixes, for the reason given above: they come
+from `core/`, which does not go through the translation table.
+
+**None of these are acted on automatically.** What to do about them is a
+person's decision.
+
+#### 6. Look inside
+
+"Look inside" shows the package as tables. What you can see **only here** is
+the content of the METS and the PREMIS records — the XML is not readable as it
+stands.
+
+1. **Overview** — what is in it, how many, when it was made
+2. **Preservation events** — when, what, with which tool, and with what outcome
+3. **Files** — format, PRONOM identifier, size, SHA-256, virus scan result
+
+The originals themselves (a PDF, a Word file) do not open in the application.
+Open the folder and use whatever you normally use.
+
+#### 7. Build the AIP
+
+Once the SIP has been checked, switch to "Create an AIP" and give it **the SIP
+folder** as the input. Building an AIP does three things:
+
+- compares the SIP's manifest against the files on disk, to confirm nothing has changed since accession
+- normalizes to preservation formats, if you asked for it
+- writes a METS with PREMIS events embedded, and wraps the whole thing as a BagIt bag
+
+Derivatives produced by normalization are **opened again and read back** —
+a TIFF is fully decoded with Pillow, a PDF is re-opened with pypdf and must
+report at least one page. A derivative that cannot be read back is discarded,
+and the event is recorded as a failure. This is not format validation: opening
+a file says nothing about whether it conforms to its specification.
+
+### The virus definition database
+
+**The definitions are not bundled.** They are several hundred megabytes and
+change daily, so bundling them would mean shipping something stale from the
+first day.
+
+- In the window: the "Download / update definitions" button
+- From the command line: `archival-packager check` prints where they go
+
+If `--virus-scan` is asked for and no definitions are present, **no scan is
+run**, and the report says "skipped (no definition database)". It never says
+"nothing found". Not having checked must not be mistaken for having found
+nothing.
+
+### What it cannot do
+
+Read these before relying on the output:
+
+- [Known limits](../README.md#known-limits) — the range of normalization, the absence of format validation, and the rest
+- [docs/pii-accuracy.md](pii-accuracy.md) — the personal information scan covers five categories; measured misses and false positives
+- [docs/interoperability.md](interoperability.md) — the comparison with AtoM and Archivematica is **against their specifications**, not yet against running instances
+- [docs/rules.md](rules.md) — how to add your own normalization rules
+- [docs/performance.md](performance.md) — time and memory from 100 to 50,000 files
+
+### The command line
 
 **The command line is for people running from source.** Arguments do not reach
 the packaged builds (`.app` / MSIX) — they arrive as `argv=['']` — so the
 downloadable application is window-only by design. If you installed from the
-Microsoft Store or from a `.dmg`, read [画面での使い方](#画面での使い方) and
-ignore the command-line sections.
-
-From source:
+Microsoft Store or from a `.dmg`, use the window.
 
 ```sh
 uv sync
@@ -29,12 +197,8 @@ are 0 success, 1 failure, 2 wrong arguments. **A virus detection or a personal
 information candidate does not make the run fail** — a person decides what to
 do about it — but it is always written to standard error and to the JSON.
 
-Before relying on any of this, read the [既知の限界](../README.md#既知の限界)
-(known limits), [docs/pii-accuracy.md](pii-accuracy.md) and
-[docs/interoperability.md](interoperability.md). Virus scanning additionally
-needs a ClamAV signature database, which is downloaded separately.
-
-The rest of this document is in Japanese.
+The Japanese sections below cover the same ground in more detail, including the
+full option list and the layout of what gets written.
 
 ---
 
@@ -54,7 +218,46 @@ The rest of this document is in Japanese.
 
 ---
 
+## 導入と初回起動
+
+| OS | 入手先 | 備考 |
+| --- | --- | --- |
+| Windows 10/11 | [Microsoft Store](https://apps.microsoft.com/detail/9N6XJD7THHPZ) | ふつうのストアアプリと同じで、更新も自動です |
+| macOS 12 以降 | [Releases](https://github.com/nakamura196/archival-packager/releases/latest) | 署名・公証済みの `.dmg`。アプリケーションフォルダへドラッグしてください |
+
+ほかに入れるものはありません。フォーマットの識別（Siegfried）とウイルス検査
+（ClamAV）に使う道具は同梱しています。
+
+**初回の起動には数分かかります。** 窓が出たまま何も起きないように見えますが、
+アプリの中に入っている Python（約 100 MB）を展開しています。2 回目以降は
+すぐ立ち上がります。
+
+macOS で「開発元を確認できないため開けません」と出た場合は、右クリックから
+「開く」を選んでください。署名と公証はしてあるので通常は出ませんが、
+ダウンロードの経路によっては出ることがあります。
+
+**最初にやること**は、ウイルス検査を使う場合の定義データベースの取得です
+（数百 MB あります）。「ウイルス定義データベース」の「定義を取得 / 更新」から
+行ってください。詳しくは後述します。
+
+### 画面の言語を切り替える
+
+言語の選択は**窓の右上**、版番号の隣にあります。日本語と英語です。
+選んだ内容は次回の起動にも引き継がれます。
+
+**訳されるのは画面だけで、パッケージの中身は訳されません。** CSV の見出し、
+`report.txt` の本文、PREMIS の記録は、画面の言語にかかわらず日本語で書かれます。
+情報パッケージは何十年も残る前提のもので、`core/sip_reader.py` は日本語の
+見出しで CSV を読み戻します。見出しが画面の言語で変わると、英語で作った SIP を
+日本語のアプリが読めなくなります。
+
+---
+
 ## 画面での使い方
+
+![起動直後の画面](images/main-ja.png)
+
+*起動した直後の画面（macOS、v0.1.6）。Windows も窓枠が違うだけで同じです。*
 
 ### 1. 何を作るか選ぶ
 
@@ -70,19 +273,17 @@ The rest of this document is in Japanese.
 分けているのは、**SIP の段階で人が確かめることがある**ためです
 （個人情報の候補、拡張子と中身の食い違い、未識別のファイル）。
 
-### 2. フォルダと項目を指定する
+### 2. フォルダを指定する
 
 - **素材フォルダ**: 受け入れる資料の入ったフォルダ。ZIP を選ぶこともできます
 - **出力先**: パッケージを書き出すフォルダ。素材フォルダとは別にしてください
-- **識別子**: 移管の識別子（例: `2026-移管-総務課`）。フォルダ名になります
-- **タイトル**: 必須。資料のまとまりの名前
-
-「内容・範囲」「年代」「担当者名」は任意です。担当者名は AIP の処理記録
-（PREMIS）に、作業を行った人として残ります。
 
 素材フォルダの中身は**読むだけ**です。原本には一切書き込みません。
 
 ### 3. オプションを選ぶ
+
+「オプション」は起動時は畳んであります。見出しの下の行に、いま効いている
+ものが並びます（何も選んでいなければ「既定のまま」）。
 
 | オプション | 何が変わるか |
 | --- | --- |
@@ -93,7 +294,17 @@ The rest of this document is in Japanese.
 | 成果物を ZIP に固める | できたパッケージを無圧縮の ZIP にする（受け渡し用） |
 | 保存用フォーマットへ変換する | AIP で画像を TIFF に、PostScript/EPS を PDF にする |
 
-### 4. 実行して、結果を見る
+### 4. 記述メタデータを入れる
+
+- **識別子**: 移管の識別子（例: `2026-移管-総務課`）。フォルダ名になります
+- **タイトル**: 必須。資料のまとまりの名前
+
+「年代」「内容・範囲」「担当者名」は任意です。担当者名は AIP の処理記録
+（PREMIS）に、作業を行った人として残ります。
+
+ここで入れた内容が、受入記録としてパッケージに残ります。
+
+### 5. 実行して、結果を見る
 
 「実行」を押すと進捗が流れます。終わると、できたパッケージの場所と、
 **目視確認が必要な点**が並びます。ここに出るのは次の 4 種類です。
@@ -105,7 +316,7 @@ The rest of this document is in Japanese.
 
 **どれも自動では消しません。** 取り扱いは人が決めることだからです。
 
-### 5. 中身を確認する
+### 6. 中身を確認する
 
 「中身を見る」を押すと、パッケージの中身を表にして見せます。ここでしか
 見られないのは **METS と PREMIS の中身**です（XML を開いても読めないため）。
@@ -117,7 +328,7 @@ The rest of this document is in Japanese.
 原本そのもの（PDF や Word）はアプリでは開けません。フォルダを開いて、
 いつものアプリでご覧ください。
 
-### 6. AIP を作る
+### 7. AIP を作る
 
 SIP を確かめたら「AIP 作成」に切り替え、**SIP のフォルダ**を入力に指定します。
 AIP を作るとき、アプリは次のことを行います。

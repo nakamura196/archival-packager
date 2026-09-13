@@ -222,6 +222,27 @@ op run --env-file=<aip>/.env -- ./scripts/release.zsh --publish   # + タグと 
 （サイズが大きく、取得はスクリプトで再現可能）。方針は
 「[外部ツールの同梱方針](#外部ツールの同梱方針)」を参照。
 
+配布物のビルドと申請（Windows / Microsoft Store）:
+
+**手元に Windows 機が無いので、ビルドは GitHub Actions で行う。**
+費用の都合で既定では走らないので、明示的に要求する。
+
+```
+gh workflow run ci.yml -f build_windows=true
+gh run download <run-id> --name archival-packager-windows-msix-unsigned
+op run --env-file=store/.env -- python scripts/store_submit.py --msix ./ArchivalPackager.msix
+op run --env-file=store/.env -- python scripts/store_submit.py --check
+```
+
+MSIX に署名はしない。**ストアに MSIX で出すと Microsoft が署名し直す**ので、
+こちらで証明書を買う必要がない。Identity は Partner Center が発行した値を
+`packaging/windows/AppxManifest.xml.in` に入れてある。
+
+申請 API を使うための設定（テナント・アプリ登録・権限・1Password）は
+**1 回だけ**必要で、手順は [store/API設定手順.md](store/API設定手順.md) にある。
+API でできないこと（最初の 1 回の申請、プライバシーポリシー URL の設定）も
+そこに書いてある。
+
 ウイルス定義 DB（数百 MB）は同梱しない。配布物が肥大化する上に、配った瞬間から
 古くなる。アプリの「ウイルス定義データベース」から `freshclam` で取得する。
 

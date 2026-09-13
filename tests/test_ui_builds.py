@@ -112,6 +112,29 @@ class TestRunButtonBecomesPressable:
         title.on_change(MagicMock())
         assert not run.disabled, "すべて埋めても押せない"
 
+    def test_options_are_above_the_descriptive_metadata(self):
+        """「オプション」を「記述メタデータ」より上に置くこと。
+
+        既定のウィンドウ（1000x880）では、左の列は「担当者名」のあたりで
+        切れる。記述メタデータは 5 欄あって縦に長く、その下にオプションを
+        置くと**画面に出ない**。個人情報の走査もウイルス検査も、スクロール
+        しないと存在に気づけない状態になっていた。
+
+        高さを 880 に上げてこれを直した記録が app.py に残っているが、
+        そのあと実行ボタンを下に固定した改修が入り、その高さぶんだけ
+        押し戻されて元に戻っていた。**前の修正を後の修正が打ち消した。**
+        並び順で押さえておけば、高さの取り合いで再発しない。
+        """
+        import flet as ft
+
+        _, found = self._screen()
+        headings = [
+            i for i, c in enumerate(found)
+            if isinstance(c, ft.Text) and c.value in ("オプション", "記述メタデータ")
+        ]
+        labels = [found[i].value for i in headings]
+        assert labels == ["オプション", "記述メタデータ"], labels
+
     def test_says_what_is_missing(self, tmp_path):
         """押せない理由を画面に出すこと。灰色のボタンだけでは伝わらない。"""
         import asyncio

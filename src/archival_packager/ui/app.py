@@ -642,10 +642,15 @@ def main(page: ft.Page) -> None:
                 output_label,
             ),
             ft.Divider(height=1),
-            metadata_section,
-            ft.Divider(height=1),
+            # **オプションを記述メタデータより上に置く。** 記述メタデータは
+            # 5 欄あって縦に長く、その下に置くと既定のウィンドウ（880）では
+            # 画面の下で切れる。畳んだオプションは 1 行なので、ここなら必ず見える。
+            # 個人情報の走査もウイルス検査も、スクロールしないと存在に気づけない
+            # 状態になっていた（69 行目の高さ調整を、実行ボタンの固定が打ち消していた）。
             options_tile,
             virus_section,
+            ft.Divider(height=1),
+            metadata_section,
             prior_section := section(
                 t("前回の受入記録（配列前後の突合）"),
                 ft.OutlinedButton(

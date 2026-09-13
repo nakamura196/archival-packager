@@ -43,8 +43,10 @@ TEXTS: dict[str, str] = {
     # 何を作るか（モード）
     # ------------------------------------------------------------------
     "何を作るか": "What to create",
+    # ラジオのラベルは列の幅で切られる。実測で、この長さが英語での上限。
+    # 何をするかは下の 1 行（mode_note）が説明するので、括弧の中は入力の種類だけにする。
     "SIP 作成（素材フォルダ／ZIP から受入パッケージ）":
-        "Create a SIP (submission package from a source folder or ZIP)",
+        "Create a SIP (from a source folder or ZIP)",
     "AIP 作成（SIP から長期保存パッケージ）":
         "Create an AIP (preservation package from a SIP)",
     "素材から AIP まで一気通貫": "From source material through to an AIP",

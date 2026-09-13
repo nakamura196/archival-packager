@@ -18,8 +18,7 @@
 
 使い方
 ------
-    op run --env-file=store/.env -- python scripts/store_submit.py \
-        --msix ~/Downloads/archival-packager-0.1.6/ArchivalPackager.msix
+    op run --env-file=store/.env -- python scripts/store_submit.py --msix ~/Downloads/ArchivalPackager.msix
 
     # 何が起きるかだけ見る（送信しない）
     op run --env-file=store/.env -- python scripts/store_submit.py --dry-run
