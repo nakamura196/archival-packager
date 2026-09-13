@@ -156,12 +156,15 @@ def current_language() -> str:
 def set_language(lang: str) -> None:
     """言語を切り替え、設定にも残す。
 
-    知らない言語コードが来たら既定に落とす。**例外は投げない。**
+    知らない言語コードが来たら OS の言語に落とす。**例外は投げない。**
     設定ファイルを手で編集されたり、将来の版で消えた言語コードが
     残っていたりしても、起動できなくなってはならない。
+
+    落とし先を `DEFAULT`（日本語）にしない。ドイツ語の環境で設定が壊れたとき、
+    日本語の画面に切り替わっても読めない。判断は初回起動と同じでよい。
     """
     global _current
-    _current = lang if lang in AVAILABLE else DEFAULT
+    _current = lang if lang in AVAILABLE else system_language()
     _save(_current)
 
 

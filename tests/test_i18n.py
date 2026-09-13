@@ -230,14 +230,27 @@ class TestBrokenSettingsDoNotStopTheApp:
     いずれでもアプリは開かなければならない。
     """
 
-    def test_unknown_language_falls_back_to_japanese(self):
+    def test_unknown_language_falls_back_to_the_system(self, monkeypatch):
+        """知らない言語コードでは OS の言語に落ちる。
+
+        **落とし先を機械のロケールに任せない。** 以前は `ja` 固定で書いてあり、
+        開発機が日本語だったので通っていた。Linux の CI で落ちて気づいた
+        （2026-09-13）。何に落ちるかを試験の側で決める。
+        """
+        monkeypatch.setattr(i18n, "system_language", lambda: "ja")
         i18n.set_language("kr")
         assert i18n.current_language() == "ja"
         assert i18n.t("実行") == "実行"
 
-    def test_garbage_in_the_settings_file_is_ignored(self, tmp_path):
+        monkeypatch.setattr(i18n, "system_language", lambda: "en")
+        i18n.set_language("kr")
+        assert i18n.current_language() == "en"
+
+    def test_garbage_in_the_settings_file_is_ignored(self, tmp_path, monkeypatch):
+        """壊れた設定でも落ちず、OS の言語で開くこと。"""
+        monkeypatch.setattr(i18n, "system_language", lambda: "en")
         (tmp_path / "settings.json").write_text("{ これは JSON ではない", encoding="utf-8")
-        assert i18n._load_saved() == "ja"
+        assert i18n._load_saved() == "en"
 
     def test_unwritable_settings_do_not_raise(self, monkeypatch, tmp_path):
         """保存できないことは、その回の切り替えを妨げない。"""
