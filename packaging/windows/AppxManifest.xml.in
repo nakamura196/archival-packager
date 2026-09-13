@@ -44,6 +44,7 @@
 
     初回起動の画面の言語は OS の設定に従う（src/archival_packager/i18n.py）。
     英語で掲載しておきながら英語環境で日本語の画面が出ると、申告と実物が食い違う。
+    日本語でも英語でもない環境では英語を出す。
   -->
   <Resources>
     <Resource Language="ja-JP" />

@@ -320,16 +320,24 @@ class TestInitialLanguage:
         monkeypatch.setattr(locale_module, "getlocale", lambda *a: ("ja_JP", "UTF-8"))
         assert i18n.system_language() == "ja"
 
-    def test_unknown_language_falls_back(self, monkeypatch):
-        """訳を持たない言語では既定に落とす。空の画面を出さない。"""
+    def test_unknown_language_falls_back_to_english(self, monkeypatch):
+        """訳を持たない言語では英語を出す。日本語ではない。
+
+        ドイツ語や韓国語の環境で日本語の画面を出しても読めない。
+        原文が日本語なのは実装の都合であって、利用者の既定ではない。
+        """
         import locale as locale_module
 
         monkeypatch.setattr(i18n.sys, "platform", "darwin")
-        monkeypatch.setattr(locale_module, "getlocale", lambda *a: ("ko_KR", "UTF-8"))
-        assert i18n.system_language() == i18n.DEFAULT
+        for tag in ("ko_KR", "de_DE", "fr_FR", "zh_CN"):
+            monkeypatch.setattr(locale_module, "getlocale", lambda *a, t=tag: (t, "UTF-8"))
+            assert i18n.system_language() == "en", tag
 
     def test_detection_failure_does_not_raise(self, monkeypatch):
-        """言語が分からないことは、起動を止める理由にならない。"""
+        """言語が分からないことは、起動を止める理由にならない。
+
+        分からないときも英語にする。「日本語だと分かった」ときだけ日本語。
+        """
         import locale as locale_module
 
         def boom(*a, **kw):
@@ -338,7 +346,21 @@ class TestInitialLanguage:
         monkeypatch.setattr(i18n.sys, "platform", "darwin")
         monkeypatch.setattr(locale_module, "getlocale", boom)
         monkeypatch.setattr(i18n.os, "environ", {})
-        assert i18n.system_language() == i18n.DEFAULT
+        assert i18n.system_language() == "en"
+
+    def test_english_fallback_needs_a_complete_dictionary(self):
+        """英語に落とす前提として、訳が全部埋まっていること。
+
+        欠けていれば、その行だけ日本語で出る。日本語を読まない利用者に
+        混ざった画面を見せることになるので、fallback の言語は
+        **訳し漏れが無いこと**とセットでなければならない。
+        """
+        from archival_packager.locales import en as en_table
+
+        missing = sorted(_source_keys() - set(en_table.TEXTS))
+        assert not missing, (
+            f"{i18n.INITIAL_FALLBACK} に落とすのに未訳が {len(missing)} 件: {missing[:5]}"
+        )
 
     def test_saved_choice_wins_over_the_system(self, monkeypatch, tmp_path):
         """一度選んだ言語は、OS の言語より優先する。"""

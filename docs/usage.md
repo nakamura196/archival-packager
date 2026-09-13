@@ -31,10 +31,16 @@ normally does not happen; if it does, open it once from the right-click menu
 
 ### Switching the interface to English
 
+The window opens in the language your operating system is set to. Japanese
+for a Japanese system, **English for everything else** — German, Korean and
+so on get English rather than Japanese, because the source language of the
+code is not a reason to show someone a screen they cannot read.
+
 The language selector is at the **top right of the window**, next to the
 version number. It is placed in the header on purpose: someone who reads only
-English should not have to find it inside a Japanese screen. The choice is
-remembered.
+English should not have to find it inside a Japanese screen. Once you choose
+a language it is remembered, and it always beats the system setting — so an
+English interface on a Japanese machine is a choice you can make and keep.
 
 **The interface is translated. The packages are not.** Column headings in the
 CSV files, the text of `report.txt`, and the PREMIS event records are written
@@ -242,8 +248,13 @@ macOS で「開発元を確認できないため開けません」と出た場�
 
 ### 画面の言語を切り替える
 
+**初回の起動では、OS の言語に合わせて開きます。** 日本語の環境なら日本語、
+**それ以外はすべて英語**です（ドイツ語や韓国語の環境でも英語になります。
+原文が日本語なのはこちらの都合であって、読めない画面を出す理由にはなりません）。
+
 言語の選択は**窓の右上**、版番号の隣にあります。日本語と英語です。
-選んだ内容は次回の起動にも引き継がれます。
+一度選ぶと次回以降も引き継がれ、**OS の設定より優先されます**。
+日本語の環境で英語の画面を使うこともできます。
 
 **訳されるのは画面だけで、パッケージの中身は訳されません。** CSV の見出し、
 `report.txt` の本文、PREMIS の記録は、画面の言語にかかわらず日本語で書かれます。

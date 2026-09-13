@@ -40,8 +40,16 @@ from .locales import en
 #: （英語話者に「日本語」と出しても選べない、の逆も同じ）。
 AVAILABLE: dict[str, str] = {"ja": "日本語", "en": "English"}
 
-#: 既定の言語。原文がこれなので、辞書を引かずに済む。
+#: 原文の言語。`t()` は訳が無ければこれを返す（辞書を引かずに済む）。
+#: **「原文が日本語である」という実装の都合であって、利用者の既定ではない。**
 DEFAULT = "ja"
+
+#: 初回起動で、OS の言語が日本語でないときに出す言語。
+#: ドイツ語や韓国語の環境で日本語の画面を出しても読めない。英語のほうが
+#: 読める人がはるかに多い。**これが成り立つのは訳が全部埋まっているからで**、
+#: 欠けていれば英語と日本語の混ざった画面になる
+#: （`tests/test_i18n.py` が未訳の件数と、t() の包み忘れを見ている）。
+INITIAL_FALLBACK = "en"
 
 #: 言語コード -> 訳語の対応表。"ja" は原文なので表を持たない。
 _TABLES: dict[str, dict[str, str]] = {"en": en.TEXTS}
@@ -59,18 +67,22 @@ def _settings_path() -> Path:
 
 
 def system_language() -> str:
-    """OS の表示言語。分からなければ既定。
+    """OS の表示言語。訳を持たない言語なら英語。
 
     **初回起動で何語の画面を出すかを決める。** Microsoft ストアに英語で
     掲載する以上、英語圏の利用者が日本語の画面から始めるのはおかしい
     （掲載情報が言っていることと、起動した画面が食い違う）。
 
+    日本語でも英語でもない環境（ドイツ語、韓国語…）では**英語を出す**。
+    原文が日本語なのは実装の都合であって、読めない画面を出す理由にならない。
+
     Windows は `GetUserDefaultUILanguage` を見る。環境変数の `LANG` は
-    Windows では設定されていないことが多く、これだけだと必ず既定に落ちる。
-    それ以外は `locale` に聞き、駄目なら環境変数を見る。
+    Windows では設定されていないことが多く、これだけだと Windows の利用者が
+    全員 fallback に落ちる。それ以外は `locale` に聞き、駄目なら環境変数を見る。
 
     **何が起きても例外を外に出さない。** 言語が分からないことは起動を
-    妨げる理由にならない。
+    妨げる理由にならない。判定できないときも英語にする（分からないのは
+    「日本語ではない」ときと同じ扱いでよい）。
     """
     tag = ""
     try:
@@ -87,10 +99,10 @@ def system_language() -> str:
                 if tag:
                     break
     except Exception:  # noqa: BLE001 — 言語の判定で起動を止めない
-        return DEFAULT
+        return INITIAL_FALLBACK
 
     code = tag.replace("-", "_").split("_", 1)[0].lower()
-    return code if code in AVAILABLE else DEFAULT
+    return code if code in AVAILABLE else INITIAL_FALLBACK
 
 
 def _load_saved() -> str:
