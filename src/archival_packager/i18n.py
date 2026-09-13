@@ -28,6 +28,9 @@ gettext の msgid と同じ考え方で、`t("実行")` のように**原文を�
 from __future__ import annotations
 
 import json
+import locale
+import os
+import sys
 from pathlib import Path
 
 from .core import applog
@@ -55,19 +58,58 @@ def _settings_path() -> Path:
     return applog.log_path().parent / _SETTINGS_NAME
 
 
+def system_language() -> str:
+    """OS の表示言語。分からなければ既定。
+
+    **初回起動で何語の画面を出すかを決める。** Microsoft ストアに英語で
+    掲載する以上、英語圏の利用者が日本語の画面から始めるのはおかしい
+    （掲載情報が言っていることと、起動した画面が食い違う）。
+
+    Windows は `GetUserDefaultUILanguage` を見る。環境変数の `LANG` は
+    Windows では設定されていないことが多く、これだけだと必ず既定に落ちる。
+    それ以外は `locale` に聞き、駄目なら環境変数を見る。
+
+    **何が起きても例外を外に出さない。** 言語が分からないことは起動を
+    妨げる理由にならない。
+    """
+    tag = ""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            lcid = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+            tag = locale.windows_locale.get(lcid, "")
+        if not tag:
+            tag = locale.getlocale()[0] or ""
+        if not tag:
+            for name in ("LC_ALL", "LC_MESSAGES", "LANG"):
+                tag = os.environ.get(name) or ""
+                if tag:
+                    break
+    except Exception:  # noqa: BLE001 — 言語の判定で起動を止めない
+        return DEFAULT
+
+    code = tag.replace("-", "_").split("_", 1)[0].lower()
+    return code if code in AVAILABLE else DEFAULT
+
+
 def _load_saved() -> str:
-    """保存された言語を読む。読めなければ既定。
+    """保存された言語を読む。保存が無ければ OS の言語、それも駄目なら既定。
 
     設定ファイルが壊れていても、無くても、権限が無くても起動は妨げない。
+    **一度選んだものは必ず優先する。** OS の言語で上書きすると、
+    「日本語の環境で英語の画面を使う」という選択ができなくなる。
     """
     try:
         data = json.loads(_settings_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return DEFAULT
+        return system_language()
     if not isinstance(data, dict):
-        return DEFAULT
+        return system_language()
     lang = data.get("language")
-    return lang if isinstance(lang, str) and lang in AVAILABLE else DEFAULT
+    if isinstance(lang, str) and lang in AVAILABLE:
+        return lang
+    return system_language()
 
 
 def _save(lang: str) -> None:

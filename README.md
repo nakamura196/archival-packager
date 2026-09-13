@@ -238,6 +238,13 @@ MSIX に署名はしない。**ストアに MSIX で出すと Microsoft が署�
 こちらで証明書を買う必要がない。Identity は Partner Center が発行した値を
 `packaging/windows/AppxManifest.xml.in` に入れてある。
 
+掲載情報の正本は [store/listing-ja.md](store/listing-ja.md) と
+[store/listing-en.md](store/listing-en.md) で、`store_submit.py` が両方を送る。
+**思い出しながら書き直さない。** 言語を足すときは、`LISTINGS` と
+`packaging/windows/AppxManifest.xml.in` の `<Resource Language=...>` を
+両方直すこと（宣言していない言語の掲載情報は拒まれる）。突き合わせは
+`tests/test_store_submit.py` が見ている。
+
 申請 API を使うための設定（テナント・アプリ登録・権限・1Password）は
 **1 回だけ**必要で、手順は [store/API設定手順.md](store/API設定手順.md) にある。
 API でできないこと（最初の 1 回の申請、プライバシーポリシー URL の設定）も

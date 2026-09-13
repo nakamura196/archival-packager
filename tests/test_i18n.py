@@ -299,3 +299,59 @@ class TestPackageContentsAreNotTranslated:
             if "i18n" in p.read_text(encoding="utf-8")
         ]
         assert not offenders, f"core が i18n を参照しています: {offenders}"
+
+
+class TestInitialLanguage:
+    """初回起動で何語の画面を出すか。
+
+    ストアに英語で掲載する以上、英語の環境で日本語の画面から始まると、
+    掲載情報と実物が食い違う。いっぽう、一度選んだものを OS の言語で
+    上書きすると「日本語の環境で英語の画面を使う」ができなくなる。
+    その 2 つの境目をここで押さえる。
+    """
+
+    def test_reads_the_system_language(self, monkeypatch):
+        import locale as locale_module
+
+        monkeypatch.setattr(i18n.sys, "platform", "darwin")
+        monkeypatch.setattr(locale_module, "getlocale", lambda *a: ("en_US", "UTF-8"))
+        assert i18n.system_language() == "en"
+
+        monkeypatch.setattr(locale_module, "getlocale", lambda *a: ("ja_JP", "UTF-8"))
+        assert i18n.system_language() == "ja"
+
+    def test_unknown_language_falls_back(self, monkeypatch):
+        """訳を持たない言語では既定に落とす。空の画面を出さない。"""
+        import locale as locale_module
+
+        monkeypatch.setattr(i18n.sys, "platform", "darwin")
+        monkeypatch.setattr(locale_module, "getlocale", lambda *a: ("ko_KR", "UTF-8"))
+        assert i18n.system_language() == i18n.DEFAULT
+
+    def test_detection_failure_does_not_raise(self, monkeypatch):
+        """言語が分からないことは、起動を止める理由にならない。"""
+        import locale as locale_module
+
+        def boom(*a, **kw):
+            raise RuntimeError("ロケールを読めません")
+
+        monkeypatch.setattr(i18n.sys, "platform", "darwin")
+        monkeypatch.setattr(locale_module, "getlocale", boom)
+        monkeypatch.setattr(i18n.os, "environ", {})
+        assert i18n.system_language() == i18n.DEFAULT
+
+    def test_saved_choice_wins_over_the_system(self, monkeypatch, tmp_path):
+        """一度選んだ言語は、OS の言語より優先する。"""
+        import json
+
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({"language": "en"}), encoding="utf-8")
+        monkeypatch.setattr(i18n, "_settings_path", lambda: settings)
+        monkeypatch.setattr(i18n, "system_language", lambda: "ja")
+        assert i18n._load_saved() == "en"
+
+    def test_no_settings_file_uses_the_system(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(i18n, "_settings_path", lambda: tmp_path / "none.json")
+        monkeypatch.setattr(i18n, "system_language", lambda: "en")
+        assert i18n._load_saved() == "en"
+

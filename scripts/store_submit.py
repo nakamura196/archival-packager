@@ -52,7 +52,22 @@ API = "https://manage.devcenter.microsoft.com/v1.0/my"
 REQUIRED_DEVICE_FAMILIES = ("Desktop", "Mobile", "Xbox", "Holographic")
 
 ROOT = Path(__file__).resolve().parent.parent
-LISTING = ROOT / "store" / "listing-ja.md"
+
+#: 言語コード -> 正本の markdown。**ここに足せば、その言語も送られる。**
+#: 掲載情報を置けるのは、MSIX が宣言している言語だけ
+#: （packaging/windows/AppxManifest.xml.in の <Resource Language=...>）。
+#: 宣言していない言語を送ると拒まれるので、増やすときは両方を直すこと。
+LISTINGS = {
+    "ja": ROOT / "store" / "listing-ja.md",
+    "en": ROOT / "store" / "listing-en.md",
+}
+
+#: 言語コード -> 申請 JSON の listings で使う既定の鍵。
+#: 既に申請に入っている鍵があれば、そちらを優先する（下の listing_keys）。
+DEFAULT_LISTING_KEYS = {"ja": "ja-jp", "en": "en-us"}
+
+#: 説明文に必ず入っていてほしい開発者名。0.1.0 でこれが抜けたまま公開した。
+DEVELOPER_NAMES = {"ja": ("中村", "金"), "en": ("Nakamura", "Kim")}
 
 
 class StoreError(RuntimeError):
@@ -103,17 +118,19 @@ def token_for(tenant: str, client_id: str, secret: str) -> str:
 # --------------------------------------------------------------------------
 
 
-def listing_from_markdown() -> dict[str, str]:
-    """store/listing-ja.md から、貼るべき文面を取り出す。
+def listing_from_markdown(path: Path) -> dict[str, str]:
+    """掲載情報の markdown から、貼るべき文面を取り出す。
 
-    **思い出しながら書き直さない。** 正本はこの 1 枚に置き、ここから送る。
+    **思い出しながら書き直さない。** 正本はこれらの markdown に置き、ここから送る。
+    節の見出しは日本語で揃えてある（英語版も同じ）。運用する人が読むための
+    見出しであって、送られるのは各節の中身だけ。
     """
-    text = LISTING.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8")
 
     def section(name: str) -> str:
         marker = f"\n## {name}"
         if marker not in text:
-            raise StoreError(f"listing-ja.md に「{name}」の節がありません")
+            raise StoreError(f"{path.name} に「{name}」の節がありません")
         body = text.split(marker, 1)[1]
         body = body.split("\n## ", 1)[0]
         # ストアの説明欄は素のテキスト。小見出し（### できること）は
@@ -189,26 +206,32 @@ def resume_submission(token: str, store_id: str, app: dict) -> dict:
                     token=token)
 
 
-def japanese_listing_keys(submission: dict) -> list[str]:
-    """申請の中で日本語の掲載情報が入っている言語キーを返す。
+def listing_keys(submission: dict, lang: str) -> list[str]:
+    """申請の中で、その言語の掲載情報が入っている鍵を返す。
 
     **`ja` と決め打ちしない。** 実際の申請は `ja-jp` だった。
     決め打ちすると、既存の掲載情報を更新せず空の `ja` を足してしまい、
     説明文が消えたまま公開される。
+
+    その言語の掲載情報がまだ無ければ、既定の鍵を 1 つ返す（新しく作る）。
     """
     keys = [k for k in submission.get("listings", {})
-            if k.lower() == "ja" or k.lower().startswith("ja-")]
-    return keys or ["ja-jp"]
+            if k.lower() == lang or k.lower().startswith(f"{lang}-")]
+    return keys or [DEFAULT_LISTING_KEYS[lang]]
 
 
-def apply_listing(submission: dict, listing: dict[str, str]) -> dict:
-    """日本語の掲載情報を差し替える。ほかの言語や価格には触らない。"""
+def apply_listings(submission: dict, listings_by_lang: dict[str, dict]) -> dict:
+    """掲載情報を言語ごとに差し替える。価格や年齢区分には触らない。
+
+    **知らない言語の掲載情報は消さない。** 触るのは LISTINGS にある言語だけ。
+    """
     listings = submission.setdefault("listings", {})
-    for key in japanese_listing_keys(submission):
-        base = listings.setdefault(key, {}).setdefault("baseListing", {})
-        base["description"] = listing["description"]
-        base["shortDescription"] = listing["short"]
-        base["keywords"] = listing["keywords"]
+    for lang, listing in listings_by_lang.items():
+        for key in listing_keys(submission, lang):
+            base = listings.setdefault(key, {}).setdefault("baseListing", {})
+            base["description"] = listing["description"]
+            base["shortDescription"] = listing["short"]
+            base["keywords"] = listing["keywords"]
     return submission
 
 
@@ -361,17 +384,22 @@ def main() -> int:
     if args.status:
         return watch_pending()
 
-    listing = listing_from_markdown()
+    listings_by_lang = {lang: listing_from_markdown(path)
+                        for lang, path in LISTINGS.items()}
     print("掲載情報を読みました:")
-    print(f"  説明 {len(listing['description'])} 文字 / "
-          f"簡単な説明 {len(listing['short'])} 文字 / "
-          f"キーワード {len(listing['keywords'])} 件")
-    if "中村" not in listing["description"] or "金" not in listing["description"]:
-        print("  ※ 説明に開発者名が入っていません", file=sys.stderr)
+    for lang, listing in listings_by_lang.items():
+        print(f"  [{lang}] 説明 {len(listing['description'])} 文字 / "
+              f"簡単な説明 {len(listing['short'])} 文字 / "
+              f"キーワード {len(listing['keywords'])} 件")
+        # **開発者名が抜けたまま公開したことがある**（0.1.0）。言語ごとに確かめる。
+        names = DEVELOPER_NAMES[lang]
+        if any(n not in listing["description"] for n in names):
+            print(f"  ※ [{lang}] 説明に開発者名が入っていません", file=sys.stderr)
 
     if args.dry_run:
-        print("\n--- 送る説明文 ---")
-        print(listing["description"])
+        for lang, listing in listings_by_lang.items():
+            print(f"\n--- 送る説明文 [{lang}] ---")
+            print(listing["description"])
         return 0
 
     missing = [k for k in ("STORE_TENANT_ID", "STORE_CLIENT_ID",
@@ -395,7 +423,7 @@ def main() -> int:
         print("前回の申請を複製しています…")
         submission = create_submission(token, store_id)
 
-    submission = apply_listing(submission, listing)
+    submission = apply_listings(submission, listings_by_lang)
     submission = ensure_device_families(submission)
 
     if args.msix:

@@ -33,29 +33,31 @@ def _listing() -> dict:
     return {"description": "説明", "short": "短い説明", "keywords": ["a", "b"]}
 
 
-class TestJapaneseListingKeys:
+class TestListingKeys:
     def test_finds_ja_jp(self):
         sub = {"listings": {"ja-jp": {"baseListing": {}}}}
-        assert store_submit.japanese_listing_keys(sub) == ["ja-jp"]
+        assert store_submit.listing_keys(sub, "ja") == ["ja-jp"]
 
     def test_finds_bare_ja(self):
         sub = {"listings": {"ja": {"baseListing": {}}}}
-        assert store_submit.japanese_listing_keys(sub) == ["ja"]
+        assert store_submit.listing_keys(sub, "ja") == ["ja"]
 
     def test_ignores_other_languages(self):
         sub = {"listings": {"en-us": {"baseListing": {}},
                             "ja-jp": {"baseListing": {}}}}
-        assert store_submit.japanese_listing_keys(sub) == ["ja-jp"]
+        assert store_submit.listing_keys(sub, "ja") == ["ja-jp"]
+        assert store_submit.listing_keys(sub, "en") == ["en-us"]
 
     def test_falls_back_when_absent(self):
-        assert store_submit.japanese_listing_keys({"listings": {}}) == ["ja-jp"]
+        assert store_submit.listing_keys({"listings": {}}, "ja") == ["ja-jp"]
+        assert store_submit.listing_keys({"listings": {}}, "en") == ["en-us"]
 
 
-class TestApplyListing:
+class TestApplyListings:
     def test_updates_existing_ja_jp_and_adds_no_ja(self):
         sub = {"listings": {"ja-jp": {"baseListing": {"description": "古い",
                                                       "title": "残す"}}}}
-        store_submit.apply_listing(sub, _listing())
+        store_submit.apply_listings(sub, {"ja": _listing()})
 
         base = sub["listings"]["ja-jp"]["baseListing"]
         assert base["description"] == "説明"
@@ -66,32 +68,58 @@ class TestApplyListing:
         # 空の言語を増やさない
         assert "ja" not in sub["listings"]
 
-    def test_leaves_other_languages_alone(self):
-        sub = {"listings": {"en-us": {"baseListing": {"description": "English"}},
+    def test_creates_the_english_listing_when_absent(self):
+        """英語の掲載情報は 0.1.7 が最初。無いところに作れること。"""
+        sub = {"listings": {"ja-jp": {"baseListing": {}}}}
+        store_submit.apply_listings(sub, {"en": _listing()})
+        assert sub["listings"]["en-us"]["baseListing"]["description"] == "説明"
+
+    def test_leaves_languages_we_do_not_manage_alone(self):
+        """LISTINGS に無い言語の掲載情報は消さない。"""
+        sub = {"listings": {"ko-kr": {"baseListing": {"description": "한국어"}},
                             "ja-jp": {"baseListing": {}}}}
-        store_submit.apply_listing(sub, _listing())
-        assert sub["listings"]["en-us"]["baseListing"]["description"] == "English"
+        store_submit.apply_listings(sub, {"ja": _listing()})
+        assert sub["listings"]["ko-kr"]["baseListing"]["description"] == "한국어"
 
     def test_does_not_touch_pricing(self):
         sub = {"listings": {"ja-jp": {"baseListing": {}}},
                "pricing": {"priceId": "Free"}}
-        store_submit.apply_listing(sub, _listing())
+        store_submit.apply_listings(sub, {"ja": _listing()})
         assert sub["pricing"] == {"priceId": "Free"}
 
 
 class TestListingFromMarkdown:
     """0.1.0 では開発者名が抜けたまま公開された。正本から取れているか見る。"""
 
+    def test_every_declared_language_has_a_file(self):
+        for lang, path in store_submit.LISTINGS.items():
+            assert path.is_file(), f"{lang} の正本がありません: {path}"
+
     def test_has_both_developers(self):
-        listing = store_submit.listing_from_markdown()
-        assert "中村 覚" in listing["description"]
-        assert "金 甫榮" in listing["description"]
+        for lang, path in store_submit.LISTINGS.items():
+            listing = store_submit.listing_from_markdown(path)
+            for name in store_submit.DEVELOPER_NAMES[lang]:
+                assert name in listing["description"], (lang, name)
 
     def test_within_store_limits(self):
-        listing = store_submit.listing_from_markdown()
-        assert 0 < len(listing["description"]) <= 10000
-        assert 0 < len(listing["short"]) <= 1000
-        assert len(listing["keywords"]) <= 7
+        for path in store_submit.LISTINGS.values():
+            listing = store_submit.listing_from_markdown(path)
+            assert 0 < len(listing["description"]) <= 10000
+            assert 0 < len(listing["short"]) <= 1000
+            assert len(listing["keywords"]) <= 7
+
+    def test_the_manifest_declares_every_listing_language(self):
+        """掲載情報を置ける言語は、MSIX が宣言しているものだけ。
+
+        宣言していない言語の掲載情報を送ると拒まれる。**片方だけ足すと、
+        送ってみるまで分からない**ので、ここで突き合わせる。
+        """
+        manifest = (ROOT / "packaging" / "windows"
+                    / "AppxManifest.xml.in").read_text(encoding="utf-8")
+        for lang in store_submit.LISTINGS:
+            key = store_submit.DEFAULT_LISTING_KEYS[lang]
+            tag = key.split("-")[0] + "-" + key.split("-")[1].upper()
+            assert f'<Resource Language="{tag}" />' in manifest, tag
 
 
 class TestCreateSubmissionRefusesWhenPending:
