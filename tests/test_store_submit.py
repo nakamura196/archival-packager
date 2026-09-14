@@ -122,6 +122,70 @@ class TestListingFromMarkdown:
             assert f'<Resource Language="{tag}" />' in manifest, tag
 
 
+class TestThrottlingIsRetried:
+    """403 を「権限が無い」と決めつけない。
+
+    2026-09-12 と 09-13、続けて叩いたときに本文の空の 403 が返った。
+    いずれも直前の呼び出しは成功していて、数分置くと元に戻っている。
+    役割の設定を疑って調べ直すと時間を失うので、まず数回やり直す。
+    """
+
+    def test_retries_then_succeeds(self, monkeypatch):
+        import urllib.error
+
+        calls = []
+
+        def fake_urlopen(req, timeout=None):
+            calls.append(req.full_url)
+            if len(calls) < 3:
+                raise urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, None)
+
+            class R:
+                def read(self):
+                    return b'{"ok": true}'
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *a):
+                    return False
+
+            return R()
+
+        monkeypatch.setattr(store_submit.urllib.request, "urlopen", fake_urlopen)
+        monkeypatch.setattr(store_submit.time, "sleep", lambda _s: None)
+        assert store_submit._request("GET", "https://example.test/x") == {"ok": True}
+        assert len(calls) == 3
+
+    def test_gives_up_and_says_to_check_the_role(self, monkeypatch):
+        """やり直しても駄目なら、そこで初めて権限の話にする。"""
+        import urllib.error
+
+        def always_403(req, timeout=None):
+            raise urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, None)
+
+        monkeypatch.setattr(store_submit.urllib.request, "urlopen", always_403)
+        monkeypatch.setattr(store_submit.time, "sleep", lambda _s: None)
+        with pytest.raises(store_submit.StoreError, match="Manager"):
+            store_submit._request("GET", "https://example.test/x")
+
+    def test_other_errors_are_not_retried(self, monkeypatch):
+        """400 は何度送っても 400。待つだけ無駄で、原因も隠れる。"""
+        import urllib.error
+
+        calls = []
+
+        def bad_request(req, timeout=None):
+            calls.append(req.full_url)
+            raise urllib.error.HTTPError(req.full_url, 400, "Bad Request", {}, None)
+
+        monkeypatch.setattr(store_submit.urllib.request, "urlopen", bad_request)
+        monkeypatch.setattr(store_submit.time, "sleep", lambda _s: None)
+        with pytest.raises(store_submit.StoreError, match="400"):
+            store_submit._request("GET", "https://example.test/x")
+        assert len(calls) == 1
+
+
 class TestCreateSubmissionRefusesWhenPending:
     """ダッシュボードと API を混ぜると壊れる。作りかけがあるなら止まること。"""
 

@@ -79,21 +79,45 @@ class StoreError(RuntimeError):
 # --------------------------------------------------------------------------
 
 
+#: 403 が返ったときに待つ秒数。**回数と間隔は控えめにする。**
+#: 絞り込みに対して急いで叩き直すのは、絞り込みを深めるだけになりうる。
+_THROTTLE_WAITS = (60, 120, 240)
+
+
 def _request(method: str, url: str, *, token: str | None = None,
              body: bytes | None = None, headers: dict[str, str] | None = None) -> dict:
-    req = urllib.request.Request(url, method=method, data=body)
-    if token:
-        req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("Content-Type", "application/json")
-    for key, value in (headers or {}).items():
-        req.add_header(key, value)
-    try:
-        with urllib.request.urlopen(req, timeout=120) as res:
-            raw = res.read()
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace")[:800]
-        raise StoreError(f"{method} {url} が {exc.code} で失敗しました:\n{detail}") from exc
-    return json.loads(raw) if raw else {}
+    """API を 1 回叩く。403 は絞り込みとみなし、間を置いて数回だけやり直す。
+
+    **403 は「権限が無い」とは限らない。** このアプリでは、続けて叩いたときに
+    本文の空の 403 が返る（2026-09-12 と 09-13 に 2 回。いずれも直前の呼び出しは
+    成功していて、数分置くと元に戻った）。役割の設定を疑って調べ直すと時間を失う。
+    やり直しても駄目なときだけ、権限の話として扱う。
+    """
+    for attempt, wait in enumerate((*_THROTTLE_WAITS, None)):
+        req = urllib.request.Request(url, method=method, data=body)
+        if token:
+            req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("Content-Type", "application/json")
+        for key, value in (headers or {}).items():
+            req.add_header(key, value)
+        try:
+            with urllib.request.urlopen(req, timeout=120) as res:
+                raw = res.read()
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:800]
+            if exc.code in (403, 429) and wait is not None:
+                print(f"  {exc.code} が返りました。{wait} 秒待って {attempt + 2} 回目を試します"
+                      f"（続けて叩くと返ることがあります）", flush=True)
+                time.sleep(wait)
+                continue
+            hint = ""
+            if exc.code == 403:
+                hint = ("\n  やり直しても 403 でした。ここで初めて役割（Manager）と"
+                        "テナントの結び付きを疑ってください。")
+            raise StoreError(
+                f"{method} {url} が {exc.code} で失敗しました:\n{detail}{hint}") from exc
+        return json.loads(raw) if raw else {}
+    raise StoreError("到達しません")  # pragma: no cover
 
 
 def token_for(tenant: str, client_id: str, secret: str) -> str:
