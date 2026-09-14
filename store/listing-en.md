@@ -96,17 +96,17 @@ digital archive
 
 ## スクリーンショット
 
-言語ごとに差し替えられる。英語の画面を撮ったものは
-`docs/images/main-en.png` にあるが、**あれは macOS で撮ったもの**なので、
-ストアに出すなら Windows で撮り直すこと（CI の成果物
-`archival-packager-windows-screenshots` から取れる。ただし CI は
-日本語の画面しか撮っていないので、撮る前に settings.json を書く必要がある。
-Issue #16 を参照）。
+`store/screenshots/en/01-sip.png` （1486 × 973）。
 
-## 未確認のこと
+CI の Windows ビルドが撮ったもの（`scripts/screenshot-windows.ps1` の成果物
+`archival-packager-windows-screenshots`）。初回起動が OS の言語に従うように
+なったので、runner が英語環境である以上、**何もしなくても英語の画面が撮れる。**
 
-**英語の掲載情報を出すのは今回が初めて。** 次の点は実際に送ってみないと分からない。
+## 分かったこと（2026-09-13）
 
-- 掲載情報ごとに必要な項目（スクリーンショットなど）が、言語ごとに要るのかどうか
+- **掲載情報には言語ごとに 1 枚以上の画像が要る。** 画像なしで送ったら、
+  74 MB を送り終えたあとの確定の段階で弾かれた:
+  `InvalidParameterValue Validation error: NoScreenshotsOfAnyType`
 - `en-us` の掲載情報を足すには、パッケージが `en-US` を宣言している必要がある。
   0.1.7 の MSIX から宣言している
+- 説明文・簡単な説明・キーワードは、言語ごとに別々に持てる

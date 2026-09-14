@@ -69,6 +69,16 @@ DEFAULT_LISTING_KEYS = {"ja": "ja-jp", "en": "en-us"}
 #: 説明文に必ず入っていてほしい開発者名。0.1.0 でこれが抜けたまま公開した。
 DEVELOPER_NAMES = {"ja": ("中村", "金"), "en": ("Nakamura", "Kim")}
 
+#: 言語コード -> その言語の掲載情報に付けるスクリーンショット。
+#: **掲載情報は言語ごとに 1 枚以上の画像を要求される。** 英語の掲載情報を
+#: 画像なしで送ったところ、確定の段階で弾かれた（2026-09-13）:
+#:     InvalidParameterValue Validation error: NoScreenshotsOfAnyType
+#: 既に画像が付いている掲載情報には触らない（下の attach_screenshots）。
+SCREENSHOTS = {
+    "ja": ROOT / "store" / "screenshots" / "ja" / "01-sip.png",
+    "en": ROOT / "store" / "screenshots" / "en" / "01-sip.png",
+}
+
 
 class StoreError(RuntimeError):
     pass
@@ -259,16 +269,57 @@ def apply_listings(submission: dict, listings_by_lang: dict[str, dict]) -> dict:
     return submission
 
 
-def stage_package(submission: dict, msix: Path, work: Path) -> Path:
-    """新しい MSIX を足し、古いものに削除の印を付けて、zip に固める。"""
-    packages = submission.setdefault("applicationPackages", [])
-    for p in packages:
-        p["fileStatus"] = "PendingDelete"
-    packages.append({"fileName": msix.name, "fileStatus": "PendingUpload"})
+def attach_screenshots(submission: dict) -> list[tuple[str, Path]]:
+    """画像を持たない掲載情報に、その言語のスクリーンショットを 1 枚足す。
+
+    **既に画像が付いているものには触らない。** 日本語の掲載情報には
+    以前から 1 枚入っていて、こちらで撮り直したものより新しいとは限らない。
+    足りないところだけ埋める。
+
+    返すのは「zip に入れるべきファイル」の一覧。返り値が空なら送るものは無い。
+    """
+    pending: list[tuple[str, Path]] = []
+    listings = submission.setdefault("listings", {})
+    for lang, source in SCREENSHOTS.items():
+        for key in listing_keys(submission, lang):
+            base = listings.setdefault(key, {}).setdefault("baseListing", {})
+            images = base.setdefault("images", [])
+            if any(i.get("fileStatus") != "PendingDelete" for i in images):
+                continue
+            if not source.is_file():
+                raise StoreError(f"{lang} のスクリーンショットがありません: {source}")
+            name = f"{key}/{source.name}"
+            images.append({
+                "fileName": name,
+                "fileStatus": "PendingUpload",
+                "imageType": "Screenshot",
+            })
+            pending.append((name, source))
+    return pending
+
+
+def stage_upload(submission: dict, msix: Path | None,
+                 images: list[tuple[str, Path]], work: Path) -> Path | None:
+    """送るものを 1 つの zip に固める。MSIX も画像も、同じ zip で送る。
+
+    新しい MSIX を足すときは、古いものに削除の印を付ける。
+    送るものが何も無ければ None を返す（掲載情報の文面だけの更新）。
+    """
+    entries: list[tuple[str, Path]] = list(images)
+    if msix is not None:
+        packages = submission.setdefault("applicationPackages", [])
+        for p in packages:
+            p["fileStatus"] = "PendingDelete"
+        packages.append({"fileName": msix.name, "fileStatus": "PendingUpload"})
+        entries.append((msix.name, msix))
+
+    if not entries:
+        return None
 
     bundle = work / "package.zip"
     with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as z:
-        z.write(msix, arcname=msix.name)
+        for arcname, path in entries:
+            z.write(path, arcname=arcname)
     return bundle
 
 
@@ -355,6 +406,21 @@ def check_credentials() -> int:
     return 0
 
 
+def _credentials() -> tuple[str | None, str]:
+    """環境変数を確かめ、トークンを取る。足りなければ (None, "") を返す。"""
+    missing = [k for k in ("STORE_TENANT_ID", "STORE_CLIENT_ID",
+                           "STORE_CLIENT_SECRET", "STORE_ID")
+               if not os.environ.get(k)]
+    if missing:
+        print(f"環境変数がありません: {', '.join(missing)}。"
+              f"op run --env-file=store/.env -- で実行してください。", file=sys.stderr)
+        return None, ""
+    return os.environ["STORE_ID"], token_for(
+        os.environ["STORE_TENANT_ID"],
+        os.environ["STORE_CLIENT_ID"],
+        os.environ["STORE_CLIENT_SECRET"])
+
+
 def watch_pending() -> int:
     """進行中の申請の状態だけを見届ける。**何も変えない。**
 
@@ -363,18 +429,9 @@ def watch_pending() -> int:
     使えない。2026-09-12、確定の直後に status が 403 を返し、
     「送ったが、どうなったか分からない」状態になった。読むだけの入口を分けておく。
     """
-    missing = [k for k in ("STORE_TENANT_ID", "STORE_CLIENT_ID",
-                           "STORE_CLIENT_SECRET", "STORE_ID")
-               if not os.environ.get(k)]
-    if missing:
-        print(f"環境変数がありません: {', '.join(missing)}。"
-              f"op run --env-file=store/.env -- で実行してください。", file=sys.stderr)
+    store_id, token = _credentials()
+    if store_id is None:
         return 1
-
-    store_id = os.environ["STORE_ID"]
-    token = token_for(os.environ["STORE_TENANT_ID"],
-                      os.environ["STORE_CLIENT_ID"],
-                      os.environ["STORE_CLIENT_SECRET"])
     app = _request("GET", f"{API}/applications/{store_id}", token=token)
     pending = (app.get("pendingApplicationSubmission") or {}).get("id")
     if not pending:
@@ -386,6 +443,31 @@ def watch_pending() -> int:
     print(f"結果: {state}")
     return 0 if state not in ("CommitFailed", "PreProcessingFailed",
                               "CertificationFailed") else 1
+
+
+def discard_pending() -> int:
+    """進行中の申請を捨てる。**元に戻せない。**
+
+    確定に失敗した申請は保留として残る。`--resume` で引き継ぐと、
+    **送信済みのパッケージと新しいものが二重になる**。送り先の blob は
+    申請ごとに 1 つで、次の zip を送った時点で前に送ったものは消えるのに、
+    申請 JSON には「送信済み」として残るためである。
+    作り直したほうが早く、確実。
+
+    2026-09-13、英語の掲載情報を画像なしで送って確定に失敗し、ここを通った。
+    """
+    store_id, token = _credentials()
+    if store_id is None:
+        return 1
+    app = _request("GET", f"{API}/applications/{store_id}", token=token)
+    pending = (app.get("pendingApplicationSubmission") or {}).get("id")
+    if not pending:
+        print("進行中の申請はありません。")
+        return 0
+    _request("DELETE", f"{API}/applications/{store_id}/submissions/{pending}",
+             token=token)
+    print(f"進行中の申請 {pending} を捨てました。")
+    return 0
 
 
 def main() -> int:
@@ -400,6 +482,9 @@ def main() -> int:
                         help="パッケージの送信を省く。既に上げ終わっているとき用")
     parser.add_argument("--status", action="store_true",
                         help="進行中の申請の状態だけ見届ける。読むだけで、何も変えない")
+    parser.add_argument("--discard", action="store_true",
+                        help="進行中の申請を捨てる。**元に戻せない。**"
+                             "確定に失敗した申請を作り直すとき用")
     args = parser.parse_args()
 
     if args.check:
@@ -407,6 +492,9 @@ def main() -> int:
 
     if args.status:
         return watch_pending()
+
+    if args.discard:
+        return discard_pending()
 
     listings_by_lang = {lang: listing_from_markdown(path)
                         for lang, path in LISTINGS.items()}
@@ -450,21 +538,28 @@ def main() -> int:
     submission = apply_listings(submission, listings_by_lang)
     submission = ensure_device_families(submission)
 
-    if args.msix:
-        if not args.msix.is_file():
-            print(f"MSIX が見つかりません: {args.msix}", file=sys.stderr)
-            return 1
-        work = Path(os.environ.get("TMPDIR", "/tmp")) / "archival-packager-store"
-        work.mkdir(parents=True, exist_ok=True)
-        bundle = stage_package(submission, args.msix, work)
-        if args.skip_upload:
-            print("パッケージは送信済みとして扱います（--skip-upload）。")
-        else:
-            print(f"パッケージを送っています（{bundle.stat().st_size // 1024 // 1024} MB）…")
-            upload(submission["fileUploadUrl"], bundle)
-    elif args.skip_upload:
-        print("--skip-upload は --msix と一緒に使ってください。", file=sys.stderr)
+    if args.msix and not args.msix.is_file():
+        print(f"MSIX が見つかりません: {args.msix}", file=sys.stderr)
         return 1
+
+    images = attach_screenshots(submission)
+    for name, _path in images:
+        print(f"スクリーンショットを足します: {name}")
+
+    work = Path(os.environ.get("TMPDIR", "/tmp")) / "archival-packager-store"
+    work.mkdir(parents=True, exist_ok=True)
+    bundle = stage_upload(submission, args.msix, images, work)
+
+    if bundle is None:
+        if args.skip_upload:
+            print("--skip-upload は送るものがあるときに使ってください。", file=sys.stderr)
+            return 1
+        print("送るファイルはありません（掲載情報の文面だけの更新）。")
+    elif args.skip_upload:
+        print("ファイルは送信済みとして扱います（--skip-upload）。")
+    else:
+        print(f"ファイルを送っています（{bundle.stat().st_size // 1024 // 1024} MB）…")
+        upload(submission["fileUploadUrl"], bundle)
 
     print("申請を確定しています…")
     commit(token, store_id, submission)

@@ -105,12 +105,13 @@ nakamura@hi.u-tokyo.ac.jp
 
 ## スクリーンショット
 
-store/screenshots/01-sip.png （1486 × 973。Store の要件は 1366 × 768 以上）
+`store/screenshots/ja/01-sip.png` （1486 × 973。Store の要件は 1366 × 768 以上）
 
 **この図はオプション欄の位置を変える前のもの。** 差し替えるときは撮り直すこと。
 
-CI が毎回撮り直している（scripts/screenshot-windows.ps1）。差し替えるときは
-最新のビルドの成果物 archival-packager-windows-screenshots から取る。
+**CI で撮れるのは英語の画面だけになった。** 初回起動が OS の言語に従うようになり、
+runner が英語環境だから（`scripts/screenshot-windows.ps1`）。日本語の画面を
+撮るには、起動前に settings.json を書く必要がある（Issue #16）。
 
 ---
 

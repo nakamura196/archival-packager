@@ -122,6 +122,75 @@ class TestListingFromMarkdown:
             assert f'<Resource Language="{tag}" />' in manifest, tag
 
 
+class TestScreenshots:
+    """掲載情報は言語ごとに 1 枚以上の画像を要求される。
+
+    2026-09-13、英語の掲載情報を画像なしで送って確定の段階で弾かれた:
+      InvalidParameterValue Validation error: NoScreenshotsOfAnyType
+    74 MB を送り終えたあとに落ちるので、送る前に埋める。
+    """
+
+    def test_adds_one_where_there_is_none(self):
+        sub = {"listings": {"ja-jp": {"baseListing": {}}}}
+        pending = store_submit.attach_screenshots(sub)
+        names = {name for name, _ in pending}
+        assert names == {"ja-jp/01-sip.png", "en-us/01-sip.png"}
+        for key in ("ja-jp", "en-us"):
+            images = sub["listings"][key]["baseListing"]["images"]
+            assert images[0]["fileStatus"] == "PendingUpload"
+            assert images[0]["imageType"] == "Screenshot"
+
+    def test_leaves_an_existing_image_alone(self):
+        """既に入っている画像を置き換えない。
+
+        日本語の掲載情報には以前から 1 枚あり、こちらで用意したものより
+        新しいとは限らない。足りないところだけ埋める。
+        """
+        sub = {"listings": {"ja-jp": {"baseListing": {"images": [
+            {"fileName": "old.png", "fileStatus": "Uploaded", "imageType": "Screenshot"}]}}}}
+        pending = store_submit.attach_screenshots(sub)
+        assert [n for n, _ in pending] == ["en-us/01-sip.png"]
+        assert sub["listings"]["ja-jp"]["baseListing"]["images"] == [
+            {"fileName": "old.png", "fileStatus": "Uploaded", "imageType": "Screenshot"}]
+
+    def test_a_deleted_image_does_not_count(self):
+        """消す印の付いた画像しか無いなら、実質 0 枚。"""
+        sub = {"listings": {"ja-jp": {"baseListing": {"images": [
+            {"fileName": "old.png", "fileStatus": "PendingDelete"}]}}}}
+        pending = store_submit.attach_screenshots(sub)
+        assert "ja-jp/01-sip.png" in {n for n, _ in pending}
+
+    def test_every_declared_language_has_a_file(self):
+        for lang, path in store_submit.SCREENSHOTS.items():
+            assert path.is_file(), f"{lang} のスクリーンショットがありません: {path}"
+
+    def test_images_and_the_package_go_in_one_zip(self, tmp_path):
+        """画像もパッケージも同じ zip で送る。送り口は 1 つしかない。"""
+        import zipfile
+
+        msix = tmp_path / "App.msix"
+        msix.write_bytes(b"not really an msix")
+        sub = {"listings": {"ja-jp": {"baseListing": {}}}}
+        images = store_submit.attach_screenshots(sub)
+        bundle = store_submit.stage_upload(sub, msix, images, tmp_path)
+        assert bundle is not None
+        with zipfile.ZipFile(bundle) as z:
+            assert set(z.namelist()) == {
+                "App.msix", "ja-jp/01-sip.png", "en-us/01-sip.png"}
+        assert sub["applicationPackages"][-1] == {
+            "fileName": "App.msix", "fileStatus": "PendingUpload"}
+
+    def test_nothing_to_send_returns_none(self, tmp_path):
+        """文面だけの更新では、何も送らない。"""
+        sub = {"listings": {"ja-jp": {"baseListing": {"images": [
+            {"fileName": "a.png", "fileStatus": "Uploaded"}]},
+        }, "en-us": {"baseListing": {"images": [
+            {"fileName": "b.png", "fileStatus": "Uploaded"}]}}}}
+        images = store_submit.attach_screenshots(sub)
+        assert images == []
+        assert store_submit.stage_upload(sub, None, images, tmp_path) is None
+
+
 class TestThrottlingIsRetried:
     """403 を「権限が無い」と決めつけない。
 
