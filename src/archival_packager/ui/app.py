@@ -30,11 +30,17 @@ from pathlib import Path
 import flet as ft
 
 from .. import __version__, i18n
-from ..core import aip_pipeline, applog, clamav, sip_pipeline
+from ..core import aip_pipeline, applog, clamav, sip_pipeline, sip_reader
 from ..core.aip_models import AIPOptions, AIPPipelineError, AIPResult, DescriptiveMetadata
-from ..core.models import SIPMetadata, SIPOptions, SIPPipelineError, SIPResult
+from ..core.models import (
+    SIPMetadata,
+    SIPOptions,
+    SIPPipelineError,
+    SIPResult,
+    is_same_or_inside,
+)
 from ..i18n import t
-from . import about, viewer
+from . import about, messages, viewer
 from . import platform as plat
 
 MODE_SIP = "sip"
@@ -52,6 +58,12 @@ class Selection:
     #: ビューアを開く手続き。組み立ての順番の都合で、レイアウトを作ったあとに入れる。
     #: show_result はそれより前に定義されるため、ここを経由して呼ぶ。
     open_viewer: Callable[[Path], None] = lambda _p: None
+    #: 作った SIP を入力にして、AIP 作成へ移る手続き。open_viewer と同じ理由でここを経由する。
+    continue_to_aip: Callable[[Path], None] = lambda _p: None
+
+    #: 入力に選んだものの種類（"material" か "sip"）。モードを切り替えて
+    #: 種類が変わったら、選んだ入力を外す（apply_mode を参照）。
+    input_kind: str = ""
 
     #: page.add を済ませたか。Flet 0.86 の Control.page は、画面に載る前に
     #: 読むと None ではなく RuntimeError を投げる。判定に使えないので自分で持つ。
@@ -117,6 +129,9 @@ def main(page: ft.Page) -> None:
         page.run_task(_run)
 
     def log(message: str) -> None:
+        # core の進捗は日本語で来る。画面に出すときだけ今の言語にする。
+        message = messages.progress_line(message)
+
         def _append() -> None:
             items = progress_log.controls
             items.append(ft.Text(message, size=12, selectable=True))
@@ -191,14 +206,25 @@ def main(page: ft.Page) -> None:
     # オプション
     # ------------------------------------------------------------------
 
-    make_bag = ft.Checkbox(label=t("BagIt bag として梱包する"), value=False)
-    scan_pii = ft.Checkbox(label=t("個人情報(PII)を走査する"), value=False)
-    scan_virus = ft.Checkbox(label=t("ウイルス検査を行う（定義 DB が必要）"), value=False)
-    sanitize = ft.Checkbox(
-        label=t("ファイル名を安全化する（元名は accession.csv に残ります）"), value=False
-    )
-    serialize_zip = ft.Checkbox(label=t("成果物を ZIP（無圧縮）に固める"), value=False)
-    normalize = ft.Checkbox(label=t("保存用フォーマットへ変換する（AIP）"), value=True)
+    def option_box(label: str, value: bool) -> ft.Checkbox:
+        """オプションのチェックボックス。
+
+        **ラベルは Text で渡す。** 文字列のままだと 1 行に固定され、左の列
+        （幅 420）に収まらない分が切れていた（「元名は accession.csv に残」で
+        途切れ、英語ではさらに短い所で切れる）。Text なら折り返す。
+        見出しの要約に使うため、文字列は data に持たせる。
+        """
+        # 幅は左の列（420）から余白とチェックの枠を引いたもの。幅を決めないと折り返さない。
+        box = ft.Checkbox(label=ft.Text(label, width=300), value=value)
+        box.data = label
+        return box
+
+    make_bag = option_box(t("BagIt bag として梱包する"), False)
+    scan_pii = option_box(t("個人情報(PII)を走査する"), False)
+    scan_virus = option_box(t("ウイルス検査を行う（定義 DB が必要）"), False)
+    sanitize = option_box(t("ファイル名を安全化する（元名は accession.csv に残ります）"), False)
+    serialize_zip = option_box(t("成果物を ZIP（無圧縮）に固める"), False)
+    normalize = option_box(t("保存用フォーマットへ変換する（AIP）"), True)
 
     # ------------------------------------------------------------------
     # ウイルス定義データベース
@@ -231,6 +257,9 @@ def main(page: ft.Page) -> None:
     input_label = ft.Text(t("未選択"), size=12, color=ft.Colors.ON_SURFACE_VARIANT)
     output_label = ft.Text(t("未選択"), size=12, color=ft.Colors.ON_SURFACE_VARIANT)
     prior_label = ft.Text(t("未選択（任意）"), size=12, color=ft.Colors.ON_SURFACE_VARIANT)
+    #: 選んだものが使えないときの理由。欄のすぐ下に赤で出す。
+    input_note = ft.Text("", size=12, color=ft.Colors.ERROR, visible=False)
+    output_note = ft.Text("", size=12, color=ft.Colors.ERROR, visible=False)
 
     # FilePicker は「サービス」として page.services に登録し、選択結果は
     # コールバックではなく await の戻り値で受け取る（Flet 0.86 の API）。
@@ -253,15 +282,63 @@ def main(page: ft.Page) -> None:
             missing.append(t("出力先"))
         if needs_title and not (title.value or "").strip():
             missing.append(t("タイトル"))
-        run_button.disabled = bool(missing)
+
+        input_problem, output_problem = selection_problems()
+        input_note.value = input_problem
+        input_note.visible = bool(input_problem)
+        output_note.value = output_problem
+        output_note.visible = bool(output_problem)
+
+        run_button.disabled = bool(missing) or bool(input_problem or output_problem)
         # 区切りも訳の対象。日本語の中黒をそのまま英語に出すと読めない。
-        run_hint.value = (t("あと {items} を指定すると押せます", items=t("・").join(missing))
-                          if missing else "")
-        run_hint.visible = bool(missing)
+        if missing:
+            run_hint.value = t("あと {items} を指定すると押せます", items=t("・").join(missing))
+        elif input_problem or output_problem:
+            run_hint.value = t("入力と出力先の赤字の説明を確かめてください")
+        else:
+            run_hint.value = ""
+        run_hint.visible = bool(run_hint.value)
         # 組み立ての途中（page.add より前）にも呼ばれる。まだ画面が無いうちは
         # 送らない。
         if state.on_page:
             page.update()
+
+    def selection_problems() -> tuple[str, str]:
+        """選んだ入力・出力先のままでは、実行しても失敗する（または原本を汚す）もの。
+
+        押してから落ちるのではなく、選んだ時点で、その欄の下に理由を出す。
+        返すのは (入力の欄に出す文, 出力先の欄に出す文)。
+        """
+        src, dest = state.input_path, state.output_parent
+        output_problem = ""
+        if src is not None and dest is not None and is_same_or_inside(dest, src):
+            # **原本のフォルダに書き込ませない。** core でも止めるが、押す前に見せる。
+            output_problem = (
+                t("出力先が SIP のフォルダの中にあります。別の場所を選んでください。")
+                if mode.value == MODE_AIP else
+                t("出力先が資料のフォルダの中にあります。原本のフォルダに書き込まないよう、"
+                  "別の場所を選んでください。")
+            )
+        input_problem = ""
+        if src is not None and mode.value == MODE_AIP and not sip_reader.looks_like_sip(src):
+            # よくある取り違えは 2 つ。SIP を入れた「出力先」のフォルダを選んだ場合と、
+            # 素材のフォルダを選んだ場合。前者なら、中の SIP を名指しする。
+            try:
+                inside = [p for p in sorted(src.iterdir()) if sip_reader.looks_like_sip(p)]
+            except OSError:
+                inside = []
+            if len(inside) == 1:
+                input_problem = t(
+                    "選んだフォルダは SIP ではありません。この中の「{name}」が SIP です。"
+                    "そちらを選んでください。", name=inside[0].name)
+            else:
+                input_problem = t(
+                    "選んだフォルダは SIP ではありません。素材のフォルダから作るときは、"
+                    "「何を作るか」で「SIP 作成」か「素材から AIP まで一気通貫」を選んでください。")
+            # 入力が SIP でないうちは、出力先について「SIP の中」と言うのは誤り。
+            # 先に入力を直してもらう。
+            output_problem = ""
+        return input_problem, output_problem
 
     async def choose_input_dir(_e: ft.ControlEvent) -> None:
         chosen = await picker.get_directory_path(dialog_title=t("素材フォルダ / SIP を選ぶ"))
@@ -374,12 +451,21 @@ def main(page: ft.Page) -> None:
                                 t("目視確認が必要な点: {count} 件", count=len(result.warnings)),
                                 weight=ft.FontWeight.BOLD,
                             ),
-                            *[ft.Text(t("・{warning}", warning=w), size=12)
+                            *[ft.Text(t("・{warning}", warning=messages.warning_line(w)),
+                                      size=12)
                               for w in result.warnings[:50]],
                             *(
                                 [ft.Text(t("（他 {count} 件）",
                                            count=len(result.warnings) - 50), size=12)]
                                 if len(result.warnings) > 50
+                                else []
+                            ),
+                            # 種類の名前だけでは、何をすればよいかが分からない。
+                            *(
+                                [ft.Divider(height=8, color=ft.Colors.AMBER_200)]
+                                + [ft.Text(a, size=11, color=ft.Colors.ON_SURFACE_VARIANT)
+                                   for a in advice]
+                                if (advice := messages.warning_advice(result.warnings))
                                 else []
                             ),
                         ],
@@ -395,6 +481,32 @@ def main(page: ft.Page) -> None:
             _items.append(
                 ft.Text(t("目視確認が必要な点はありません。"), size=12,
                         color=ft.Colors.GREEN_700)
+            )
+
+        # **次にすることを置く。** SIP を作ったあと、AIP 作成へ移るには、
+        # モードを切り替え、いま作った SIP のフォルダを探して選び直す必要があった。
+        # 出力先のフォルダの中の、どれが SIP なのかで迷う（素材のフォルダを
+        # 選んだまま実行しかけた）。作った SIP をそのまま渡す。
+        if isinstance(result, SIPResult) and mode.value == MODE_SIP:
+            _items.append(
+                ft.Container(
+                    ft.Row(
+                        [
+                            ft.FilledButton(
+                                t("この SIP から AIP を作る"),
+                                icon=ft.Icons.ARROW_FORWARD,
+                                on_click=lambda _e, p=path: state.continue_to_aip(p),
+                            ),
+                            ft.Text(
+                                t("中身を確かめてから進んでください。"
+                                  "日を改めるときは「AIP 作成」でこのフォルダを選びます。"),
+                                size=11, color=ft.Colors.ON_SURFACE_VARIANT, expand=True,
+                            ),
+                        ],
+                        spacing=10,
+                    ),
+                    padding=ft.Padding.only(top=6),
+                )
             )
         ui(lambda: result_panel.controls.extend(_items))
 
@@ -452,7 +564,7 @@ def main(page: ft.Page) -> None:
 
         except (SIPPipelineError, AIPPipelineError) as exc:
             # 想定内の失敗。原因が分かる形で 1 行出す。
-            _show_error(exc.message)
+            _show_error(messages.pipeline_error(exc.message))
         except Exception as exc:  # noqa: BLE001
             # 想定外。詳細を出さないと現場で原因が追えない。
             _show_error(f"{type(exc).__name__}: {exc}", traceback.format_exc())
@@ -631,6 +743,7 @@ def main(page: ft.Page) -> None:
                 t("入力"),
                 ft.Row([input_button, zip_button], wrap=True),
                 input_label,
+                input_note,
             ),
             section(
                 t("出力先"),
@@ -640,6 +753,7 @@ def main(page: ft.Page) -> None:
                     on_click=choose_output,
                 ),
                 output_label,
+                output_note,
             ),
             ft.Divider(height=1),
             # **オプションを記述メタデータより上に置く。** 記述メタデータは
@@ -720,7 +834,18 @@ def main(page: ft.Page) -> None:
         mode_note.value = _MODE_NOTES.get(selected, "")
 
         # 入力の意味がモードで変わる。AIP 作成の入力は「素材」ではなく SIP。
-        input_button.text = t("SIP のフォルダを選ぶ") if selected == MODE_AIP else t("フォルダを選ぶ")
+        # **Flet 0.86 のボタンの文字は content。** text に入れても何も変わらず、
+        # 以前はここが効いていなかった。
+        input_button.content = (
+            t("SIP のフォルダを選ぶ") if selected == MODE_AIP else t("フォルダを選ぶ")
+        )
+        # 入力の種類が変わったら、選んであった入力を外す。素材のフォルダを
+        # 選んだまま「AIP 作成」に切り替えると、そのまま実行できてしまっていた。
+        kind = "sip" if selected == MODE_AIP else "material"
+        if state.input_kind and kind != state.input_kind and state.input_path is not None:
+            state.input_path = None
+            input_label.value = t("未選択")
+        state.input_kind = kind
         zip_button.visible = makes_sip          # ZIP から受け入れるのは SIP 作成のとき
 
         # 記述メタデータは SIP を作るときに入力する。AIP 作成では SIP から読む。
@@ -737,7 +862,7 @@ def main(page: ft.Page) -> None:
         virus_section.visible = makes_sip and scan_virus.value
 
         # 閉じたまま中身が変わると気づけないので、有効なものを見出しに出す。
-        on = [c.label for c in (make_bag, sanitize, scan_pii, scan_virus,
+        on = [c.data for c in (make_bag, sanitize, scan_pii, scan_virus,
                                 normalize, serialize_zip)
               if c.visible and c.value]
         options_summary.value = t("、").join(on) if on else t("既定のまま")
@@ -783,6 +908,17 @@ def main(page: ft.Page) -> None:
         shell.update()
 
     state.open_viewer = open_viewer
+
+    def continue_to_aip(sip_path: Path) -> None:
+        mode.value = MODE_AIP
+        apply_mode()
+        state.input_path = sip_path
+        input_label.value = str(sip_path)
+        refresh_run_enabled()
+        log(t("AIP 作成に切り替え、作った SIP を入力にしました。出力先を確かめて「実行」を押してください。"))
+        page.update()
+
+    state.continue_to_aip = continue_to_aip
 
     def on_language(_e: ft.ControlEvent) -> None:
         """表示言語を切り替える。

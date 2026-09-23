@@ -187,8 +187,11 @@ SCENES: dict[str, list[Step]] = {
     "aip": [
         ("intro", None),
         ("mode", lambda d: d.click("radio", AIP_RADIO)),
-        ("input", lambda d: d.click("button", "フォルダを選ぶ", nth=0)),
-        ("output", lambda d: d.click("button", "フォルダを選ぶ", nth=1)),
+        # AIP 作成では入力のボタンが「SIP のフォルダを選ぶ」になる。名前で分けて押す
+        # （「フォルダを選ぶ」の n 番目で数えると、日本語では部分一致で両方に当たり、
+        # 英語では当たらず、言語でずれる）。
+        ("input", lambda d: d.click("button", "SIP のフォルダを選ぶ", exact=True)),
+        ("output", lambda d: d.click("button", "フォルダを選ぶ", exact=True)),
         ("run", lambda d: d.click("button", "実行", exact=True)),
         ("view", _view),
         ("workflow", lambda d: d.click("tab", "ワークフロー", exact=True)),

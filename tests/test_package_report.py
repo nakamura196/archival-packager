@@ -105,6 +105,36 @@ class TestSIP:
         report = package_report.read(sip)
         assert all(f.virus for f in report.files)
 
+    def test_shows_when_it_was_made(self, sip: Path):
+        """SIP にも作成日時が出ること。
+
+        SIP には METS が無く、概要に「作成日時（未記入）」と出ていた。
+        作った直後の画面で、何かが欠けているように見える。
+        """
+        assert package_report.read(sip).overview.created
+
+    def test_unidentified_is_not_counted_as_extension_mismatch(self, sip: Path):
+        """形式を特定できないだけのファイルを「拡張子が不一致」に数えない。
+
+        siegfried は特定できないときも "no match; …" を警告欄に書く。それを
+        数えていたため、SIP の概要で未識別と不一致が同じファイルを二重に指していた。
+        """
+        csv_path = next(sip.rglob("formats.csv"))
+        text = csv_path.read_text(encoding="utf-8-sig").splitlines()
+        head, rows = text[0], text[1:]
+        cols = head.split(",")
+        warn = cols.index("拡張子警告")
+        edited = []
+        for i, line in enumerate(rows):
+            cells = line.split(",")
+            cells[warn] = ("no match; possibilities based on extension are fmt/412" if i == 0
+                           else "extension mismatch")
+            edited.append(",".join(cells))
+        csv_path.write_text("\n".join([head, *edited]) + "\n", encoding="utf-8-sig")
+
+        summary = package_report.read(sip).summary
+        assert summary.extension_warnings == len(rows) - 1
+
 
 class TestBrokenInput:
     def test_empty_directory_does_not_raise(self, tmp_path: Path):

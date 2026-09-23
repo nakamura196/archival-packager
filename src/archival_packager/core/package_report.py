@@ -422,6 +422,7 @@ def _read_sip(root: Path) -> PackageReport:
 
     note = "" if files else "技術インベントリ（formats.csv）が見つかりませんでした"
     summary = _summarize(files, [])
+    created = _sip_created(metadata)
     return PackageReport(
         root=root,
         summary=summary,
@@ -429,6 +430,7 @@ def _read_sip(root: Path) -> PackageReport:
             kind="SIP",
             title=title,
             identifier=identifier,
+            created=created,
             file_count=len(files),
             original_count=len(files),
             total_bytes=total,
@@ -436,6 +438,24 @@ def _read_sip(root: Path) -> PackageReport:
         ),
         files=files,
     )
+
+
+def _sip_created(metadata: Path) -> str:
+    """SIP を作った日時。report.txt の「生成日時:」の行から読む。
+
+    SIP には METS が無いので、metsHdr の CREATEDATE に当たるものが無い。
+    読まずにいると、作った直後の概要に「作成日時（未記入）」と出て、
+    何かが欠けているように見える。
+    """
+    for report in (metadata / "report.txt", metadata / "submissionDocumentation" / "report.txt"):
+        try:
+            with report.open(encoding="utf-8") as fh:
+                for _i, line in zip(range(20), fh, strict=False):
+                    if line.startswith("生成日時:"):
+                        return line.split(":", 1)[1].strip()
+        except OSError:
+            continue
+    return ""
 
 
 def _summarize(files: list[FileRow], events: list[EventRow]) -> Summary:
@@ -456,8 +476,13 @@ def _summarize(files: list[FileRow], events: list[EventRow]) -> Summary:
         events=sorted(kinds.items(), key=lambda kv: (-kv[1], kv[0])),
         normalized=sum(1 for f in files if f.use == "保存用"),
         unidentified=sum(1 for f in originals if not f.puid),
+        # **食い違いだけを数える。** siegfried は形式を特定できないときも
+        # "no match; …" を警告欄に書く。それも数えると、SIP の概要で
+        # 「未識別 4 件」と「拡張子が不一致 4 件」が同じファイルを二重に指していた
+        # （作成直後の画面の「目視確認が必要な点」では未識別としか出ないのに）。
+        # 判定は core/sip_builder.py の collect_warnings と揃える。
         extension_warnings=sum(
-            1 for f in originals if f.warning and f.warning not in ("-", "なし")
+            1 for f in originals if f.warning and "mismatch" in f.warning.lower()
         ),
         virus_scanned=sum(
             1 for f in originals if f.virus and f.virus not in ("", "未実施", "-")

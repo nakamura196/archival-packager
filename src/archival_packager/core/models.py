@@ -169,7 +169,24 @@ class PipelineErrorKind(Enum):
     TOOL_NOT_FOUND = "tool_not_found"
     TOOL_FAILED = "tool_failed"
     NO_INPUT_FILES = "no_input_files"
+    OUTPUT_INSIDE_INPUT = "output_inside_input"
     IO = "io"
+
+
+def is_same_or_inside(path: Path, folder: Path) -> bool:
+    """path が folder そのものか、その中にあるか。
+
+    **出力先を入力の中に置かせないための判定。** 置けてしまうと、原本の
+    フォルダに SIP が書き込まれる（原本を変更しない、の約束が破れる）。
+    次に同じフォルダを受け入れると、前回の SIP まで資料として取り込まれる。
+    シンボリックリンクや「..」を含む指定でもすり抜けないよう、解決してから比べる。
+    """
+    try:
+        path = path.resolve()
+        folder = folder.resolve()
+    except OSError:
+        return False
+    return path == folder or folder in path.parents
 
 
 class SIPPipelineError(Exception):
@@ -191,6 +208,14 @@ class SIPPipelineError(Exception):
     @classmethod
     def no_input_files(cls) -> SIPPipelineError:
         return cls(PipelineErrorKind.NO_INPUT_FILES, "入力フォルダに対象ファイルがありません。")
+
+    @classmethod
+    def output_inside_input(cls) -> SIPPipelineError:
+        return cls(
+            PipelineErrorKind.OUTPUT_INSIDE_INPUT,
+            "出力先が資料のフォルダの中にあります。原本のフォルダに書き込まないよう、"
+            "別の場所を選んでください。",
+        )
 
     @classmethod
     def io(cls, message: str) -> SIPPipelineError:

@@ -29,6 +29,7 @@ import flet.canvas as cv
 
 from ..core import package_report, preview
 from ..i18n import raw, t
+from . import messages
 from . import platform as plat
 
 #: 役割ごとの色。配色は表示の領分なので、ここで決める。
@@ -211,7 +212,12 @@ def _pair(label: str, value: str) -> ft.Control:
 
 
 def _table(columns: list[tuple[str, int]], rows: list[list[ft.Control]]) -> ft.Control:
-    """横に長くなるので、表そのものを横スクロールさせる。"""
+    """横に長くなるので、表そのものを横スクロールさせる。
+
+    **縦にも流す。** 横スクロールの Row だけで包むと、表は上下の中央に置かれ
+    （件数が少ないと見出しの下に大きな空白ができた）、件数が多いと
+    画面の下で切れたまま、下の行へ進めなかった。
+    """
     table = ft.DataTable(
         columns=[ft.DataColumn(ft.Text(name, size=12, weight=ft.FontWeight.BOLD))
                  for name, _w in columns],
@@ -221,7 +227,11 @@ def _table(columns: list[tuple[str, int]], rows: list[list[ft.Control]]) -> ft.C
         data_row_max_height=48,
         column_spacing=18,
     )
-    return ft.Row([table], scroll=ft.ScrollMode.AUTO, expand=True)
+    return ft.Column(
+        [ft.Row([table], scroll=ft.ScrollMode.AUTO)],
+        scroll=ft.ScrollMode.AUTO,
+        expand=True,
+    )
 
 
 def _mono(text: str, size: int = 11) -> ft.Control:
@@ -423,7 +433,8 @@ def _events_tab(report: package_report.PackageReport) -> ft.Control:
     if not report.events:
         return _empty(
             t("処理の記録がありません"),
-            t("AIP には PREMIS の記録が入ります。SIP の段階では作られません。"),
+            t("SIP の段階では、処理の記録はまだありません。"
+              "この SIP から AIP を作ると、行った処理がここに並びます。"),
         )
 
     rows = [
@@ -573,7 +584,8 @@ def _workflow_tab(report: package_report.PackageReport) -> ft.Control:
     if not report.events:
         return _empty(
             t("処理の記録がありません"),
-            t("AIP には PREMIS の記録が入ります。SIP の段階では作られません。"),
+            t("SIP の段階では、処理の記録はまだありません。"
+              "この SIP から AIP を作ると、行った処理がここに並びます。"),
         )
 
     stages = package_report.workflow(report)
@@ -668,21 +680,27 @@ def _files_tab(report: package_report.PackageReport) -> ft.Control:
         warning = ft.Text("", size=11)
         # 比べている相手は core が CSV に書いた値。ここを訳すと突合が外れる。
         if f.warning and f.warning not in ("", "-", raw("なし")):
+            # siegfried の原文（PRONOM の番号が並ぶ英文）は読めないので言い換え、
+            # 原文は指を載せたときに出す。
             warning = ft.Row(
                 [
                     ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=14,
                             color=ft.Colors.ORANGE_700),
-                    ft.Text(f.warning, size=11, color=ft.Colors.ORANGE_800),
+                    ft.Text(messages.format_warning(f.warning), size=11,
+                            color=ft.Colors.ORANGE_800, tooltip=f.warning),
                 ],
                 spacing=4,
             )
         rows.append([
-            ft.Text(f.use, size=11, color=_LABEL_COLOR),
+            ft.Text(messages.value(f.use), size=11, color=_LABEL_COLOR),
             _mono(f.path, 12),
-            ft.Text(f.format_name or t("不明"), size=12),
+            # METS には特定できなかった形式が "unknown" と書かれる（SIP の CSV では空欄）。
+            # 同じ意味なので同じ言葉で出す。
+            ft.Text(f.format_name if f.format_name not in ("", "unknown") else t("不明"),
+                    size=12),
             _mono(f.puid),
             ft.Text(package_report.human_bytes(f.size), size=12),
-            ft.Text(f.virus or "-", size=11, color=_LABEL_COLOR),
+            ft.Text(messages.value(f.virus) or "-", size=11, color=_LABEL_COLOR),
             warning,
             _mono((f.sha256[:12] + "…") if f.sha256 else ""),
             ft.IconButton(

@@ -51,6 +51,7 @@ from .aip_models import (
     PremisAgent,
     PremisEvent,
 )
+from .models import is_same_or_inside
 
 Progress = Callable[[str], None]
 
@@ -66,6 +67,10 @@ def run(
     options: AIPOptions,
     progress: Progress = lambda _msg: None,
 ) -> AIPResult:
+    # 何かを書く前に止める（SIP の中に AIP を作らせない）。
+    if is_same_or_inside(output_parent, sip_root):
+        raise AIPPipelineError.output_inside_input()
+
     is_bag = sip_reader.detect_bag(sip_root)
     progress(f"入力を読み取っています（{'BagIt bag' if is_bag else 'SIP ディレクトリ'}）…")
 

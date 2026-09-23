@@ -168,7 +168,7 @@ TEXTS: dict[str, str] = {
     "合計サイズ": "Total size",
     "置き場所": "Location",
     "内訳": "Breakdown",
-    "原本": "originals",
+    "原本": "Originals",
     "その他 {count} 種": "{count} other formats",
     "保存用に変換": "Normalized",
     "ウイルス検査済": "Virus-scanned",
@@ -177,9 +177,9 @@ TEXTS: dict[str, str] = {
 
     # 処理の記録タブ（PREMIS）
     "処理の記録がありません": "No preservation events were recorded",
-    "AIP には PREMIS の記録が入ります。SIP の段階では作られません。":
-        "PREMIS event records are written into the AIP. They are not created at "
-        "the SIP stage.",
+    "SIP の段階では、処理の記録はまだありません。この SIP から AIP を作ると、行った処理がここに並びます。":
+        "A SIP does not have preservation events yet. Once you build an AIP from "
+        "this SIP, what was done appears here.",
     "{count} 件の記録。担当者が別に作業記録を書く必要はありません。":
         "{count} events recorded. There is no need to keep a separate log by hand.",
     "パッケージ全体": "the whole package",
@@ -299,4 +299,144 @@ TEXTS: dict[str, str] = {
         "under GPL-2.0, and how to obtain its source code is set out below.",
     "（{name} が見つかりませんでした）": "({name} was not found)",
     "（{name} を読めませんでした: {error}）": "({name} could not be read: {error})",
+    # ------------------------------------------------------------------
+    # core から来る文（進捗・目視確認・ファイル一覧の値）。ui/messages.py
+    # 画面に出すときだけ訳す。パッケージに書かれる文は日本語のまま。
+    # ------------------------------------------------------------------
+    "入力フォルダを走査しています…": "Scanning the input folder…",
+    "Archivematica transfer 構造を検出しました（objects/ をそのまま尊重）":
+        "Found an Archivematica transfer layout (objects/ is kept as it is)",
+    "入力 ZIP を展開しています…": "Extracting the input ZIP…",
+    "対象ファイル: {count} 件": "Files to process: {count}",
+    "ファイル名を安全化: {count} 件の名前を変更しました（元の名前は accession.csv に残ります）":
+        "Sanitized file names: {count} renamed (the original names are kept in accession.csv)",
+    "siegfried が同梱されていないため、フォーマット識別をスキップします。":
+        "Siegfried is not bundled, so format identification is skipped.",
+    "フォーマットを識別しています（siegfried）…": "Identifying formats (Siegfried)…",
+    "フォーマット識別に失敗したためスキップします: {detail}":
+        "Format identification failed and was skipped: {detail}",
+    "画像の技術的特性を読み取っています…（{count} 件）":
+        "Reading the technical characteristics of images… ({count})",
+    "チェックサム(SHA-256)を計算しています…": "Calculating checksums (SHA-256)…",
+    "ClamAV が同梱されていないため、ウイルスチェックをスキップします。":
+        "ClamAV is not bundled, so the virus scan is skipped.",
+    "ウイルス定義 DB が未取得のため、ウイルスチェックをスキップします。":
+        "The virus definitions have not been downloaded, so the virus scan is skipped.",
+    "ウイルスチェック中（ClamAV）…": "Scanning for viruses (ClamAV)…",
+    "ウイルスチェックに失敗しましたが、SIP 作成は続行します: {detail}":
+        "The virus scan failed; building the SIP continues: {detail}",
+    "ウイルスは検出されませんでした。": "No viruses were found.",
+    "ウイルス検出: {count} 件。report.txt を確認してください。":
+        "Viruses found: {count}. Check report.txt.",
+    "個人情報(PII)をスキャンしています…": "Scanning for personal information (PII)…",
+    "PII 候補は見つかりませんでした。": "No possible personal information was found.",
+    "PII 候補: {count} 件（{files} ファイル）。pii-report.csv を確認してください。":
+        "Possible personal information: {count} ({files} files). Check pii-report.csv.",
+    " ただし {count} ファイルは中身を読めず、走査できていません。":
+        " However, {count} files could not be read and were not scanned.",
+    "スプレッドシートを生成しています…": "Writing the spreadsheets…",
+    "入力の metadata/metadata.csv を継承します":
+        "Carrying over metadata/metadata.csv from the input",
+    "前回の accession.csv を読めませんでした: {name}。対応表をスキップします。":
+        "Could not read the previous accession.csv: {name}. The arrangement map is skipped.",
+    "配列前後を突合: {matched}/{total} 行が一致（arrangement-map.csv）":
+        "Matched against the previous arrangement: {matched}/{total} rows "
+        "(arrangement-map.csv)",
+    "BagIt bag を組み立てています…": "Assembling the BagIt bag…",
+    "SIP を組み立てています…": "Assembling the SIP…",
+    "ZIP（無圧縮）に固めています…": "Packing into a ZIP (uncompressed)…",
+    "ZIP を作成しました: {name}": "Created the ZIP: {name}",
+    "完了しました。": "Done.",
+    "入力を読み取っています（BagIt bag）…": "Reading the input (BagIt bag)…",
+    "入力を読み取っています（SIP ディレクトリ）…": "Reading the input (SIP folder)…",
+    "原本 {count} 件（ハッシュ継承 {inherited} 件 / 再計算 {recomputed} 件）":
+        "{count} originals ({inherited} checksums carried over / {recomputed} recalculated)",
+    "完全性を確認しています（マニフェスト照合）…":
+        "Checking fixity (against the manifest)…",
+    "完全性確認: {count} 件すべて一致": "Fixity check: all {count} match",
+    "完全性確認: {count} 件の不一致。要確認": "Fixity check: {count} do not match. Needs checking",
+    "完全性確認をスキップ: {reason}": "Fixity check skipped: {reason}",
+    "フォーマット変換は行いません（オプション OFF）":
+        "No format conversion (the option is off)",
+    "正規化の対象はありません（既に保存に適した形式、または未知の形式）":
+        "Nothing to normalize (already in a preservation format, or an unknown format)",
+    "フォーマット変換: {count} 件": "Format conversions: {count}",
+    "METS を生成しています…": "Writing the METS…",
+    "AIP（BagIt bag）を組み立てています…": "Assembling the AIP (BagIt bag)…",
+
+    # 目視確認が必要な点（種類: 対象）
+    "ウイルス検出": "Virus found",
+    "個人情報の候補": "Possible personal information",
+    "形式を特定できない": "Format not identified",
+    "拡張子と中身が食い違う": "Extension does not match the content",
+    "画像を読めません": "Image cannot be read",
+    "パスが長すぎます（Windows で開けない可能性）":
+        "Path too long (may not open on Windows)",
+    "ファイル名が NFC 正規化されていません（Windows/Linux で別名と判定される可能性）":
+        "File name is not NFC-normalized (Windows/Linux may treat it as a different name)",
+    "変換ツールが無いため原本のまま保存":
+        "Kept as the original because the conversion tool is missing",
+    "変換に失敗（原本のまま保存）": "Conversion failed (kept as the original)",
+    "変換結果を読み戻せないため原本のまま保存":
+        "Kept as the original because the converted file could not be read back",
+    "完全性確認をスキップ": "Fixity check skipped",
+    "変換規則表": "Conversion rules",
+    # 種類ごとの、次にすること
+    "ウイルス検出: 該当ファイルを開かず、担当の部署に相談してください。":
+        "Virus found: do not open the file; consult the staff responsible.",
+    "個人情報の候補: 公開の可否を判断するため、pii-report.csv で箇所を確かめてください。":
+        "Possible personal information: check the passages in pii-report.csv before "
+        "deciding whether the records can be made public.",
+    "形式を特定できない: 壊れていないか、ふだんのソフトで開けるかを確かめてください。"
+    "開ければ、そのまま保存して差し支えありません。":
+        "Format not identified: check that the file opens in the software you normally "
+        "use. If it opens, it is fine to keep it as it is.",
+    "拡張子と中身が食い違う: 名前の末尾（.pdf など）と中身の形式が違います。"
+    "開けるかどうかを確かめてください。":
+        "Extension does not match the content: the end of the name (.pdf and so on) "
+        "does not match what the file contains. Check that it opens.",
+    # ファイル一覧の警告（siegfried の原文の言い換え）
+    "形式を特定できませんでした": "Format could not be identified",
+    "拡張子と中身が食い違っています": "The extension does not match the content",
+    "拡張子だけで判定しました（中身では確かめていません）":
+        "Identified by extension only (the content was not checked)",
+    "ファイル名だけで判定しました（中身では確かめていません）":
+        "Identified by file name only (the content was not checked)",
+    # ファイル一覧の値
+    "保存用": "Preservation copy",
+    "提出書類": "Submission documentation",
+    "未実施": "Not scanned",
+    "検出なし": "Clean",
+
+    # ------------------------------------------------------------------
+    # 入力の取り違え・次の手順
+    # ------------------------------------------------------------------
+    "入力と出力先の赤字の説明を確かめてください":
+        "See the note in red under Input or Destination",
+    "出力先が資料のフォルダの中にあります。原本のフォルダに書き込まないよう、別の場所を選んでください。":
+        "The destination is inside the folder of records. Choose another place so "
+        "that nothing is written into the originals.",
+    "出力先が SIP のフォルダの中にあります。別の場所を選んでください。":
+        "The destination is inside the SIP folder. Choose another place.",
+    "出力先が SIP のフォルダの中にあります。SIP に書き込まないよう、別の場所を選んでください。":
+        "The destination is inside the SIP folder. Choose another place so that "
+        "nothing is written into the SIP.",
+    "選んだフォルダは SIP ではありません。この中の「{name}」が SIP です。そちらを選んでください。":
+        "The folder you chose is not a SIP. The SIP is \"{name}\" inside it; choose "
+        "that one.",
+    "選んだフォルダは SIP ではありません。素材のフォルダから作るときは、"
+    "「何を作るか」で「SIP 作成」か「素材から AIP まで一気通貫」を選んでください。":
+        "The folder you chose is not a SIP. To start from a folder of records, choose "
+        "\"Create a SIP\" or \"From source material through to an AIP\" under "
+        "\"What to create\".",
+    "選んだフォルダは SIP ではありません（objects フォルダがありません）。":
+        "The folder you chose is not a SIP (it has no objects folder).",
+    "入力フォルダに対象ファイルがありません。": "There are no files in the input folder.",
+    "この SIP から AIP を作る": "Build an AIP from this SIP",
+    "中身を確かめてから進んでください。日を改めるときは「AIP 作成」でこのフォルダを選びます。":
+        "Look inside before going on. To do it another day, choose \"Create an AIP\" "
+        "and pick this folder.",
+    "AIP 作成に切り替え、作った SIP を入力にしました。出力先を確かめて「実行」を押してください。":
+        "Switched to \"Create an AIP\" with the new SIP as the input. Check the "
+        "destination, then press \"Run\".",
 }

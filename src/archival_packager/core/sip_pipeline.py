@@ -38,7 +38,14 @@ from . import (
     scan as scan_mod,
 )
 from .aip_models import DerivativePurpose, Executor
-from .models import ScannedFile, SIPMetadata, SIPOptions, SIPPipelineError, SIPResult
+from .models import (
+    ScannedFile,
+    SIPMetadata,
+    SIPOptions,
+    SIPPipelineError,
+    SIPResult,
+    is_same_or_inside,
+)
 from .sip_builder import SIPBuildRequest, SubmissionDocs
 
 Progress = Callable[[str], None]
@@ -69,6 +76,10 @@ def run(
     options: SIPOptions,
     progress: Progress = lambda _msg: None,
 ) -> SIPResult:
+    # 何かを書く前に止める（原本のフォルダに SIP を作らせない）。
+    if is_same_or_inside(output_parent, input_path):
+        raise SIPPipelineError.output_inside_input()
+
     temp_extract: Path | None = None
     try:
         root, source_note = _resolve_input(input_path, progress)

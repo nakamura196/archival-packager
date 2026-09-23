@@ -742,3 +742,17 @@ class TestReadmeHtml:
         result, _ = run_aip(sip, tmp_path)
         text = (result.aip_path / "data" / "README.html").read_text(encoding="utf-8")
         assert "veraPDF" in text and "JHOVE" in text
+
+
+def test_output_inside_the_sip_is_refused(sip, tmp_path):
+    """SIP の中に AIP を作らせない（入力を書き換えない、の約束）。
+
+    SIP 作成と同じく、画面から出力先に入力のフォルダを選べてしまっていた。
+    """
+    from archival_packager.core.aip_models import AIPPipelineError
+
+    before = sorted(p.name for p in sip.iterdir())
+    with pytest.raises(AIPPipelineError) as info:
+        aip_pipeline.run(sip_root=sip, output_parent=sip, options=AIPOptions())
+    assert info.value.kind.value == "output_inside_input"
+    assert sorted(p.name for p in sip.iterdir()) == before

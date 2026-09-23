@@ -103,7 +103,10 @@ class TestRunButtonBecomesPressable:
 
         assert run.disabled, "何も選んでいないのに押せる"
 
-        picker.get_directory_path = AsyncMock(return_value=str(tmp_path))
+        (tmp_path / "in").mkdir()
+        (tmp_path / "out").mkdir()
+        picker.get_directory_path = AsyncMock(
+            side_effect=[str(tmp_path / "in"), str(tmp_path / "out")])
         for chooser in choosers:
             asyncio.run(chooser.on_click(MagicMock()))
         assert run.disabled, "タイトルが空でも押せてしまう"
@@ -111,6 +114,81 @@ class TestRunButtonBecomesPressable:
         title.value = "テスト資料"
         title.on_change(MagicMock())
         assert not run.disabled, "すべて埋めても押せない"
+
+    def test_destination_inside_the_input_is_not_pressable(self, tmp_path):
+        """出力先に資料のフォルダ（の中）を選んだら押せないこと。
+
+        押せてしまい、SIP が原本のフォルダの中に作られていた。
+        押せない理由は、出力先の欄の下に出す。
+        """
+        import asyncio
+        from unittest.mock import AsyncMock
+
+        import flet as ft
+
+        picker, found = self._screen()
+        run = next(c for c in found if getattr(c, "content", None) == "実行")
+        choosers = [c for c in found if getattr(c, "content", None) == "フォルダを選ぶ"]
+        title = next(
+            c
+            for c in found
+            if isinstance(c, ft.TextField) and c.label and "タイトル" in c.label
+        )
+        (tmp_path / "in" / "sub").mkdir(parents=True)
+        picker.get_directory_path = AsyncMock(
+            side_effect=[str(tmp_path / "in"), str(tmp_path / "in" / "sub")])
+        for chooser in choosers:
+            asyncio.run(chooser.on_click(MagicMock()))
+        title.value = "テスト資料"
+        title.on_change(MagicMock())
+        assert run.disabled
+        assert any(
+            isinstance(c, ft.Text) and c.visible and "出力先が資料のフォルダの中" in (c.value or "")
+            for c in found
+        )
+
+    def test_switching_to_aip_drops_the_source_folder(self, tmp_path):
+        """素材のフォルダを選んだまま「AIP 作成」に切り替えたら、入力を外すこと。
+
+        外さずにいたため、素材のフォルダを入力にしたまま AIP 作成を実行できた
+        （処理を始めてから「objects/ が見つかりません」で落ちる）。
+        入力ボタンの文字も「SIP のフォルダを選ぶ」に変わること
+        （Flet 0.86 では text ではなく content。以前は変わっていなかった）。
+        """
+        import asyncio
+        from unittest.mock import AsyncMock
+
+        import flet as ft
+
+        picker, found = self._screen()
+        run = next(c for c in found if getattr(c, "content", None) == "実行")
+        choosers = [c for c in found if getattr(c, "content", None) == "フォルダを選ぶ"]
+        mode = next(c for c in found if isinstance(c, ft.RadioGroup))
+        (tmp_path / "in").mkdir()
+        (tmp_path / "out").mkdir()
+        (tmp_path / "in" / "memo.txt").write_text("x")
+        picker.get_directory_path = AsyncMock(
+            side_effect=[str(tmp_path / "in"), str(tmp_path / "out")])
+        for chooser in choosers:
+            asyncio.run(chooser.on_click(MagicMock()))
+
+        # 画面の無い page では Control.update() が使えないので、呼ばれても何もしない形にする
+        for c in found:
+            if isinstance(c, ft.Column):
+                c.update = lambda: None
+        mode.value = "aip"
+        mode.on_change(MagicMock())
+        assert run.disabled, "素材のフォルダのまま AIP 作成を押せる"
+        assert choosers[0].content == "SIP のフォルダを選ぶ"
+
+        # 素材のフォルダを選び直しても、SIP ではないと欄の下に出て押せない
+        picker.get_directory_path = AsyncMock(return_value=str(tmp_path / "in"))
+        asyncio.run(choosers[0].on_click(MagicMock()))
+        assert run.disabled
+        assert any(
+            isinstance(c, ft.Text) and c.visible and "SIP ではありません" in (c.value or "")
+            for c in found
+        )
 
     def test_options_are_above_the_descriptive_metadata(self):
         """「オプション」を「記述メタデータ」より上に置くこと。

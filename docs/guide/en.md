@@ -120,11 +120,14 @@ The Files tab shows each file's format and its virus scan result. The original f
 - If you received the records as a ZIP file, use "Choose a ZIP" under "Input"
 - If "Run" cannot be pressed, the line under the button tells you what is
   still missing
+- If you choose the folder of records (or a folder inside it) as the
+  destination, a note in red appears under "Destination" and "Run" cannot be
+  pressed. This keeps anything from being written into the originals
 - Files that need a closer look are those in which a virus was found, those
   that seem to contain personal information, those whose format could not be
   identified, and those whose extension does not match their content.
   **The application never deletes any of them.** What to do with them is your
-  decision
+  decision. Under the list, each kind comes with a line on what to do next
 
 ### Options
 
@@ -157,7 +160,7 @@ Next, let's turn the SIP into an Archival Information Package, or AIP.
 
 Under "What to create", choose "Create an AIP".
 
-For the input, choose the SIP folder we just created.
+For the input, choose the SIP folder we just created. Right after creating a SIP, pressing "Build an AIP from this SIP" under the result does the same.
 
 Choose a destination. The descriptive metadata comes from the SIP, so there is nothing to type again.
 
@@ -193,6 +196,9 @@ Besides the green tick, a stage in the Workflow tab may show:
 - **"… to check"** — some files in that stage need a closer look. Press the stage to see which
 - **No records** — nothing was recorded for that stage, for example when the virus scan was not selected
 
+Right after creating a SIP, you can press "Build an AIP from this SIP" under
+the result. It switches to "Create an AIP" with the new SIP as the input.
+
 You can also **create the SIP and the AIP in one go**: under "What to create",
 choose "From source material through to an AIP". If you want to check
 something at the SIP stage, though, it is safer to do them separately.
@@ -201,7 +207,11 @@ something at the SIP stage, though, it is safer to do them separately.
 
 ## If something goes wrong
 
-- **"Run" cannot be pressed** — the line under the button says what is missing
+- **"Run" cannot be pressed** — the line under the button says what is missing.
+  If there is a note in red under "Input" or "Destination", follow it
+- **"The folder you chose is not a SIP"** — under "Create an AIP", you chose a
+  folder of records, or the destination folder that holds the SIP. Choose the
+  SIP folder itself (the one with a folder called objects inside)
 - **The first start is slow** — only the first time; it takes a few minutes
 - **The virus scan says "skipped"** — press "Download / update definitions" once
 - **Files inside the package will not open** — the application only lists

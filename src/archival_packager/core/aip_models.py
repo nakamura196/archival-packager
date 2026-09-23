@@ -346,6 +346,7 @@ class AIPErrorKind(Enum):
     TOOL_NOT_FOUND = "tool_not_found"
     TOOL_FAILED = "tool_failed"
     NO_OBJECTS = "no_objects"
+    OUTPUT_INSIDE_INPUT = "output_inside_input"
     IO = "io"
 
 
@@ -370,6 +371,14 @@ class AIPPipelineError(Exception):
     @classmethod
     def no_objects(cls) -> AIPPipelineError:
         return cls(AIPErrorKind.NO_OBJECTS, "objects/ に対象ファイルがありません。")
+
+    @classmethod
+    def output_inside_input(cls) -> AIPPipelineError:
+        return cls(
+            AIPErrorKind.OUTPUT_INSIDE_INPUT,
+            "出力先が SIP のフォルダの中にあります。SIP に書き込まないよう、"
+            "別の場所を選んでください。",
+        )
 
     @classmethod
     def io(cls, message: str) -> AIPPipelineError:

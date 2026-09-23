@@ -76,6 +76,19 @@ def detect_bag(sip_root: Path) -> bool:
     return (sip_root / "bagit.txt").is_file()
 
 
+def looks_like_sip(path: Path) -> bool:
+    """AIP 作成の入力になれるフォルダか。read() が受け付ける形と同じ判定。
+
+    画面で、実行する前に確かめるために使う。素材のフォルダをそのまま
+    AIP 作成に渡すと、処理を始めてから「objects/ が見つかりません」で落ちる。
+    技術者でない利用者には、何を間違えたのかがその文面から分からない。
+    """
+    if not path.is_dir():
+        return False
+    objects_root = path / "data" / "objects" if detect_bag(path) else path / "objects"
+    return objects_root.is_dir()
+
+
 def read(sip_root: Path, *, is_bag: bool | None = None) -> ParsedSIP:
     if is_bag is None:
         is_bag = detect_bag(sip_root)

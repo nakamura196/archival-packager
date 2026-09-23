@@ -80,8 +80,8 @@
     },
     {
       "id": "input",
-      "ja": {"text": "「入力」には、さきほど作った SIP のフォルダを選びます。", "say": "入力には、さきほど作った、エスアイピーのフォルダを選びます。"},
-      "en": {"text": "For the input, choose the SIP folder we just created."}
+      "ja": {"text": "「入力」には、さきほど作った SIP のフォルダを選びます。SIP を作った直後なら、結果の下の「この SIP から AIP を作る」を押しても同じです。", "say": "入力には、さきほど作った、エスアイピーのフォルダを選びます。エスアイピーを作った直後なら、結果の下の、このエスアイピーからエーアイピーをつくる、を押しても、おなじです。"},
+      "en": {"text": "For the input, choose the SIP folder we just created. Right after creating a SIP, pressing \"Build an AIP from this SIP\" under the result does the same."}
     },
     {
       "id": "output",

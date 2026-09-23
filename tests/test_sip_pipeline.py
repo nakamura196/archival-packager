@@ -783,3 +783,41 @@ class TestWarningsAreBounded:
         assert unidentified, "前提: このデータは未識別になる"
         assert len(unidentified) == 3, "先頭 2 件 + まとめの 1 行"
         assert unidentified[-1] == "未識別: （他 3 件）"
+
+
+class TestOutputInsideInput:
+    """**出力先を資料のフォルダの中に置かせない。**
+
+    画面から、出力先に資料のフォルダ（またはその中）を選ぶことができ、
+    SIP がそのまま原本のフォルダに書き込まれていた。原本を変更しない、
+    の約束が破れるうえ、同じフォルダを次に受け入れると前回の SIP まで
+    資料として取り込まれる。ペルソナに沿って画面を追ったときに見つかった。
+    """
+
+    def test_same_folder_is_refused_before_anything_is_written(self, source, tmp_path):
+        before = sorted(p.name for p in source.iterdir())
+        with pytest.raises(SIPPipelineError) as info:
+            sip_pipeline.run(
+                input_path=source, output_parent=source,
+                metadata=SIPMetadata(identifier="", title="x"), options=SIPOptions(),
+            )
+        assert info.value.kind.value == "output_inside_input"
+        assert sorted(p.name for p in source.iterdir()) == before
+
+    def test_subfolder_is_refused(self, source, tmp_path):
+        with pytest.raises(SIPPipelineError):
+            sip_pipeline.run(
+                input_path=source, output_parent=source / "文書",
+                metadata=SIPMetadata(identifier="", title="x"), options=SIPOptions(),
+            )
+        assert not any(p.is_dir() and p.name == "x" for p in (source / "文書").iterdir())
+
+    def test_sibling_folder_is_fine(self, source, tmp_path):
+        """隣のフォルダ（名前の前方が同じでも）は中ではない。"""
+        sibling = tmp_path / "in-out"
+        sibling.mkdir()
+        result = sip_pipeline.run(
+            input_path=source, output_parent=sibling,
+            metadata=SIPMetadata(identifier="", title="x"), options=SIPOptions(),
+        )
+        assert result.sip_path.parent == sibling
