@@ -12,6 +12,8 @@
     ... python scripts/docs/record_guide.py --lang en    # 片方だけ
     ... python scripts/docs/record_guide.py --text-only  # ページの本文だけ書き直す
 
+英語の声は macOS の say（Samantha）なので、`--lang en` だけなら op run は要らない。
+
 初回だけ `uv run --with playwright==1.63.0 playwright install chromium` が要る。
 ffmpeg も要る。
 
@@ -77,9 +79,15 @@ NARRATION = GUIDE / "narration.json"
 PAGES = {"ja": GUIDE / "index.md", "en": GUIDE / "en.md"}
 SIZE = {"width": 1280, "height": 880}
 
-#: 中村 覚の声（ElevenLabs の Professional Voice Clone）。英語も同じ声で読む。
+#: 中村 覚の声（ElevenLabs の Professional Voice Clone）。日本語だけに使う。
 VOICE_ID = "z52ElTqoKCvL4B34S5wD"
 MODEL_ID = "eleven_v3"
+#: 英語は macOS 標準の女性の声で読む（2026-09-23 のユーザー指定）。
+#: API キーが要らないので、英語だけなら op run 無しで撮れる。
+MAC_VOICE_EN = "Samantha"
+#: Samantha が単語として読んでしまう略語。AIP は「エイプ」になる（whisper で確認）。
+#: 声だけの読み替えなので、ページの本文には影響しない。
+MAC_READINGS_EN = {"AIP": "A I P"}
 CACHE = Path.home() / ".cache" / "archival-packager-guide"
 
 #: 読み終わってから次の操作までの間（秒）。
@@ -227,8 +235,10 @@ def speech(entry: dict, lang: str) -> str:
     return line.get("say") or line["text"]
 
 
-def synthesize(text: str) -> Path:
-    """1 行を合成して mp3 を返す。同じ原稿なら前の結果を使う。"""
+def synthesize(text: str, lang: str) -> Path:
+    """1 行を合成して音声ファイルを返す。同じ原稿なら前の結果を使う。"""
+    if lang == "en":
+        return synthesize_mac(text)
     key = hashlib.sha256(f"{VOICE_ID}|{MODEL_ID}|{text}".encode()).hexdigest()[:24]
     path = CACHE / f"{key}.mp3"
     if path.exists():
@@ -249,6 +259,18 @@ def synthesize(text: str) -> Path:
         body = res.read()
     CACHE.mkdir(parents=True, exist_ok=True)
     path.write_bytes(body)
+    return path
+
+
+def synthesize_mac(text: str) -> Path:
+    """macOS の say で読む。"""
+    for word, reading in MAC_READINGS_EN.items():
+        text = re.sub(rf"\b{word}\b", reading, text)
+    key = hashlib.sha256(f"say|{MAC_VOICE_EN}|{text}".encode()).hexdigest()[:24]
+    path = CACHE / f"{key}.aiff"
+    if not path.exists():
+        CACHE.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["say", "-v", MAC_VOICE_EN, "-o", str(path), text], check=True)
     return path
 
 
@@ -332,7 +354,7 @@ def start_app(lang: str, picks: list[Path], port: int) -> subprocess.Popen:
 
 def record(lang: str, scene: str, entries: list[dict], picks: list[Path],
            port: int = 8561) -> None:
-    clips = [synthesize(speech(e, lang)) for e in entries]
+    clips = [synthesize(speech(e, lang), lang) for e in entries]
     lengths = [duration(c) for c in clips]
 
     proc = start_app(lang, picks, port)
