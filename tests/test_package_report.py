@@ -202,6 +202,31 @@ class TestNormalizedCopiesAreNamed:
         assert report.summary.unidentified == 0
         assert report.summary.normalized == 1
 
+    def test_validation_has_a_japanese_label(self, aip_with_png: Path):
+        """変換結果の検証（validation）に日本語の名前が付いていること。
+
+        EVENT_LABELS に "validation" が抜けていて、処理の記録に英語の
+        "validation" がそのまま出ていた（2026-09-22 に気づいた）。
+        """
+        report = package_report.read(aip_with_png)
+        kinds = {e.event_type: e.type_label for e in report.events}
+        assert "validation" in kinds, "変換したのに検証の記録が無い"
+        assert kinds["validation"] == "変換結果の検証"
+
+    def test_workflow_puts_validation_after_normalization(self, aip_with_png: Path):
+        """流れ図では、検証を変換の後ろに置くこと。
+
+        このアプリの validation は「作った派生物を開き直せたか」なので、
+        変換より前に並べると、していない処理（原本の検証）をしたように見える。
+        """
+        order = [s.event_type for s in package_report.workflow(
+            package_report.read(aip_with_png))]
+        assert order.index("normalization") < order.index("validation")
+        stages = {s.event_type: s for s in package_report.workflow(
+            package_report.read(aip_with_png))}
+        assert stages["normalization"].recorded
+        assert stages["validation"].recorded
+
 
 class TestSummary:
     """まとまりで見た数。1 件ずつ並べても全体は掴めない。"""
@@ -223,6 +248,86 @@ class TestSummary:
         report = package_report.read(aip)
         originals = [f for f in report.files if f.use == "原本"]
         assert all(f.virus for f in originals), "ウイルス検査の列が空"
+
+
+class TestWorkflow:
+    """ワークフロー画面の元になる、段階ごとのまとめ。"""
+
+    def test_every_label_is_known(self):
+        """流れ図に並べる段階には、どれも日本語の名前があること。
+
+        "validation" が抜けていたのと同じ取りこぼしを、段階を足したときに防ぐ。
+        """
+        missing = [k for k in package_report.WORKFLOW_ORDER
+                   if k not in package_report.EVENT_LABELS]
+        assert not missing, f"EVENT_LABELS に無い段階: {missing}"
+
+    def test_stages_without_records_are_kept(self, aip: Path):
+        """記録の無い段階も返すこと。
+
+        ウイルス検査は、しなかったときは記録を書かない。段階ごと消すと、
+        「行わなかった」が画面から見えなくなる。
+        """
+        stages = package_report.workflow(package_report.read(aip))
+        assert [s.event_type for s in stages][:len(package_report.WORKFLOW_ORDER)] == \
+            list(package_report.WORKFLOW_ORDER)
+        assert any(not s.recorded for s in stages)
+
+    def test_counts_match_the_event_list(self, aip: Path):
+        """段階に分けても、記録が増えも減りもしないこと。"""
+        report = package_report.read(aip)
+        stages = package_report.workflow(report)
+        assert sum(s.events for s in stages) == len(report.events)
+
+    def test_tools_are_named(self, aip: Path):
+        report = package_report.read(aip)
+        stages = {s.event_type: s for s in package_report.workflow(report)}
+        assert stages["ingestion"].agents, "取り込みの実行者が空"
+        assert stages["ingestion"].files == report.overview.original_count
+
+    def test_skipped_is_a_problem(self, aip: Path):
+        """skipped（確認しなかった）を「問題なし」に数えないこと。
+
+        「確認していない」と「確認して通った」は別の事実である。
+        """
+        report = package_report.read(aip)
+        base = report.events[0]
+        from dataclasses import replace
+        report = replace(report, events=[
+            replace(base, event_type="fixity check", outcome="pass"),
+            replace(base, event_type="fixity check", outcome="skipped",
+                    target="objects/b.txt"),
+        ])
+        stages = {s.event_type: s for s in package_report.workflow(report)}
+        problems = stages["fixity check"].problems
+        assert [e.target for e in problems] == ["objects/b.txt"]
+
+    def test_unknown_event_types_are_not_dropped(self, aip: Path):
+        """知らない eventType は、後ろに段階として足すこと。黙って捨てない。"""
+        report = package_report.read(aip)
+        from dataclasses import replace
+        report = replace(report, events=[
+            *report.events, replace(report.events[0], event_type="decompression"),
+        ])
+        stages = package_report.workflow(report)
+        assert stages[-1].event_type == "decompression"
+        assert stages[-1].events == 1
+
+    def test_checksums_are_counted_even_without_an_event(self, aip: Path):
+        """チェックサムの算出は event を書いていない。段が空でも、
+        値そのものが記録されている件数は出すこと。"""
+        report = package_report.read(aip)
+        stages = {s.event_type: s for s in package_report.workflow(report)}
+        stage = stages["message digest calculation"]
+        assert not stage.recorded
+        assert stage.digests == sum(1 for f in report.files if f.sha256) > 0
+
+    def test_viewer_builds_with_the_workflow_tab(self, aip: Path, sip: Path):
+        """ビューアが AIP でも SIP（記録なし）でも組み立てられること。"""
+        from archival_packager.ui import viewer
+
+        assert viewer.build(aip, on_close=lambda: None) is not None
+        assert viewer.build(sip, on_close=lambda: None) is not None
 
 
 class TestMaliciousMetsCannotReadLocalFiles:

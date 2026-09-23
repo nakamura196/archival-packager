@@ -190,6 +190,45 @@ TEXTS: dict[str, str] = {
     "対象": "Target",
     "詳細": "Details",
 
+    # ワークフロータブ（PREMIS を段階ごとに束ねた流れ図）
+    "ワークフロー": "Workflow",
+    "取り込み": "Ingestion",
+    "フォーマットの識別": "Format identification",
+    "保存用形式への変換": "Normalization",
+    "変換結果の検証": "Validation",
+    "チェックサムの算出": "Checksum calculation",
+    "完全性の確認": "Fixity check",
+    "SIP の原本を AIP に取り込んだ記録です。":
+        "Records that the originals in the SIP were taken into the AIP.",
+    "ClamAV で検査した記録です。検査しなかったときは記録を書きません。":
+        "Records of scanning with ClamAV. Nothing is recorded when no scan was run.",
+    "Siegfried で PRONOM の形式を特定した記録です。":
+        "Records of identifying the PRONOM format with Siegfried.",
+    "長期保存に向く形式へ変換した記録です。対象の形式だけが変換されます。":
+        "Records of converting files to formats suited to long-term preservation. "
+        "Only formats with a conversion rule are converted.",
+    "変換で作ったファイルを開き直せたかの確認です。原本の形式適合性の検査（JHOVE など）ではありません。":
+        "Checks that each converted file could be opened again. This is not a "
+        "format conformance check of the originals (such as JHOVE).",
+    "SHA-256 は各ファイルの記録（PREMIS object）に入っています。"
+    "算出そのものは処理の記録としては書いていません。":
+        "Each file's SHA-256 is stored in its PREMIS object. The calculation itself "
+        "is not written as a preservation event.",
+    "SIP の BagIt マニフェストとチェックサムを照合した記録です。":
+        "Records of comparing checksums against the SIP's BagIt manifest.",
+    "SHA-256 が記録されたファイル: {count} 件": "Files with a SHA-256 recorded: {count}",
+    "この段階の記録はありません。行わなかったか、記録されていません。":
+        "There are no records for this stage. It was either not performed or not "
+        "recorded.",
+    "記録": "Events",
+    "対象ファイル": "Files covered",
+    "問題のあったファイル（{count} 件）": "Files with problems ({count})",
+    "問題のあったファイルはありません。": "No file had a problem.",
+    "要確認 {count} 件": "{count} to check",
+    "記録なし": "No records",
+    "段階を押すと、使ったツール・件数・問題のあったファイルが出ます。":
+        "Select a stage to see the tools used, the counts and any files with problems.",
+
     # ファイルタブ
     "ファイルの一覧を読めませんでした": "The file list could not be read",
     "{count} 件。中身を見るときは、右端のボタンでファイルの場所を開きます。":

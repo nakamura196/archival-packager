@@ -7,6 +7,7 @@
 
   概要     何がいくつ入っているか
   処理の記録  いつ・何を・どのツールで行い、結果はどうだったか（PREMIS）
+  ワークフロー 同じ記録を段階ごとに束ねた流れ図。段階を押すと中身が出る
   ファイル   フォーマット・PRONOM・サイズ・SHA-256・ウイルス検査
   生データ   XML や CSV をそのまま読みたいとき（従来の表示）
 
@@ -428,7 +429,7 @@ def _events_tab(report: package_report.PackageReport) -> ft.Control:
     rows = [
         [
             _mono(e.date_time),
-            ft.Text(e.type_label, size=12, weight=ft.FontWeight.W_500),
+            ft.Text(_stage_label(e.event_type), size=12, weight=ft.FontWeight.W_500),
             ft.Text(e.outcome, size=12),
             ft.Text(e.agent, size=12, color=_LABEL_COLOR),
             _mono(e.target or t("パッケージ全体")),
@@ -436,8 +437,14 @@ def _events_tab(report: package_report.PackageReport) -> ft.Control:
         ]
         for e in report.events
     ]
-    # 事象の名前（name）は PREMIS の記録そのものなので訳さない。区切りだけ訳す。
-    kinds = t("、").join(f"{name} {n}" for name, n in report.summary.events)
+    # summary.events は日本語の表示名で数えてあるので、画面の言語に合わせて数え直す。
+    counts: dict[str, int] = {}
+    for e in report.events:
+        label = _stage_label(e.event_type)
+        counts[label] = counts.get(label, 0) + 1
+    kinds = t("、").join(
+        f"{name} {n}" for name, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    )
     head = ft.Container(
         ft.Column(
             [
@@ -458,6 +465,186 @@ def _events_tab(report: package_report.PackageReport) -> ft.Control:
              (t("対象"), 200), (t("詳細"), 240)],
             rows,
         )],
+        expand=True,
+        spacing=0,
+    )
+
+
+def _stage_label(event_type: str) -> str:
+    """段階の表示名。t() は呼ぶたびに今の言語を引くので、辞書は毎回作る。
+
+    PREMIS の eventType そのもの（英語）は記録の語彙なので core では訳さない。
+    ここで画面の言語に合わせる。知らない種類は eventType をそのまま出す。
+    """
+    return {
+        "ingestion": t("取り込み"),
+        "virus check": t("ウイルス検査"),
+        "format identification": t("フォーマットの識別"),
+        "normalization": t("保存用形式への変換"),
+        "validation": t("変換結果の検証"),
+        "message digest calculation": t("チェックサムの算出"),
+        "fixity check": t("完全性の確認"),
+    }.get(event_type, event_type)
+
+
+def _stage_hint(event_type: str) -> str:
+    """その段階で何を確かめているか。流れ図だけでは中身が伝わらないので添える。"""
+    return {
+        "ingestion": t("SIP の原本を AIP に取り込んだ記録です。"),
+        "virus check": t("ClamAV で検査した記録です。"
+                         "検査しなかったときは記録を書きません。"),
+        "format identification": t("Siegfried で PRONOM の形式を特定した記録です。"),
+        "normalization": t("長期保存に向く形式へ変換した記録です。"
+                           "対象の形式だけが変換されます。"),
+        "validation": t("変換で作ったファイルを開き直せたかの確認です。"
+                        "原本の形式適合性の検査（JHOVE など）ではありません。"),
+        "message digest calculation": t(
+            "SHA-256 は各ファイルの記録（PREMIS object）に入っています。"
+            "算出そのものは処理の記録としては書いていません。"),
+        "fixity check": t("SIP の BagIt マニフェストとチェックサムを照合した記録です。"),
+    }.get(event_type, "")
+
+
+def _stage_status(stage: package_report.Stage) -> tuple[str, str]:
+    """(アイコン, 色)。問題あり＞記録なし＞問題なし の順に強く見せる。"""
+    if stage.problems:
+        return ft.Icons.WARNING_AMBER_ROUNDED, ft.Colors.ORANGE_700
+    if not stage.recorded:
+        return ft.Icons.REMOVE_CIRCLE_OUTLINE, ft.Colors.GREY_500
+    return ft.Icons.CHECK_CIRCLE_OUTLINE, ft.Colors.GREEN_700
+
+
+def _stage_detail(stage: package_report.Stage) -> ft.Control:
+    items: list[ft.Control] = [
+        ft.Text(_stage_label(stage.event_type), size=15, weight=ft.FontWeight.BOLD),
+        _mono(stage.event_type),
+    ]
+    hint = _stage_hint(stage.event_type)
+    if hint:
+        items.append(ft.Text(hint, size=12, color=_LABEL_COLOR))
+    items.append(ft.Divider(height=12))
+
+    if not stage.recorded:
+        if stage.digests:
+            note = t("SHA-256 が記録されたファイル: {count} 件", count=stage.digests)
+        else:
+            note = t("この段階の記録はありません。行わなかったか、記録されていません。")
+        items.append(ft.Text(note, size=12))
+        return ft.Column(items, spacing=6, scroll=ft.ScrollMode.AUTO, expand=True)
+
+    items += [
+        _pair(t("記録"), str(stage.events)),
+        _pair(t("対象ファイル"), t("{count} 件", count=stage.files)),
+        # 結果の値（pass / fail …）は PREMIS の語彙なので訳さない。
+        _pair(t("結果"), t("、").join(f"{name} {n}" for name, n in stage.outcomes)),
+        _pair(t("実行したもの"), t("、").join(stage.agents)),
+    ]
+
+    if stage.problems:
+        items.append(
+            ft.Text(t("問題のあったファイル（{count} 件）", count=len(stage.problems)),
+                    size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE_800)
+        )
+        items.append(_table(
+            [(t("対象"), 240), (t("結果"), 80), (t("詳細"), 320)],
+            [
+                [
+                    _mono(e.target or t("パッケージ全体")),
+                    ft.Text(e.outcome, size=12, color=ft.Colors.ORANGE_800),
+                    ft.Text(e.detail, size=11, color=_LABEL_COLOR),
+                ]
+                for e in stage.problems
+            ],
+        ))
+    else:
+        items.append(ft.Text(t("問題のあったファイルはありません。"), size=12,
+                             color=ft.Colors.GREEN_700))
+    return ft.Column(items, spacing=6, scroll=ft.ScrollMode.AUTO, expand=True)
+
+
+def _workflow_tab(report: package_report.PackageReport) -> ft.Control:
+    """処理の記録を段階ごとの流れ図にする。
+
+    表（処理の記録タブ）は 1 件ずつ並ぶので、原本が数百件あると
+    「どの段階で何が起きたか」が掴めない。段階で束ねて、問題のある段階だけ
+    色を変える。発端は iPRES 2026 の CloudViPER ワークショップでの
+    キムさんの提案。
+    """
+    if not report.events:
+        return _empty(
+            t("処理の記録がありません"),
+            t("AIP には PREMIS の記録が入ります。SIP の段階では作られません。"),
+        )
+
+    stages = package_report.workflow(report)
+    detail = ft.Container(expand=True, padding=ft.Padding.only(left=16, right=16))
+    boxes: list[ft.Container] = []
+
+    def select(index: int) -> None:
+        for i, box in enumerate(boxes):
+            box.border = ft.Border.all(
+                2 if i == index else 1,
+                ft.Colors.PRIMARY if i == index else ft.Colors.OUTLINE_VARIANT,
+            )
+        detail.content = _stage_detail(stages[index])
+
+    def on_click(index: int):
+        def handler(_e: ft.ControlEvent) -> None:
+            select(index)
+            flow.update()
+            detail.update()
+        return handler
+
+    chain: list[ft.Control] = []
+    for i, stage in enumerate(stages):
+        icon, color = _stage_status(stage)
+        if stage.problems:
+            count = t("要確認 {count} 件", count=len(stage.problems))
+        elif stage.recorded:
+            count = t("{count} 件", count=stage.files)
+        else:
+            count = t("記録なし")
+        box = ft.Container(
+            ft.Column(
+                [
+                    ft.Icon(icon, size=20, color=color),
+                    ft.Text(_stage_label(stage.event_type), size=12,
+                            weight=ft.FontWeight.W_500,
+                            text_align=ft.TextAlign.CENTER),
+                    ft.Text(count, size=11, color=color),
+                ],
+                spacing=2,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                tight=True,
+            ),
+            width=120,
+            padding=ft.Padding.symmetric(horizontal=8, vertical=10),
+            border_radius=8,
+            ink=True,
+            on_click=on_click(i),
+        )
+        boxes.append(box)
+        if i:
+            chain.append(ft.Icon(ft.Icons.ARROW_FORWARD, size=16, color=_LABEL_COLOR))
+        chain.append(box)
+
+    # 最初に目を向けるべき段階を開いておく。問題が無ければ先頭。
+    first = next((i for i, s in enumerate(stages) if s.problems), 0)
+    select(first)
+
+    flow = ft.Row(chain, spacing=6, wrap=True, run_spacing=8,
+                  vertical_alignment=ft.CrossAxisAlignment.CENTER)
+    head = ft.Text(
+        t("段階を押すと、使ったツール・件数・問題のあったファイルが出ます。"),
+        size=12, color=_LABEL_COLOR,
+    )
+    return ft.Column(
+        [
+            ft.Container(ft.Column([head, flow], spacing=10),
+                         padding=ft.Padding.only(left=16, right=16, top=12)),
+            ft.Divider(height=16),
+            detail,
+        ],
         expand=True,
         spacing=0,
     )
@@ -545,7 +732,7 @@ def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
     report = package_report.read(root)
 
     tabs = ft.Tabs(
-        length=4,
+        length=5,
         selected_index=0,
         expand=True,
         content=ft.Column(
@@ -555,6 +742,7 @@ def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
                     tabs=[
                         ft.Tab(label=t("概要"), icon=ft.Icons.INVENTORY_2_OUTLINED),
                         ft.Tab(label=t("処理の記録"), icon=ft.Icons.HISTORY),
+                        ft.Tab(label=t("ワークフロー"), icon=ft.Icons.ACCOUNT_TREE_OUTLINED),
                         ft.Tab(label=t("ファイル"), icon=ft.Icons.LIST_ALT_OUTLINED),
                         ft.Tab(label=t("生データ"), icon=ft.Icons.CODE),
                     ]
@@ -564,6 +752,7 @@ def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
                     controls=[
                         _overview_tab(report),
                         _events_tab(report),
+                        _workflow_tab(report),
                         _files_tab(report),
                         _raw_browser(root),
                     ],

@@ -9,7 +9,8 @@ XML を開いても担当者には読めないので、ここで表に直す。
 
   1. 概要   — 何がいくつ入っているか、いつ作ったか
   2. 処理の記録 — いつ・何を・どのツールで行い、結果はどうだったか（PREMIS event）
-  3. ファイル一覧 — フォーマット・PRONOM・サイズ・SHA-256・ウイルス検査
+  3. ワークフロー — 同じ記録を段階ごとに束ねたもの（workflow()）
+  4. ファイル一覧 — フォーマット・PRONOM・サイズ・SHA-256・ウイルス検査
 
 AIP は METS を読む。SIP は METS を持たないので、metadata/formats.csv
 （技術インベントリ）と description.csv から同じ形を作る。
@@ -36,8 +37,36 @@ EVENT_LABELS = {
     "format identification": "フォーマットの識別",
     "virus check": "ウイルス検査",
     "normalization": "保存用形式への変換",
+    # 派生物を開き直せたかの確認（aip_pipeline._append_validation_event）。
+    # 2026-09-22 まで抜けていて、処理の記録に英語の "validation" がそのまま出ていた。
+    "validation": "変換結果の検証",
     "message digest calculation": "チェックサムの算出",
 }
+
+#: ワークフロー画面で並べる段階の順（PREMIS の eventType）。
+#:
+#: キムさんが iPRES 2026 の CloudViPER ワークショップで示した流れ
+#: （取り込み→ウイルス検査→識別→検証→変換→チェックサム→完全性確認）に倣う。
+#: **ただし検証は変換の後ろに置く。** このアプリの validation は
+#: 「作った派生物を開き直せたか」であり、変換より前には起こりえない。
+#: 原本の形式適合性（JHOVE / veraPDF の類）はまだ行っていない。
+#:
+#: 記録の時刻はどれも同じ（AIP 化の開始時刻）なので、これは時刻順ではなく
+#: 処理の意味の上での順である。
+WORKFLOW_ORDER = (
+    "ingestion",
+    "virus check",
+    "format identification",
+    "normalization",
+    "validation",
+    "message digest calculation",
+    "fixity check",
+)
+
+#: 問題なしとみなす eventOutcome。**これ以外はすべて「見るべきもの」に数える。**
+#: skipped（確認しなかった）も含める。「確認していない」を「問題なし」に
+#: 混ぜると、個人情報スキャンで一度起きた取り違えをここでも繰り返す。
+OK_OUTCOMES = frozenset({"pass", "success"})
 
 #: fileGrp USE の意味。
 USE_LABELS = {
@@ -67,6 +96,8 @@ class EventRow:
     detail: str = ""
     agent: str = ""
     target: str = ""          # 対象のファイル。パッケージ全体なら空
+    event_type: str = ""      # PREMIS の eventType そのもの（訳す前）
+    agents: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -317,13 +348,16 @@ def _event_row(ev, agents: dict[str, str], target: str) -> EventRow:
             f"{{{PREMIS_NS}}}linkingAgentIdentifier/{{{PREMIS_NS}}}linkingAgentIdentifierValue"
         )
     ]
+    names = tuple(agents.get(a, a) for a in linked)
     return EventRow(
         date_time=_text(ev, f"{{{PREMIS_NS}}}eventDateTime"),
         type_label=EVENT_LABELS.get(kind, kind),
         outcome=_text(ev, f".//{{{PREMIS_NS}}}eventOutcome"),
         detail=_text(ev, f".//{{{PREMIS_NS}}}eventOutcomeDetailNote"),
-        agent="、".join(agents.get(a, a) for a in linked),
+        agent="、".join(names),
         target=target,
+        event_type=kind,
+        agents=names,
     )
 
 
@@ -429,6 +463,78 @@ def _summarize(files: list[FileRow], events: list[EventRow]) -> Summary:
             1 for f in originals if f.virus and f.virus not in ("", "未実施", "-")
         ),
     )
+
+
+# --------------------------------------------------------------------------
+# ワークフロー（PREMIS の記録を段階ごとに束ねる）
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Stage:
+    """ワークフローの 1 段階。**記録が無い段階も返す。**
+
+    記録が無いことを段階ごと消すと、「行わなかった」が画面から見えなくなる
+    （ウイルス検査は、行わなかったときは event を書かない決まりになっている）。
+    """
+
+    event_type: str
+    label: str
+    events: int = 0                      # 記録の件数
+    files: int = 0                       # 対象になったファイルの数
+    outcomes: list[tuple[str, int]] = field(default_factory=list)  # 多い順
+    agents: list[str] = field(default_factory=list)  # 出てきた順
+    problems: list[EventRow] = field(default_factory=list)  # OK_OUTCOMES 以外
+    digests: int = 0                     # チェックサムの段のみ。下記参照
+
+    @property
+    def recorded(self) -> bool:
+        return self.events > 0
+
+
+def workflow(report: PackageReport) -> list[Stage]:
+    """処理の記録を WORKFLOW_ORDER の段階に分ける。
+
+    決まった段階に当てはまらない eventType があれば、後ろに足す。
+    知らない記録を黙って捨てない。
+    """
+    grouped: dict[str, list[EventRow]] = {}
+    for e in report.events:
+        grouped.setdefault(e.event_type, []).append(e)
+
+    order = list(WORKFLOW_ORDER)
+    order += sorted(k for k in grouped if k not in WORKFLOW_ORDER)
+
+    stages: list[Stage] = []
+    for kind in order:
+        rows = grouped.get(kind, [])
+        outcomes: dict[str, int] = {}
+        agents: list[str] = []
+        for e in rows:
+            outcomes[e.outcome] = outcomes.get(e.outcome, 0) + 1
+            for a in e.agents:
+                if a not in agents:
+                    agents.append(a)
+        # このアプリはチェックサムの算出を event として書いていない。
+        # 値そのものは PREMIS の object（fixity/messageDigest）に入っているので、
+        # その件数を別に数えて、段が空でも「算出はされている」と分かるようにする。
+        digests = (
+            sum(1 for f in report.files if f.sha256)
+            if kind == "message digest calculation" else 0
+        )
+        stages.append(
+            Stage(
+                event_type=kind,
+                label=EVENT_LABELS.get(kind, kind),
+                events=len(rows),
+                files=len({e.target for e in rows}),
+                outcomes=sorted(outcomes.items(), key=lambda kv: (-kv[1], kv[0])),
+                agents=agents,
+                problems=[e for e in rows if e.outcome not in OK_OUTCOMES],
+                digests=digests,
+            )
+        )
+    return stages
 
 
 def human_bytes(size: int) -> str:

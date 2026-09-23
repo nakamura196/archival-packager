@@ -138,7 +138,11 @@ stands.
 
 1. **Overview** — what is in it, how many, when it was made
 2. **Preservation events** — when, what, with which tool, and with what outcome
-3. **Files** — format, PRONOM identifier, size, SHA-256, virus scan result
+3. **Workflow** — the same events grouped by stage (ingestion → virus scan →
+   format identification → normalization → validation → checksum → fixity
+   check). Select a stage to see the tools used, the counts and any files with
+   problems. A stage with no records is shown as such, not hidden
+4. **Files** — format, PRONOM identifier, size, SHA-256, virus scan result
 
 The originals themselves (a PDF, a Word file) do not open in the application.
 Open the folder and use whatever you normally use.
@@ -334,7 +338,10 @@ macOS で「開発元を確認できないため開けません」と出た場�
 
 1. 概要 — 何がいくつ入っているか、いつ作ったか
 2. 処理の記録 — いつ・何を・どの道具で行い、結果はどうだったか
-3. ファイル一覧 — フォーマット・PRONOM ID・サイズ・SHA-256・ウイルス検査
+3. ワークフロー — 同じ記録を段階ごとにまとめた流れ図（取り込み → ウイルス検査 →
+   識別 → 変換 → 検証 → チェックサム → 完全性の確認）。段階を押すと、使った
+   道具・件数・問題のあったファイルが出ます。記録の無い段階も「記録なし」として残します
+4. ファイル一覧 — フォーマット・PRONOM ID・サイズ・SHA-256・ウイルス検査
 
 原本そのもの（PDF や Word）はアプリでは開けません。フォルダを開いて、
 いつものアプリでご覧ください。
