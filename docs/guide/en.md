@@ -26,6 +26,7 @@ checking what is inside them. The videos have spoken explanations.
 - [2. Create a SIP (submission package)](#2-create-a-sip-submission-package)
 - [3. Create an AIP (preservation package) and check it](#3-create-an-aip-preservation-package-and-check-it)
 - [If something goes wrong](#if-something-goes-wrong)
+- [For IT staff](#for-it-staff)
 
 ## Before you start
 
@@ -46,6 +47,19 @@ Usually you create a SIP first, check it, and then create the AIP.
 
 ## 1. Install
 
+### Which computers it runs on
+
+- **Windows** — Windows 10 (version 2004 or later) or Windows 11, 64-bit
+- **Mac** — macOS 12 or later
+
+Have free space of **two to three times the size of the records**. A package
+holds a copy of the records, and an AIP also holds the preservation copies of
+images. The virus scan needs several hundred MB more for its data.
+
+**If your work computer does not let you use the Store or install
+applications**, show [For IT staff](#for-it-staff) at the end of this page to
+the person who looks after your computers.
+
 ### Windows
 
 1. Open the [Microsoft Store page](https://apps.microsoft.com/detail/9N6XJD7THHPZ)
@@ -53,6 +67,7 @@ Usually you create a SIP first, check it, and then create the AIP.
 3. When "Archival Packager" appears in the Start menu, you are done
 
 Updates arrive automatically, like any other Store app.
+To remove it, right-click its icon in the Start menu and choose "Uninstall".
 
 ### Mac
 
@@ -62,7 +77,11 @@ Updates arrive automatically, like any other Store app.
    into the "Applications" folder
 4. Open Archival Packager from the "Applications" folder
 
-macOS 12 or later is required.
+The Mac version does not update itself. When a new version comes out,
+download it the same way and replace the one in "Applications".
+To remove it, move Archival Packager from "Applications" to the Bin.
+
+Either way, packages you have made are not removed.
 
 ### Opening it for the first time
 
@@ -70,9 +89,9 @@ macOS 12 or later is required.
 is happening; the application is preparing itself. From the second time on it
 opens straight away.
 
-If your Mac says the application "cannot be opened because the developer
-cannot be verified", right-click the icon (or click it while holding the
-control key) and choose "Open".
+The first time, your Mac asks whether you want to open "an app downloaded from
+the Internet". Press "Open". The application has been checked by Apple
+(notarised), so this is the only question you will see.
 
 ### The first screen
 
@@ -80,6 +99,9 @@ control key) and choose "Open".
 
 To switch the language, use the menu at the **top right** (it shows the
 current language). Your choice is remembered next time.
+
+The **version number** is shown at the top left, next to the name (for
+example v0.1.8). Please include it when you ask a question.
 
 ---
 
@@ -216,9 +238,40 @@ something at the SIP stage, though, it is safer to do them separately.
 - **The virus scan says "skipped"** — press "Download / update definitions" once
 - **Files inside the package will not open** — the application only lists
   them. Use "Show in folder" and open them with your usual applications
+- **Not sure what to hand over** — inside the destination, the folder with the
+  same name as the identifier is one package. Hand over that whole folder. To
+  make it a single file, create it again with "Serialize the output as a ZIP"
 
 For more detail, see the [full usage guide](../usage.md). What the application
 cannot do is listed under [Known limits](https://github.com/nakamura196/archival-packager#known-limits)
 in the README.
 
-Questions: nakamura@hi.u-tokyo.ac.jp
+Questions: nakamura@hi.u-tokyo.ac.jp — please include the version number (top
+left of the window) and whether you use Windows or a Mac.
+
+---
+
+## For IT staff
+
+Information for deciding whether the application may be installed on work
+computers.
+
+- **Everything is processed on the computer.** No records and nothing typed in
+  are sent to the developer or anyone else. There is no usage tracking, no
+  error reporting and no update check
+- **It connects to the network for one thing only**: when the user fetches the
+  virus scan data, it downloads it from ClamAV (`database.clamav.net`). If that
+  is blocked, the virus scan is recorded as "skipped" (never as "nothing
+  found"). Everything else works offline
+- **It never writes to the originals.** It only reads them, and writes packages
+  to a separate place the user chooses
+- **Windows**: distributed through the Microsoft Store (Store ID
+  `9N6XJD7THHPZ`, publisher Satoru Nakamura), so it is reviewed and signed by
+  Microsoft
+- **Mac**: signed with an Apple Developer ID and notarised (checked by Apple for
+  malware)
+- The tools used for identification and scanning (Siegfried, ClamAV) are
+  bundled. Nothing else needs to be installed
+- The source code is public on [GitHub](https://github.com/nakamura196/archival-packager) (MIT licence)
+
+See the [privacy policy](../privacy-policy.md) for details.
