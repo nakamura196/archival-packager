@@ -1,0 +1,14 @@
+---
+---
+
+@import "{{ site.theme }}";
+
+// 既定の本文幅（500px）では、ガイドの動画の文字が読めない。
+// 本文を広げ、動画と画面写真は本文の幅いっぱいに出す。
+// 960px 未満は元のテーマどおり縦に積む（テーマ側の指定がそのまま効く）。
+@media screen and (min-width: 961px) {
+  .wrapper { width: 1100px; }
+  section { width: 760px; }
+}
+
+video, section img { max-width: 100%; height: auto; }

@@ -8,6 +8,9 @@ A desktop application that builds OAIS information packages — a Submission
 Information Package (SIP) and an Archival Information Package (AIP) — from
 born-digital and digitised files. macOS and Windows.
 
+**New to it?** [Getting started](guide/en.md) walks you through installing and
+using the application, with narrated videos.
+
 ### Download
 
 | Platform | Where |
@@ -30,7 +33,8 @@ written separately.
 
 ### Links
 
-- [How to use it](usage.md) — the interface and the command line
+- [Getting started](guide/en.md) — installing and first use, with videos
+- [How to use it](usage.md) — the interface and the command line, in full
 - [Source code](https://github.com/nakamura196/archival-packager) (MIT)
 - [Privacy policy](privacy-policy.md)
 
@@ -46,6 +50,9 @@ Contact: nakamura@hi.u-tokyo.ac.jp
 
 デジタル資料から、OAIS 参照モデルの情報パッケージ（SIP / AIP）を作成する
 デスクトップアプリケーションです。macOS と Windows に対応します。
+
+**はじめての方は** [はじめての方へ](guide/) をご覧ください。インストールから
+使い方までを、音声つきの動画で説明しています。
 
 ### ダウンロード
 
@@ -66,7 +73,8 @@ Contact: nakamura@hi.u-tokyo.ac.jp
 
 ### リンク
 
-- [使い方](usage.md) — 画面とコマンドライン
+- [はじめての方へ](guide/) — インストールと使い方（動画つき）
+- [使い方（詳細版）](usage.md) — 画面とコマンドライン
 - [ソースコード](https://github.com/nakamura196/archival-packager)（MIT）
 - [プライバシーポリシー](privacy-policy.md)
 
