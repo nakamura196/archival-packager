@@ -34,6 +34,7 @@ written separately.
 ### Links
 
 - [Getting started](guide/en.md) — installing and first use, with videos
+- [Using the window](manual/en.md) — every part of the window, with screenshots
 - [How to use it](usage.md) — the interface and the command line, in full
 - [Source code](https://github.com/nakamura196/archival-packager) (MIT)
 - [Privacy policy](privacy-policy.md)
@@ -74,6 +75,7 @@ Contact: nakamura@hi.u-tokyo.ac.jp
 ### リンク
 
 - [はじめての方へ](guide/) — インストールと使い方（動画つき）
+- [画面の使い方](manual/) — 画面の各部を、写真つきで
 - [使い方（詳細版）](usage.md) — 画面とコマンドライン
 - [ソースコード](https://github.com/nakamura196/archival-packager)（MIT）
 - [プライバシーポリシー](privacy-policy.md)
