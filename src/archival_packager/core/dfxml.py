@@ -50,6 +50,8 @@ DC_NS = "http://purl.org/dc/elements/1.1/"
 #: **一度出した URI は変えない。** 過去に作ったパッケージの dfxml.xml に
 #: 書き込まれており、変えると後から読む側が同じものだと判定できなくなる。
 #: 解決できる URL にしてあるのは、見つけた人が何者か調べられるようにするため。
+#: 2026-09-24 にサイトを https://ap.ldas.jp へ移したが、この URI は変えない
+#: （旧 URL へのアクセスは GitHub が新しいドメインへ転送する）。
 AP_NS = "https://nakamura196.github.io/archival-packager/ns/dfxml/1.0"
 
 PROGRAM_NAME = "Archival Packager"

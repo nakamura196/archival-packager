@@ -1,7 +1,7 @@
 ---
 layout: guide
 lang: en
-home_url: /archival-packager/en.html
+home_url: /en.html
 image: /assets/ogp/ogp-en.png
 title: Using the window
 eyebrow: Archival Packager manual
