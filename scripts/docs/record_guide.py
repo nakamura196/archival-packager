@@ -106,6 +106,7 @@ CURSOR_JS = """
     + 'left:-50px;top:-50px;transform:translate(-50%,-50%);transition:left .4s,top .4s';
   document.body.appendChild(c);
   window.__mv = (x, y) => { c.style.left = x + 'px'; c.style.top = y + 'px'; };
+  window.__hide = () => { c.style.display = 'none'; };
 }
 """
 
@@ -386,6 +387,8 @@ def record(lang: str, scene: str, entries: list[dict], picks: list[Path],
             page.wait_for_timeout(1000)
 
             (OUT / lang).mkdir(parents=True, exist_ok=True)
+            # 写真は動画の poster に使うので、押した場所の赤い丸を消してから撮る
+            page.evaluate("window.__hide()")
             page.screenshot(path=str(OUT / lang / f"{scene}.png"))
             ctx.close()
             browser.close()
