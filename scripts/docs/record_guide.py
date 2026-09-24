@@ -187,7 +187,6 @@ SCENES: dict[str, list[Step]] = {
             "タイトル（必須）",
             "総務課 移管文書" if d.lang == "ja" else "Records transfer, General Affairs")),
         ("options", lambda d: d.click("button", "オプション")),
-        ("virus", lambda d: d.click("checkbox", "ウイルス検査を行う（定義 DB が必要）", dx=0.1)),
         ("run", lambda d: d.click("button", "実行", exact=True)),
         ("done", lambda d: d.wait_for("button", "中身を見る")),
         ("view", lambda d: d.click("button", "中身を見る")),
