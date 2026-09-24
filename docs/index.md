@@ -50,7 +50,7 @@ written separately.
 
 - [Getting started](guide/en.md) — installing and first use, with videos
 - [Using the window](manual/en.md) — every part of the window, with screenshots
-- [How to use it](usage.md) — the interface and the command line, in full
+- [How to use it](usage-en.md) — the interface and the command line, in full
 - [Source code](https://github.com/nakamura196/archival-packager) (MIT)
 - [Privacy policy](privacy-policy.md)
 

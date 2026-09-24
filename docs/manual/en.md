@@ -8,7 +8,7 @@ alternate: { title: 日本語, url: ./, lang: ja }
 nav:
   - { title: Home, url: ../ }
   - { title: Getting started, url: ../guide/en.html }
-  - { title: Full manual, url: ../usage.html }
+  - { title: Full manual, url: ../usage-en.html }
   - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
 quick_links:
   - { title: Build a SIP, text: Input, output, description and options, url: "#2-building-a-submission-package-sip", mark: "2" }
@@ -26,7 +26,7 @@ footer: "Contact: nakamura@hi.u-tokyo.ac.jp"
 - If this is your first time, watch [Getting started](../guide/en.md) first.
   It takes you from installing the application to building a package, with narrated videos
 - The command line, and the exact contents of the files the application writes,
-  are covered in [How to use it](../usage.md)
+  are covered in [How to use it](../usage-en.md)
 
 The screenshots were taken on a Mac with the interface set to English. On Windows,
 only the window frame looks different.

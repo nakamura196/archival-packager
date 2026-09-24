@@ -49,7 +49,7 @@ tools are bundled.
 There is also a command line (`archival-packager sip` / `aip` / `inspect` /
 `check`) for scripted transfers and for CI. **It works only when running from
 source** — arguments do not reach the packaged builds. See
-[docs/usage.md](docs/usage.md).
+[docs/usage-en.md](docs/usage-en.md).
 
 ### Design commitments
 
@@ -78,7 +78,7 @@ The interface is Japanese and English.
 | Document | Contents |
 | --- | --- |
 | [docs/manual/](docs/manual/en.md) | Using the window — every part of it, with screenshots (Japanese and English) |
-| [docs/usage.md](docs/usage.md) | Operator's manual — the window and the command line |
+| [docs/usage-en.md](docs/usage-en.md) | Operator's manual — the window and the command line |
 | [docs/interoperability.md](docs/interoperability.md) | Field-by-field comparison with AtoM and Archivematica specifications |
 | [docs/pii-accuracy.md](docs/pii-accuracy.md) | Measured precision and recall of the personal information scan |
 | [docs/performance.md](docs/performance.md) | Time and memory at 100 to 50,000 files |

@@ -8,7 +8,7 @@ alternate: { title: 日本語, url: ./, lang: ja }
 nav:
   - { title: Home, url: ../ }
   - { title: Using the window, url: ../manual/en.html }
-  - { title: Full manual, url: ../usage.html }
+  - { title: Full manual, url: ../usage-en.html }
   - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
 quick_links:
   - { title: Install, text: Windows and Mac, url: "#1-install" }
@@ -252,7 +252,7 @@ something at the SIP stage, though, it is safer to do them separately.
 {: .faq }
 
 For every part of the window, with screenshots, see [Using the window](../manual/en.md).
-For more detail, see the [full usage guide](../usage.md). What the application
+For more detail, see the [full usage guide](../usage-en.md). What the application
 cannot do is listed under [Known limits](https://github.com/nakamura196/archival-packager#known-limits)
 in the README.
 
