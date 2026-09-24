@@ -2,6 +2,7 @@
 layout: guide
 lang: en
 home_url: /archival-packager/en.html
+image: /assets/ogp/ogp-en.png
 title: Using the window
 eyebrow: Archival Packager manual
 lead: Every part of the window, one at a time, with screenshots. The red frame in each picture marks the part that section is about.

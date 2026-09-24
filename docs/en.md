@@ -2,6 +2,7 @@
 layout: guide
 lang: en
 home_url: /archival-packager/en.html
+image: /assets/ogp/ogp-en.png
 title: Archival Packager
 eyebrow: macOS · Windows
 lead: Builds OAIS information packages (SIP / AIP) from your files, without a command line.

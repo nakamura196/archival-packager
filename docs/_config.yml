@@ -7,8 +7,13 @@
 # 参照されるので、リポジトリ名を変えるときは URL の差し替えも必ず行うこと
 # （実際に 0.1.6 の審査が、切れた URL で差し戻された）。
 title: Archival Packager
-description: Builds OAIS information packages (SIP / AIP) — macOS and Windows
+description: デジタル資料から、OAIS の情報パッケージ（SIP / AIP）を作るアプリです（macOS・Windows）。
 theme: jekyll-theme-minimal
+
+# 共有したときに出る画像（OGP）。英語のページは front matter の image で ogp-en.png に差し替える。
+# 画像は scripts/docs/make_ogp.py で作る。
+guide_theme:
+  image: /assets/ogp/ogp-ja.png
 
 # ページの型。トップ・ガイド・画面マニュアルに加え、技術ページも guide-theme で出す
 # （2026-09-24）。各ページの front matter で上書きできる。
