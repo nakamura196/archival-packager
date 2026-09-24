@@ -1,11 +1,12 @@
 ---
 lang: en
+home_url: /archival-packager/en.html
 title: Full manual
 eyebrow: Archival Packager manual
 alternate: { title: 日本語, url: usage.html, lang: ja }
 footer: "Contact: nakamura@hi.u-tokyo.ac.jp"
 nav:
-  - { title: Home, url: ./ }
+  - { title: Home, url: en.html }
   - { title: Getting started, url: guide/en.html }
   - { title: Using the window, url: manual/en.html }
   - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }

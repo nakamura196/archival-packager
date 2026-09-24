@@ -1,12 +1,13 @@
 ---
 layout: guide
 lang: en
+home_url: /archival-packager/en.html
 title: Getting started
 eyebrow: Archival Packager guide
 lead: From installing the application to creating packages and checking what is inside them, with narrated videos. You never need to type a command.
 alternate: { title: 日本語, url: ./, lang: ja }
 nav:
-  - { title: Home, url: ../ }
+  - { title: Home, url: ../en.html }
   - { title: Using the window, url: ../manual/en.html }
   - { title: Full manual, url: ../usage-en.html }
   - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
@@ -116,7 +117,7 @@ example v0.1.8). Please include it when you ask a question.
 
 ## 2. Create a SIP (submission package)
 
-<iframe src="https://www.youtube-nocookie.com/embed/2seRY7gT1Qg?rel=0" title="Archival Packager guide 1: Create a SIP (submission package)" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
+<iframe src="https://www.youtube-nocookie.com/embed/2seRY7gT1Qg?playlist=mIwb2glsDyU&rel=0" title="Archival Packager guide 1: Create a SIP (submission package)" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
 
 *With sound. The red dot shows where the mouse clicks. The text below is what the video says.*
 

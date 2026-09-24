@@ -1,12 +1,13 @@
 ---
 layout: guide
 lang: en
+home_url: /archival-packager/en.html
 title: Using the window
 eyebrow: Archival Packager manual
 lead: Every part of the window, one at a time, with screenshots. The red frame in each picture marks the part that section is about.
 alternate: { title: 日本語, url: ./, lang: ja }
 nav:
-  - { title: Home, url: ../ }
+  - { title: Home, url: ../en.html }
   - { title: Getting started, url: ../guide/en.html }
   - { title: Full manual, url: ../usage-en.html }
   - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
