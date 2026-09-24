@@ -1,4 +1,8 @@
-# プライバシーポリシー / Privacy Policy
+---
+title: "プライバシーポリシー / Privacy Policy"
+eyebrow: Archival Packager
+alternate: { title: 日本語, url: "#日本語", lang: ja }
+---
 
 **Archival Packager**
 

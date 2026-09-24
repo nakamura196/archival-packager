@@ -1,6 +1,8 @@
-# Usage / 使い方
-
-[English](#english) · [日本語](#日本語)
+---
+title: "Usage / 使い方"
+eyebrow: Archival Packager マニュアル
+alternate: { title: 日本語, url: "#日本語", lang: ja }
+---
 
 ## English
 

@@ -1,4 +1,7 @@
-# 開発の記録（Swift 版から書き直すまで）
+---
+title: "開発の記録（Swift 版から書き直すまで）"
+eyebrow: Archival Packager 技術資料
+---
 
 このアプリは、もともと macOS 専用の Swift 実装だった。それを Flet / Python で
 書き直したのが、いま公開しているこの実装である。
