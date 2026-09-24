@@ -1,7 +1,7 @@
 ---
 layout: guide
 lang: en
-home_url: /archival-packager/en.html
+home_url: /en.html
 image: /assets/ogp/ogp-en.png
 title: Archival Packager
 eyebrow: macOS · Windows

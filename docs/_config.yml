@@ -6,6 +6,13 @@
 # 改名するとリダイレクトされない。Pages の URL は掲載情報や審査で
 # 参照されるので、リポジトリ名を変えるときは URL の差し替えも必ず行うこと
 # （実際に 0.1.6 の審査が、切れた URL で差し戻された）。
+#
+# **2026-09-24 から独自ドメイン https://ap.ldas.jp で出している**（docs/CNAME）。
+# DNS は Cloudflare の ldas.jp に CNAME ap → nakamura196.github.io（プロキシなし。
+# プロキシを通すと GitHub が HTTPS の証明書を取れない）。
+# 旧 URL（nakamura196.github.io/archival-packager/…）は GitHub が新 URL へ転送する。
+# ストアの掲載情報とアプリ 0.1.8 以前は旧 URL を指しているので、CNAME を外すと
+# その転送が止まって切れる。独自ドメインをやめるときは、先にそちらを差し替えること。
 title: Archival Packager
 description: デジタル資料から、OAIS の情報パッケージ（SIP / AIP）を作るアプリです（macOS・Windows）。
 theme: jekyll-theme-minimal

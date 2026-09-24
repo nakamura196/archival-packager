@@ -1,6 +1,6 @@
 ---
 lang: en
-home_url: /archival-packager/en.html
+home_url: /en.html
 image: /assets/ogp/ogp-en.png
 title: Full manual
 description: How to install Archival Packager and use it from its window and from the command line, with every option and the layout of what it writes.
