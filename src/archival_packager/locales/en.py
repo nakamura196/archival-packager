@@ -408,6 +408,34 @@ TEXTS: dict[str, str] = {
     "未実施": "Not scanned",
     "検出なし": "Clean",
 
+    # ウイルス定義の状態（core/clamav.py の database_status を画面で訳す）
+    "ウイルス定義: 未取得（検査はスキップされます）":
+        "Virus definitions: not downloaded (the virus check will be skipped)",
+    "ウイルス定義: 取得済み（{count} ファイル / 更新 {when}）":
+        "Virus definitions: downloaded ({count} files, updated {when})",
+
+    # 処理の記録の「詳細」欄（PREMIS の eventOutcomeDetailNote を画面で訳す）
+    "AIP 化のため取り込み": "Ingested to create the AIP",
+    "マニフェストと一致（{count} 件中）": "Matches the manifest ({count} files checked)",
+    "不一致 {count} 件": "{count} mismatches",
+    "マニフェストが見つかりません: {name}": "Manifest not found: {name}",
+    "マニフェストを読めません: {detail}": "Could not read the manifest: {detail}",
+    "マニフェストに有効な行がありません": "The manifest has no valid lines",
+    "PRONOM {puid}（{name}）": "PRONOM {puid} ({name})",
+    "識別できませんでした": "Could not be identified",
+    "検出: {name}": "Detected: {name}",
+    "Pillow で再読込: {mode} {width}x{height}": "Reopened with Pillow: {mode} {width}x{height}",
+    " / {count} フレーム": ", {count} frames",
+    "pypdf で再読込: {count} ページ": "Reopened with pypdf: {count} pages",
+    "読み戻せる道具を持っていない形式のため未確認（{ext}）":
+        "Not checked: no tool to reopen this format ({ext})",
+    "生成した派生物を開き直せませんでした: {detail}":
+        "Could not reopen the converted file: {detail}",
+    "TIFF (非圧縮)": "TIFF (uncompressed)",
+    "{count} フレームを多ページ TIFF として保持": "kept {count} frames as a multi-page TIFF",
+    "ICC プロファイルを保持": "kept the ICC profile",
+    "; 読み戻せなかったため破棄しました": "; discarded because it could not be reopened",
+
     # ------------------------------------------------------------------
     # 入力の取り違え・次の手順
     # ------------------------------------------------------------------
