@@ -242,6 +242,7 @@ something at the SIP stage, though, it is safer to do them separately.
   same name as the identifier is one package. Hand over that whole folder. To
   make it a single file, create it again with "Serialize the output as a ZIP"
 
+For every part of the window, with screenshots, see [Using the window](../manual/en.md).
 For more detail, see the [full usage guide](../usage.md). What the application
 cannot do is listed under [Known limits](https://github.com/nakamura196/archival-packager#known-limits)
 in the README.
