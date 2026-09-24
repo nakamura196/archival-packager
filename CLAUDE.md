@@ -19,8 +19,15 @@ and explain *why* decisions were made; a mechanical translation would lose that.
 If the project moves to English, do it deliberately, document by document,
 starting with `docs/` — not as a side effect of another change.
 
-`README.md` and `docs/index.md` carry an English section first, then Japanese.
-Keep that order when editing them.
+`README.md` carries an English section first, then Japanese. Keep that order
+when editing it.
+
+The site (`docs/`) keeps one language per page (from 2026-09-24). The bare URL
+is Japanese and the English page sits beside it: `index.md` / `en.md`,
+`guide/index.md` / `guide/en.md`, `manual/index.md` / `manual/en.md`,
+`usage.md` / `usage-en.md`. Each pair links to the other through `alternate`,
+and English pages set `home_url` to the English top page. When changing one
+page of a pair, change the other in the same commit.
 
 ## Where the open work is
 

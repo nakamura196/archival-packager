@@ -1,14 +1,15 @@
 ---
 layout: guide
 lang: en
+home_url: /archival-packager/en.html
 title: Getting started
 eyebrow: Archival Packager guide
 lead: From installing the application to creating packages and checking what is inside them, with narrated videos. You never need to type a command.
 alternate: { title: 日本語, url: ./, lang: ja }
 nav:
-  - { title: Home, url: ../ }
+  - { title: Home, url: ../en.html }
   - { title: Using the window, url: ../manual/en.html }
-  - { title: Full manual, url: ../usage.html }
+  - { title: Full manual, url: ../usage-en.html }
   - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
 quick_links:
   - { title: Install, text: Windows and Mac, url: "#1-install" }
@@ -116,7 +117,7 @@ example v0.1.8). Please include it when you ask a question.
 
 ## 2. Create a SIP (submission package)
 
-<iframe src="https://www.youtube-nocookie.com/embed/2seRY7gT1Qg?rel=0" title="Archival Packager guide 1: Create a SIP (submission package)" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
+<iframe src="https://www.youtube-nocookie.com/embed/2seRY7gT1Qg?playlist=mIwb2glsDyU&rel=0" title="Archival Packager guide 1: Create a SIP (submission package)" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
 
 *With sound. The red dot shows where the mouse clicks. The text below is what the video says.*
 
@@ -252,7 +253,7 @@ something at the SIP stage, though, it is safer to do them separately.
 {: .faq }
 
 For every part of the window, with screenshots, see [Using the window](../manual/en.md).
-For more detail, see the [full usage guide](../usage.md). What the application
+For more detail, see the [full usage guide](../usage-en.md). What the application
 cannot do is listed under [Known limits](https://github.com/nakamura196/archival-packager#known-limits)
 in the README.
 
