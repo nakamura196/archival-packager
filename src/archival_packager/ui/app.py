@@ -239,7 +239,7 @@ def main(page: ft.Page) -> None:
     def virus_db_message() -> str:
         if clamav.find_tool() is None:
             return t("ウイルス定義: ClamAV が同梱されていないため検査できません")
-        return clamav.database_status()
+        return messages.virus_db_status(clamav.database_status())
 
     virus_db_status = ft.Text(
         virus_db_message(), size=12, color=ft.Colors.ON_SURFACE_VARIANT
