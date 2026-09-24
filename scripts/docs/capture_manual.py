@@ -49,13 +49,16 @@ from record_guide import (  # noqa: E402  同じフォルダの部品を借り�
     ROOT,
     SIP_RADIO,
     SIZE,
-    WORK,
     Driver,
     _sample_images,
     start_app,
 )
 
 OUT = ROOT / "docs" / "manual" / "media"
+
+#: 動画（record_guide.py の ~/ap-guide-demo）とは別の場所にする。どちらも起動時に
+#: 作業フォルダを消すので、同じ場所だと同時に走らせたとき互いの素材を消し合う。
+WORK = Path.home() / "ap-manual-demo"
 
 #: 写真の名前。本文から参照される。撮れなかったものがあれば最後に知らせる。
 SHOTS = [
