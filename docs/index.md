@@ -26,7 +26,7 @@ footer: "連絡先: nakamura@hi.u-tokyo.ac.jp"
 
 受入パッケージ（SIP）を作る動画のあと、長期保存パッケージ（AIP）を作る動画が続けて流れます。
 
-<iframe src="https://www.youtube-nocookie.com/embed/fgraxOi60EQ?playlist=_cHN7XBQzbo&rel=0" title="Archival Packager の使い方（SIP を作る → AIP を作る）" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
+<iframe src="https://www.youtube-nocookie.com/embed/fgraxOi60EQ?playlist=fgraxOi60EQ,_cHN7XBQzbo&rel=0" title="Archival Packager の使い方（SIP を作る → AIP を作る）" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
 
 *音声が出ます。同じ内容を文章でも読めます: [はじめての方へ](guide/)*
 

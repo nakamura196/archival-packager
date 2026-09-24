@@ -117,7 +117,7 @@ example v0.1.8). Please include it when you ask a question.
 
 ## 2. Create a SIP (submission package)
 
-<iframe src="https://www.youtube-nocookie.com/embed/2seRY7gT1Qg?playlist=mIwb2glsDyU&rel=0" title="Archival Packager guide 1: Create a SIP (submission package)" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
+<iframe src="https://www.youtube-nocookie.com/embed/2seRY7gT1Qg?playlist=2seRY7gT1Qg,mIwb2glsDyU&rel=0" title="Archival Packager guide 1: Create a SIP (submission package)" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
 
 *With sound. The red dot shows where the mouse clicks. The text below is what the video says.*
 
