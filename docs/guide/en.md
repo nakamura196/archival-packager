@@ -252,6 +252,7 @@ something at the SIP stage, though, it is safer to do them separately.
   make it a single file, create it again with "Serialize the output as a ZIP"
 {: .faq }
 
+For every part of the window, with screenshots, see [Using the window](../manual/en.md).
 For more detail, see the [full usage guide](../usage.md). What the application
 cannot do is listed under [Known limits](https://github.com/nakamura196/archival-packager#known-limits)
 in the README.

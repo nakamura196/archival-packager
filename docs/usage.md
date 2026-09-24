@@ -56,6 +56,9 @@ open work — see [issue #11](https://github.com/nakamura196/archival-packager/i
 
 ### Using the window
 
+[Using the window](manual/en.md) goes through every part of the window with screenshots.
+This section is the short version.
+
 ![The main window, in English](images/main-en.png)
 
 *The window as it opens (macOS, v0.1.6). Windows looks the same apart from the
@@ -269,6 +272,9 @@ macOS で「開発元を確認できないため開けません」と出た場�
 ---
 
 ## 画面での使い方
+
+画面の各部を写真つきで説明したページは、[画面の使い方](manual/)にあります。
+この節はその要約です。
 
 ![起動直後の画面](images/main-ja.png)
 

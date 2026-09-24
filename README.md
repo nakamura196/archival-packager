@@ -77,6 +77,7 @@ The interface is Japanese and English.
 
 | Document | Contents |
 | --- | --- |
+| [docs/manual/](docs/manual/en.md) | Using the window — every part of it, with screenshots (Japanese and English) |
 | [docs/usage.md](docs/usage.md) | Operator's manual — the window and the command line |
 | [docs/interoperability.md](docs/interoperability.md) | Field-by-field comparison with AtoM and Archivematica specifications |
 | [docs/pii-accuracy.md](docs/pii-accuracy.md) | Measured precision and recall of the personal information scan |
@@ -354,6 +355,8 @@ Pillow なら wheel が両OS向けに同一版で提供され、libtiff も whee
 ## 実装のドキュメント
 
 - 利用者向けの手順書（画面とコマンドライン）: [`docs/usage.md`](docs/usage.md)
+- 画面の使い方（写真つき、日英）: [`docs/manual/`](docs/manual/)
+- 利用者向けの動画とページの作り方（ほかのアプリにも使える手順と落とし穴）: [`docs/making-user-docs.md`](docs/making-user-docs.md)
 - 技術検証と、そこで判明した落とし穴: [`spike/README.md`](spike/README.md)
 - 各モジュールの設計判断はコード内のモジュール docstring に書いてある
   （「なぜそうしたか」を残す場所として、別ファイルよりコードの近くが良いと判断した）
