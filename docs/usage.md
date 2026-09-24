@@ -1,6 +1,7 @@
 ---
 lang: ja
 title: 使い方（詳細版）
+description: Archival Packager の導入から、画面とコマンドラインでの使い方、オプションの一覧、出力の構成までをまとめた手順書です。
 eyebrow: Archival Packager マニュアル
 alternate: { title: English, url: usage-en.html, lang: en }
 ---

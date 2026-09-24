@@ -1,7 +1,9 @@
 ---
 lang: en
 home_url: /archival-packager/en.html
+image: /assets/ogp/ogp-en.png
 title: Full manual
+description: How to install Archival Packager and use it from its window and from the command line, with every option and the layout of what it writes.
 eyebrow: Archival Packager manual
 alternate: { title: 日本語, url: usage.html, lang: ja }
 footer: "Contact: nakamura@hi.u-tokyo.ac.jp"

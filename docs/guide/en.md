@@ -2,6 +2,7 @@
 layout: guide
 lang: en
 home_url: /archival-packager/en.html
+image: /assets/ogp/ogp-en.png
 title: Getting started
 eyebrow: Archival Packager guide
 lead: From installing the application to creating packages and checking what is inside them, with narrated videos. You never need to type a command.
