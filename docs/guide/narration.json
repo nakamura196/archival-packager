@@ -42,11 +42,6 @@
       "en": {"text": "Open \"Options\" to choose extras such as a virus scan."}
     },
     {
-      "id": "virus",
-      "ja": {"text": "ここでは、ウイルス検査を選びます。", "say": "ここでは、ウイルス検査を選びます。"},
-      "en": {"text": "Here, we turn on the virus scan."}
-    },
-    {
       "id": "run",
       "ja": {"text": "「実行」を押すと、右側に進み具合が表示されます。", "say": "実行を押すと、右側に、すすみぐあいが表示されます。"},
       "en": {"text": "Press \"Run\". Progress appears on the right."}
@@ -63,8 +58,8 @@
     },
     {
       "id": "files",
-      "ja": {"text": "「ファイル」のタブでは、ファイルごとの形式やウイルス検査の結果が見られます。元のファイルは変更されていません。", "say": "ファイルのタブでは、ファイルごとの形式や、ウイルス検査の結果が見られます。もとのファイルは、変更されていません。"},
-      "en": {"text": "The Files tab shows each file's format and its virus scan result. The original files have not been changed."}
+      "ja": {"text": "「ファイル」のタブでは、ファイルごとの形式や大きさが見られます。元のファイルは変更されていません。", "say": "ファイルのタブでは、ファイルごとの形式や、大きさが見られます。もとのファイルは、変更されていません。"},
+      "en": {"text": "The Files tab shows each file's format and size. The original files have not been changed."}
     }
   ],
   "aip": [

@@ -134,15 +134,13 @@ The title is required. It is the name of the group of records.
 
 Open "Options" to choose extras such as a virus scan.
 
-Here, we turn on the virus scan.
-
 Press "Run". Progress appears on the right.
 
 When it finishes, it says the SIP was created. Any files that need a closer look are listed here.
 
 Press "Look inside" to see what went into the package.
 
-The Files tab shows each file's format and its virus scan result. The original files have not been changed.
+The Files tab shows each file's format and size. The original files have not been changed.
 <!-- /narration:sip -->
 
 ### More details
