@@ -136,3 +136,52 @@ class TestEventDetails:
     def test_japanese_screen_is_unchanged(self, aip_events):
         for e in aip_events:
             assert messages.event_detail(e.detail) == e.detail
+
+
+def _texts(control) -> list[str]:
+    """組み上がった画面の Text の中身を、入れ子をたどって全部集める。"""
+    import flet as ft
+
+    found: list[str] = []
+    stack = [control]
+    while stack:
+        c = stack.pop()
+        if isinstance(c, ft.Text) and isinstance(c.value, str):
+            found.append(c.value)
+        for name in ("content", "controls", "rows", "cells"):
+            child = getattr(c, name, None)
+            if isinstance(child, list):
+                stack.extend(child)
+            elif child is not None and not isinstance(child, (str, int, float)):
+                stack.append(child)
+    return found
+
+
+class TestEventAgents:
+    """「処理の記録」の「実行したもの」欄。
+
+    2026-09-24、英語の画面でもこの欄が和文の読点「、」でつながっていた。
+    core は名前を「、」で連結した文字列（EventRow.agent）も持っているが、
+    これはコマンドラインの出力用。画面は名前の組（agents）から、画面の言語の区切りでつなぐ。
+    """
+
+    REPORT = package_report.PackageReport(root=Path("."), overview=package_report.Overview(), events=[
+        package_report.EventRow(
+            event_type="format identification",
+            agents=("Archival Packager", "siegfried"),
+        ),
+    ])
+
+    def test_english_uses_a_comma(self, english):
+        from archival_packager.ui import viewer
+
+        texts = _texts(viewer._events_tab(self.REPORT))
+        assert "Archival Packager, siegfried" in texts
+        assert not any("、" in s for s in texts), texts
+
+    def test_japanese_is_unchanged(self, tmp_path, monkeypatch):
+        from archival_packager.ui import viewer
+
+        monkeypatch.setattr(i18n, "_settings_path", lambda: tmp_path / "settings.json")
+        i18n._current = "ja"
+        assert "Archival Packager、siegfried" in _texts(viewer._events_tab(self.REPORT))

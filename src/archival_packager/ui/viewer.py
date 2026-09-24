@@ -442,7 +442,7 @@ def _events_tab(report: package_report.PackageReport) -> ft.Control:
             _mono(e.date_time),
             ft.Text(_stage_label(e.event_type), size=12, weight=ft.FontWeight.W_500),
             ft.Text(e.outcome, size=12),
-            ft.Text(e.agent, size=12, color=_LABEL_COLOR),
+            ft.Text(t("、").join(e.agents), size=12, color=_LABEL_COLOR),
             _mono(e.target or t("パッケージ全体")),
             ft.Text(messages.event_detail(e.detail), size=11, color=_LABEL_COLOR),
         ]
