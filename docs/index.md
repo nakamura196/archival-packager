@@ -1,6 +1,21 @@
-# Archival Packager
-
-[English](#english) · [日本語](#日本語)
+---
+layout: guide
+lang: en
+title: Archival Packager
+eyebrow: macOS · Windows
+lead: "Builds OAIS information packages (SIP / AIP) from your files, without a command line. デジタル資料から、OAIS の情報パッケージ（SIP / AIP）を作るアプリです。"
+alternate: { title: 日本語, url: "#日本語", lang: ja }
+nav:
+  - { title: Getting started, url: guide/en.html }
+  - { title: はじめての方へ, url: guide/ }
+  - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
+quick_links:
+  - { title: Getting started, text: Install and first use, with videos, url: guide/en.html, mark: "▶" }
+  - { title: Using the window, text: Every part of the window, with screenshots, url: manual/en.html, mark: "▢" }
+  - { title: はじめての方へ, text: インストールと使い方（動画つき）, url: guide/, mark: "▶" }
+  - { title: 画面の使い方, text: 画面の各部を、写真つきで, url: manual/, mark: "▢" }
+footer: "Contact / 連絡先: nakamura@hi.u-tokyo.ac.jp"
+---
 
 ## English
 

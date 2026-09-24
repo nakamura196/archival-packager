@@ -7,6 +7,7 @@ lead: インストールから、パッケージを作って中身を確かめ�
 alternate: { title: English, url: en.html, lang: en }
 nav:
   - { title: トップ, url: ../ }
+  - { title: 画面の使い方, url: ../manual/ }
   - { title: 詳しい使い方, url: ../usage.html }
   - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
 quick_links:

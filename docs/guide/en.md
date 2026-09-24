@@ -7,6 +7,7 @@ lead: From installing the application to creating packages and checking what is 
 alternate: { title: 日本語, url: ./, lang: ja }
 nav:
   - { title: Home, url: ../ }
+  - { title: Using the window, url: ../manual/en.html }
   - { title: Full manual, url: ../usage.html }
   - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
 quick_links:

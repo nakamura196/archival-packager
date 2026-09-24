@@ -1,5 +1,21 @@
 ---
+layout: guide
+lang: en
 title: Using the window
+eyebrow: Archival Packager manual
+lead: Every part of the window, one at a time, with screenshots. The red frame in each picture marks the part that section is about.
+alternate: { title: 日本語, url: ./, lang: ja }
+nav:
+  - { title: Home, url: ../ }
+  - { title: Getting started, url: ../guide/en.html }
+  - { title: Full manual, url: ../usage.html }
+  - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
+quick_links:
+  - { title: Build a SIP, text: Input, output, description and options, url: "#2-building-a-submission-package-sip", mark: "2" }
+  - { title: Build an AIP, text: From a SIP to a preservation package, url: "#4-building-a-preservation-package-aip", mark: "4" }
+  - { title: Inside the AIP and Workflow, text: Check the processing record stage by stage, url: "#5-looking-inside-the-aip-and-the-workflow-tab", mark: "5" }
+  - { title: If you are stuck, text: Common problems and what to do, url: "#if-you-are-stuck", mark: "?" }
+footer: "Contact: nakamura@hi.u-tokyo.ac.jp"
 ---
 
 <!--
@@ -7,32 +23,13 @@ title: Using the window
 画面写真は scripts/docs/capture_manual.py --lang en で撮り直せる。
 -->
 
-[日本語](./) · [Back to the top](../)
-
-# Using the window
-
-This page walks through the Archival Packager window **one part at a time, with screenshots**.
-The red frame in each picture marks the part that section is about.
-
 - If this is your first time, watch [Getting started](../guide/en.md) first.
   It takes you from installing the application to building a package, with narrated videos
 - The command line, and the exact contents of the files the application writes,
   are covered in [How to use it](../usage.md)
 
-**Contents**
-
-1. [The window](#1-the-window)
-2. [Building a submission package (SIP)](#2-building-a-submission-package-sip)
-3. [Looking inside the SIP](#3-looking-inside-the-sip)
-4. [Building a preservation package (AIP)](#4-building-a-preservation-package-aip)
-5. [Looking inside the AIP, and the Workflow tab](#5-looking-inside-the-aip-and-the-workflow-tab)
-6. [From source material to an AIP in one go](#6-from-source-material-to-an-aip-in-one-go)
-7. [How to use, licences and contact](#7-how-to-use-licences-and-contact)
-
 The screenshots were taken on a Mac with the interface set to English. On Windows,
 only the window frame looks different.
-
----
 
 ## 1. The window
 
