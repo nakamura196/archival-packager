@@ -263,3 +263,93 @@ def pipeline_error(message: str) -> str:
     if message.startswith(raw("SIP として認識できません: ")):
         return t("選んだフォルダは SIP ではありません（objects フォルダがありません）。")
     return message
+
+
+def virus_db_status(line: str) -> str:
+    """ウイルス定義の状態文（core/clamav.py の database_status）を今の言語に。
+
+    日付と件数はそのまま差し込む。知らない形ならそのまま。
+    """
+    if line == raw("ウイルス定義: 未取得（検査はスキップされます）"):
+        return t("ウイルス定義: 未取得（検査はスキップされます）")
+    m = re.match(raw(r"^ウイルス定義: 取得済み（(\d+) ファイル / 更新 (.+)）$"), line)
+    if m:
+        return t("ウイルス定義: 取得済み（{count} ファイル / 更新 {when}）",
+                 count=m[1], when=m[2])
+    return line
+
+
+#: 処理の記録（PREMIS の eventOutcomeDetailNote）の決まった形の文。
+#: core/aip_pipeline.py・core/fixity.py・core/normalizer.py・core/sip_pipeline.py が書く。
+#: **PREMIS に書かれた値そのものは変えない。** 画面に並べるときだけ訳す。
+_DETAILS: list[_Rule] = [
+    _rule(raw(r"^AIP 化のため取り込み$"), lambda m: t("AIP 化のため取り込み")),
+    _rule(raw(r"^マニフェストと一致（(\d+) 件中）$"),
+          lambda m: t("マニフェストと一致（{count} 件中）", count=m[1])),
+    _rule(raw(r"^不一致 (\d+) 件$"), lambda m: t("不一致 {count} 件", count=m[1])),
+    _rule(raw(r"^マニフェストが見つかりません: (.*)$"),
+          lambda m: t("マニフェストが見つかりません: {name}", name=m[1])),
+    _rule(raw(r"^マニフェストを読めません: (.*)$"),
+          lambda m: t("マニフェストを読めません: {detail}", detail=m[1])),
+    _rule(raw(r"^マニフェストに有効な行がありません$"),
+          lambda m: t("マニフェストに有効な行がありません")),
+    # 形式名は PRONOM の英語名なので訳さない。英語では括弧だけ半角にする。
+    _rule(raw(r"^PRONOM (\S+)（(.*)）$"),
+          lambda m: t("PRONOM {puid}（{name}）", puid=m[1], name=m[2])),
+    _rule(raw(r"^識別できませんでした$"), lambda m: t("識別できませんでした")),
+    # ウイルス検査。SIP の CSV の値（検出なし／検出: 名前）がそのまま入る。
+    _rule(raw(r"^検出なし$"), lambda m: t("検出なし")),
+    _rule(raw(r"^検出: (.*)$"), lambda m: t("検出: {name}", name=m[1])),
+    # 派生物の読み戻し（validation）
+    _rule(raw(r"^Pillow で再読込: (\S+) (\d+)x(\d+)(?: / (\d+) フレーム)?$"),
+          lambda m: t("Pillow で再読込: {mode} {width}x{height}",
+                      mode=m[1], width=m[2], height=m[3]) + (
+              t(" / {count} フレーム", count=m[4]) if m[4] else "")),
+    _rule(raw(r"^pypdf で再読込: (\d+) ページ$"),
+          lambda m: t("pypdf で再読込: {count} ページ", count=m[1])),
+    _rule(raw(r"^読み戻せる道具を持っていない形式のため未確認（(.*)）$"),
+          lambda m: t("読み戻せる道具を持っていない形式のため未確認（{ext}）", ext=m[1])),
+    _rule(raw(r"^生成した派生物を開き直せませんでした: (.*)$"),
+          lambda m: t("生成した派生物を開き直せませんでした: {detail}", detail=m[1])),
+]
+
+#: 変換（normalization）の記録に混ざる日本語の句。rule="..." の並びは機械向けの
+#: 値なので訳さず、句だけを置き換える。core/image_normalize.py の to_tiff と
+#: core/aip_pipeline.py（読み戻せなかったとき）が書く。
+_NORMALIZATION_PHRASES: list[_Rule] = [
+    _rule(raw(r"TIFF \(非圧縮\)"), lambda m: t("TIFF (非圧縮)")),
+    _rule(raw(r"(\d+) フレームを多ページ TIFF として保持"),
+          lambda m: t("{count} フレームを多ページ TIFF として保持", count=m[1])),
+    _rule(raw(r"ICC プロファイルを保持"), lambda m: t("ICC プロファイルを保持")),
+    _rule(raw(r"; 読み戻せなかったため破棄しました$"),
+          lambda m: t("; 読み戻せなかったため破棄しました")),
+]
+
+
+def _detail_body(text: str) -> str:
+    for pattern, render in _DETAILS:
+        m = pattern.match(text)
+        if m:
+            return render(m)
+    return text
+
+
+def event_detail(text: str) -> str:
+    """処理の記録の「詳細」欄を今の言語に。知らない形ならそのまま。
+
+    validation の記録は「派生物のパス: 結果」の形なので、パスは残して結果だけ訳す。
+    rule="..." の並ぶ変換の記録は機械向けの値なので訳さない（混ざった日本語の句だけ訳す）。
+    """
+    if text.startswith('rule="'):
+        for pattern, render in _NORMALIZATION_PHRASES:
+            text = pattern.sub(render, text)
+        return text
+    translated = _detail_body(text)
+    if translated != text:
+        return translated
+    path, sep, rest = text.partition(": ")
+    if sep and not path.startswith(raw("検出")):
+        body = _detail_body(rest)
+        if body != rest:
+            return f"{path}: {body}"
+    return text

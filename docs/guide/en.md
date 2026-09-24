@@ -1,5 +1,20 @@
 ---
+layout: guide
+lang: en
 title: Getting started
+eyebrow: Archival Packager guide
+lead: From installing the application to creating packages and checking what is inside them, with narrated videos. You never need to type a command.
+alternate: { title: 日本語, url: ./, lang: ja }
+nav:
+  - { title: Home, url: ../ }
+  - { title: Full manual, url: ../usage.html }
+  - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
+quick_links:
+  - { title: Install, text: Windows and Mac, url: "#1-install" }
+  - { title: Create a SIP, text: Pack the records you received, url: "#2-create-a-sip-submission-package" }
+  - { title: Create an AIP, text: Prepare for preservation and check it, url: "#3-create-an-aip-preservation-package-and-check-it" }
+  - { title: If something goes wrong, text: Common problems and what to do, url: "#if-something-goes-wrong", mark: "?" }
+footer: "Contact: nakamura@hi.u-tokyo.ac.jp"
 ---
 
 <!--
@@ -11,27 +26,14 @@ text between the narration markers is generated from docs/guide/narration.json;
 edit it there, not here.
 -->
 
-[日本語](./) · [Back to the top page](../)
-
-# Getting started
-
 Archival Packager takes the files you have received and **packs them into a
 form that can be kept for the long term**. The result is called a "package".
 
-This page walks you through installing the application, creating packages and
-checking what is inside them. The videos have spoken explanations.
-**You never need to type a command.**
-
-- [1. Install](#1-install)
-- [2. Create a SIP (submission package)](#2-create-a-sip-submission-package)
-- [3. Create an AIP (preservation package) and check it](#3-create-an-aip-preservation-package-and-check-it)
-- [If something goes wrong](#if-something-goes-wrong)
-- [For IT staff](#for-it-staff)
-
 ## Before you start
 
-**Your original files are never changed.** The application only reads them.
-Packages are written to a separate folder that you choose.
+> **Your original files are never changed.** The application only reads them.
+> Packages are written to a separate folder that you choose.
+{: .point }
 
 There are two kinds of package.
 
@@ -56,9 +58,12 @@ Have free space of **two to three times the size of the records**. A package
 holds a copy of the records, and an AIP also holds the preservation copies of
 images. The virus scan needs several hundred MB more for its data.
 
-**If your work computer does not let you use the Store or install
-applications**, show [For IT staff](#for-it-staff) at the end of this page to
-the person who looks after your computers.
+> **If your work computer does not let you use the Store or install
+> applications**, show [For IT staff](#for-it-staff) at the end of this page to
+> the person who looks after your computers.
+{: .note }
+
+<div class="tabs" data-auto="os" markdown="1">
 
 ### Windows
 
@@ -83,11 +88,14 @@ To remove it, move Archival Packager from "Applications" to the Bin.
 
 Either way, packages you have made are not removed.
 
+</div>
+
 ### Opening it for the first time
 
-**The first start can take a few minutes.** The window may look as if nothing
-is happening; the application is preparing itself. From the second time on it
-opens straight away.
+> **The first start can take a few minutes.** The window may look as if nothing
+> is happening; the application is preparing itself. From the second time on it
+> opens straight away.
+{: .note }
 
 The first time, your Mac asks whether you want to open "an app downloaded from
 the Internet". Press "Open". The application has been checked by Apple
@@ -107,7 +115,7 @@ example v0.1.8). Please include it when you ask a question.
 
 ## 2. Create a SIP (submission package)
 
-<video controls playsinline preload="metadata" poster="media/en/sip.png" src="media/en/sip.mp4" style="width:100%;border:1px solid #ddd"></video>
+<video controls playsinline preload="metadata" poster="media/en/sip.png" src="media/en/sip.mp4"></video>
 
 *With sound. The red dot shows where the mouse clicks. The text below is what the video says.*
 
@@ -163,17 +171,18 @@ Nothing is selected at first. The defaults work as they are.
 | Wrap the output as a BagIt bag | Uses a layout that libraries and archives commonly use for transfers |
 | Serialize the output as a ZIP | Turns the finished package into one ZIP file, handy for handing it over |
 
-**Before using the virus scan**, press **"Download / update definitions"**
-under "Virus definition database" once. It downloads the data used to
-recognise viruses (several hundred MB). This section appears when the virus
-scan is selected. If you run without the data, no scan is done and it is
-recorded as "skipped" — never as "nothing found".
+> **Before using the virus scan**, press **"Download / update definitions"**
+> under "Virus definition database" once. It downloads the data used to
+> recognise viruses (several hundred MB). This section appears when the virus
+> scan is selected. If you run without the data, no scan is done and it is
+> recorded as "skipped" — never as "nothing found".
+{: .warning }
 
 ---
 
 ## 3. Create an AIP (preservation package) and check it
 
-<video controls playsinline preload="metadata" poster="media/en/aip.png" src="media/en/aip.mp4" style="width:100%;border:1px solid #ddd"></video>
+<video controls playsinline preload="metadata" poster="media/en/aip.png" src="media/en/aip.mp4"></video>
 
 *With sound. The text below is what the video says.*
 
@@ -241,6 +250,7 @@ something at the SIP stage, though, it is safer to do them separately.
 - **Not sure what to hand over** — inside the destination, the folder with the
   same name as the identifier is one package. Hand over that whole folder. To
   make it a single file, create it again with "Serialize the output as a ZIP"
+{: .faq }
 
 For every part of the window, with screenshots, see [Using the window](../manual/en.md).
 For more detail, see the [full usage guide](../usage.md). What the application

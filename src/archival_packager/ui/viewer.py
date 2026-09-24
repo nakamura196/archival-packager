@@ -444,7 +444,7 @@ def _events_tab(report: package_report.PackageReport) -> ft.Control:
             ft.Text(e.outcome, size=12),
             ft.Text(e.agent, size=12, color=_LABEL_COLOR),
             _mono(e.target or t("パッケージ全体")),
-            ft.Text(e.detail, size=11, color=_LABEL_COLOR),
+            ft.Text(messages.event_detail(e.detail), size=11, color=_LABEL_COLOR),
         ]
         for e in report.events
     ]
@@ -562,7 +562,7 @@ def _stage_detail(stage: package_report.Stage) -> ft.Control:
                 [
                     _mono(e.target or t("パッケージ全体")),
                     ft.Text(e.outcome, size=12, color=ft.Colors.ORANGE_800),
-                    ft.Text(e.detail, size=11, color=_LABEL_COLOR),
+                    ft.Text(messages.event_detail(e.detail), size=11, color=_LABEL_COLOR),
                 ]
                 for e in stage.problems
             ],
