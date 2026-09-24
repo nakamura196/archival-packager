@@ -17,6 +17,12 @@
 初回だけ `uv run --with playwright==1.63.0 playwright install chromium` が要る。
 ffmpeg も要る。
 
+## 動画は YouTube に置く
+
+撮った動画（`docs/guide/media/<lang>/{sip,aip}.mp4`）はコミットしない
+（`.gitignore` 済み）。YouTube に限定公開で上げ、ページの `<iframe>` の
+動画 ID を差し替える。上げ直すと ID が変わるので、4 か所とも直すこと。
+
 ## 原稿は 1 か所
 
 **朗読の原稿は `docs/guide/narration.json` にだけ書く。** 動画の声と、

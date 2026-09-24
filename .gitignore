@@ -41,3 +41,7 @@ binaries/
 .DS_Store
 .idea/
 .vscode/settings.json
+
+# ガイド動画は YouTube に置く（record_guide.py の出力。docs/guide/ の iframe を参照）
+docs/guide/media/*/sip.*
+docs/guide/media/*/aip.*
