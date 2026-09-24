@@ -1,4 +1,7 @@
-# 相互運用の検証 — AtoM / Archivematica
+---
+title: "相互運用の検証 — AtoM / Archivematica"
+eyebrow: Archival Packager 技術資料
+---
 
 最終更新: 2026年9月12日（午後 — 是正の記録を追記）
 

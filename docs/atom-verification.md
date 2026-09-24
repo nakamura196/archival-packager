@@ -1,4 +1,7 @@
-# AtoM の実機で取り込みを確かめる
+---
+title: "AtoM の実機で取り込みを確かめる"
+eyebrow: Archival Packager 技術資料
+---
 
 `docs/interoperability.md` は、AtoM / Archivematica の**公式仕様との机上の突合**である。
 「仕様の文面と出力が合っている」ことしか言えていない。

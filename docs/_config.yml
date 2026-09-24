@@ -9,3 +9,18 @@
 title: Archival Packager
 description: Builds OAIS information packages (SIP / AIP) — macOS and Windows
 theme: jekyll-theme-minimal
+
+# ページの型。トップ・ガイド・画面マニュアルに加え、技術ページも guide-theme で出す
+# （2026-09-24）。各ページの front matter で上書きできる。
+defaults:
+  - scope: { path: "" }
+    values:
+      layout: guide
+      lang: ja
+      footer: "お問い合わせ / Contact: nakamura@hi.u-tokyo.ac.jp"
+      nav:
+        - { title: トップ, url: ./ }
+        - { title: はじめての方へ, url: guide/ }
+        - { title: 画面の使い方, url: manual/ }
+        - { title: 詳しい使い方, url: usage.html }
+        - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
