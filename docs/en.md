@@ -28,7 +28,7 @@ using the application, with narrated videos.
 
 The video on creating a SIP (submission package) plays first, followed by the one on creating an AIP (preservation package).
 
-<iframe src="https://www.youtube-nocookie.com/embed/2seRY7gT1Qg?playlist=mIwb2glsDyU&rel=0" title="Archival Packager guide (create a SIP, then an AIP)" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
+<iframe src="https://www.youtube-nocookie.com/embed/2seRY7gT1Qg?playlist=2seRY7gT1Qg,mIwb2glsDyU&rel=0" title="Archival Packager guide (create a SIP, then an AIP)" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
 
 *With sound. The same content is also available as text: [Getting started](guide/en.md)*
 

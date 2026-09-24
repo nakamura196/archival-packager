@@ -112,7 +112,7 @@ Mac では最初に「インターネットからダウンロードされたア�
 
 ## 2. 受入パッケージ（SIP）を作る
 
-<iframe src="https://www.youtube-nocookie.com/embed/fgraxOi60EQ?playlist=_cHN7XBQzbo&rel=0" title="Archival Packager の使い方 1: 受入パッケージ（SIP）を作る" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
+<iframe src="https://www.youtube-nocookie.com/embed/fgraxOi60EQ?playlist=fgraxOi60EQ,_cHN7XBQzbo&rel=0" title="Archival Packager の使い方 1: 受入パッケージ（SIP）を作る" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
 
 *音声が出ます。赤い丸は、マウスで押している場所です。下の文章は、動画で話している内容と同じです。*
 
