@@ -29,7 +29,7 @@ defaults:
     values:
       layout: guide
       lang: ja
-      footer: "お問い合わせ / Contact: nakamura@hi.u-tokyo.ac.jp"
+      footer: "お問い合わせ / Contact: nakamura.satoru@mail.u-tokyo.ac.jp"
       nav:
         - { title: トップ, url: ./ }
         - { title: はじめての方へ, url: guide/ }

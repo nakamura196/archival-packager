@@ -81,7 +81,7 @@ https://nakamura196.github.io/archival-packager/privacy-policy.html
 
 ## サポートの連絡先
 
-nakamura@hi.u-tokyo.ac.jp
+nakamura.satoru@mail.u-tokyo.ac.jp
 
 ## 対応言語
 

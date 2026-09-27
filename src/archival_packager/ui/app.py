@@ -623,7 +623,7 @@ def main(page: ft.Page) -> None:
                                     on_click=_copy,
                                 ),
                                 ft.Text(
-                                    t("コピーした内容を nakamura@hi.u-tokyo.ac.jp まで"
+                                    t("コピーした内容を nakamura.satoru@mail.u-tokyo.ac.jp まで"
                                       "お送りいただけると助かります。"),
                                     size=10, color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),

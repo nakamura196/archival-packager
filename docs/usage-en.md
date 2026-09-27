@@ -6,7 +6,7 @@ title: Full manual
 description: How to install Archival Packager and use it from its window and from the command line, with every option and the layout of what it writes.
 eyebrow: Archival Packager manual
 alternate: { title: 日本語, url: usage.html, lang: ja }
-footer: "Contact: nakamura@hi.u-tokyo.ac.jp"
+footer: "Contact: nakamura.satoru@mail.u-tokyo.ac.jp"
 nav:
   - { title: Home, url: en.html }
   - { title: Getting started, url: guide/en.html }
