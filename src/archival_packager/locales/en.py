@@ -148,8 +148,8 @@ TEXTS: dict[str, str] = {
     "内容をコピー": "Copy the details",
     "エラーの内容をコピーしました。報告に貼り付けてください。":
         "The details have been copied. Paste them into your report.",
-    "コピーした内容を nakamura@hi.u-tokyo.ac.jp までお送りいただけると助かります。":
-        "It would help us if you sent what was copied to nakamura@hi.u-tokyo.ac.jp.",
+    "コピーした内容を nakamura.satoru@mail.u-tokyo.ac.jp までお送りいただけると助かります。":
+        "It would help us if you sent what was copied to nakamura.satoru@mail.u-tokyo.ac.jp.",
 
     # ------------------------------------------------------------------
     # ビューア（生成結果）

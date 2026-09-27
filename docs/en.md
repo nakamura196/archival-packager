@@ -15,7 +15,7 @@ nav:
 quick_links:
   - { title: Getting started, text: Install and first use, with videos, url: guide/en.html, mark: "▶" }
   - { title: Using the window, text: Every part of the window, with screenshots, url: manual/en.html, mark: "▢" }
-footer: "Contact: nakamura@hi.u-tokyo.ac.jp"
+footer: "Contact: nakamura.satoru@mail.u-tokyo.ac.jp"
 ---
 
 A desktop application that builds OAIS information packages — a Submission
@@ -65,4 +65,4 @@ written separately.
 
 Satoru Nakamura (The University of Tokyo) and Boyoung Kim (National Institutes
 for the Humanities).
-Contact: nakamura@hi.u-tokyo.ac.jp
+Contact: nakamura.satoru@mail.u-tokyo.ac.jp

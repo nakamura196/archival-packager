@@ -22,7 +22,7 @@ _MONO = "Menlo, Consolas, monospace"
 
 PRIVACY_URL = "https://ap.ldas.jp/privacy-policy.html"
 STORE_URL = "https://apps.microsoft.com/detail/9N6XJD7THHPZ"
-CONTACT = "nakamura@hi.u-tokyo.ac.jp"
+CONTACT = "nakamura.satoru@mail.u-tokyo.ac.jp"
 
 
 def _usage() -> list[tuple[str, str]]:

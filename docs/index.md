@@ -13,7 +13,7 @@ nav:
 quick_links:
   - { title: はじめての方へ, text: インストールと使い方（動画つき）, url: guide/, mark: "▶" }
   - { title: 画面の使い方, text: 画面の各部を、写真つきで, url: manual/, mark: "▢" }
-footer: "連絡先: nakamura@hi.u-tokyo.ac.jp"
+footer: "連絡先: nakamura.satoru@mail.u-tokyo.ac.jp"
 ---
 
 デジタル資料から、OAIS 参照モデルの情報パッケージ（SIP / AIP）を作成する
@@ -58,4 +58,4 @@ footer: "連絡先: nakamura@hi.u-tokyo.ac.jp"
 ### 開発
 
 中村 覚（東京大学）・金 甫榮（人間文化研究機構）
-連絡先: nakamura@hi.u-tokyo.ac.jp
+連絡先: nakamura.satoru@mail.u-tokyo.ac.jp

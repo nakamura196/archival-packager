@@ -15,7 +15,7 @@ quick_links:
   - { title: 受入パッケージ（SIP）を作る, text: 受け入れた資料をまとめる, url: "#2-受入パッケージsipを作る" }
   - { title: 長期保存パッケージ（AIP）を作る, text: 保存用に整え、中身を確かめる, url: "#3-長期保存パッケージaipを作り確かめる" }
   - { title: 困ったときは, text: よくあるつまずきと対処, url: "#困ったときは", mark: "?" }
-footer: "お問い合わせ: nakamura@hi.u-tokyo.ac.jp"
+footer: "お問い合わせ: nakamura.satoru@mail.u-tokyo.ac.jp"
 ---
 
 <!--
@@ -249,7 +249,7 @@ SIP を作った直後なら、結果の下の「この SIP から AIP を作る
 もっと詳しい説明は、[使い方（詳細版）](../usage.md)にあります。
 できないこと・制限は [README の「既知の限界」](https://github.com/nakamura196/archival-packager#既知の限界)にまとめています。
 
-分からないことがあれば、nakamura@hi.u-tokyo.ac.jp までお問い合わせください。
+分からないことがあれば、nakamura.satoru@mail.u-tokyo.ac.jp までお問い合わせください。
 版の番号（画面左上）と、使っているパソコン（Windows / Mac）を添えていただけると助かります。
 
 ---

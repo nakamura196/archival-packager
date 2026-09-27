@@ -17,7 +17,7 @@ quick_links:
   - { title: Build an AIP, text: From a SIP to a preservation package, url: "#4-building-a-preservation-package-aip", mark: "4" }
   - { title: Inside the AIP and Workflow, text: Check the processing record stage by stage, url: "#5-looking-inside-the-aip-and-the-workflow-tab", mark: "5" }
   - { title: If you are stuck, text: Common problems and what to do, url: "#if-you-are-stuck", mark: "?" }
-footer: "Contact: nakamura@hi.u-tokyo.ac.jp"
+footer: "Contact: nakamura.satoru@mail.u-tokyo.ac.jp"
 ---
 
 <!--
@@ -352,5 +352,5 @@ The **ⓘ** at the top right opens this view, with three tabs:
 Common questions, and information for IT staff deciding whether to allow the application,
 are in [Getting started](../guide/en.md#if-something-goes-wrong).
 
-If you have a question, please write to nakamura@hi.u-tokyo.ac.jp.
+If you have a question, please write to nakamura.satoru@mail.u-tokyo.ac.jp.
 It helps to include the version number (top left of the window) and whether you use Windows or a Mac.

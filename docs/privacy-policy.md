@@ -70,7 +70,7 @@ only when definitions are updated.
 
 ### Contact
 
-Satoru Nakamura, The University of Tokyo — nakamura@hi.u-tokyo.ac.jp
+Satoru Nakamura, The University of Tokyo — nakamura.satoru@mail.u-tokyo.ac.jp
 
 ---
 
@@ -131,4 +131,4 @@ ClamAV、Siegfried を同梱しています。ライセンスと入手方法は�
 
 ### お問い合わせ
 
-中村 覚（東京大学） nakamura@hi.u-tokyo.ac.jp
+中村 覚（東京大学） nakamura.satoru@mail.u-tokyo.ac.jp

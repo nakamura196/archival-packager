@@ -141,7 +141,7 @@ mono("https://nakamura196.github.io/archival-packager/privacy-policy.html")
 para("必須です。デスクトップアプリは、規約 10.5.1 で常に求められます。", indent=0.4)
 para("")
 para("Support contact info（サポート連絡先）", bold=True)
-mono("nakamura@hi.u-tokyo.ac.jp")
+mono("nakamura.satoru@mail.u-tokyo.ac.jp")
 para("")
 para("Website、System requirements、Product declarations は空欄で構いません。")
 

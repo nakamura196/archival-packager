@@ -15,7 +15,7 @@ quick_links:
   - { title: 長期保存パッケージ（AIP）を作る, text: SIP から保存用に整える, url: "#4-長期保存パッケージaipを作る", mark: "4" }
   - { title: 中身とワークフローを見る, text: 処理の記録を段階ごとに確かめる, url: "#5-aip-の中身とワークフローを見る", mark: "5" }
   - { title: 困ったときは, text: よくあるつまずきと対処, url: "#困ったときは", mark: "?" }
-footer: "お問い合わせ: nakamura@hi.u-tokyo.ac.jp"
+footer: "お問い合わせ: nakamura.satoru@mail.u-tokyo.ac.jp"
 ---
 
 <!--
@@ -356,5 +356,5 @@ AIP では、元のファイル（区分「原本」）と、変換で作った�
 
 よくある質問と、職場のパソコンに入れるときの情報は、[はじめての方へ](../guide/#困ったときは)にまとめています。
 
-分からないことがあれば、nakamura@hi.u-tokyo.ac.jp までお問い合わせください。
+分からないことがあれば、nakamura.satoru@mail.u-tokyo.ac.jp までお問い合わせください。
 版の番号（画面左上）と、使っているパソコン（Windows / Mac）を添えていただけると助かります。

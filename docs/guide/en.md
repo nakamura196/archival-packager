@@ -17,7 +17,7 @@ quick_links:
   - { title: Create a SIP, text: Pack the records you received, url: "#2-create-a-sip-submission-package" }
   - { title: Create an AIP, text: Prepare for preservation and check it, url: "#3-create-an-aip-preservation-package-and-check-it" }
   - { title: If something goes wrong, text: Common problems and what to do, url: "#if-something-goes-wrong", mark: "?" }
-footer: "Contact: nakamura@hi.u-tokyo.ac.jp"
+footer: "Contact: nakamura.satoru@mail.u-tokyo.ac.jp"
 ---
 
 <!--
@@ -258,7 +258,7 @@ For more detail, see the [full usage guide](../usage-en.md). What the applicatio
 cannot do is listed under [Known limits](https://github.com/nakamura196/archival-packager#known-limits)
 in the README.
 
-Questions: nakamura@hi.u-tokyo.ac.jp — please include the version number (top
+Questions: nakamura.satoru@mail.u-tokyo.ac.jp — please include the version number (top
 left of the window) and whether you use Windows or a Mac.
 
 ---
