@@ -258,6 +258,11 @@ def apply_listings(submission: dict, listings_by_lang: dict[str, dict]) -> dict:
     """掲載情報を言語ごとに差し替える。価格や年齢区分には触らない。
 
     **知らない言語の掲載情報は消さない。** 触るのは LISTINGS にある言語だけ。
+
+    **サポート連絡先とプライバシーポリシーの URL はここでは変えられない。**
+    ストアの画面に出るのは Partner Center の Properties の値で、申請 JSON には
+    出てこない（baseListing の supportContact / privacyPolicy は空のまま）。
+    変えるときはダッシュボードで直す（store/listing-ja.md の注記）。
     """
     listings = submission.setdefault("listings", {})
     for lang, listing in listings_by_lang.items():
