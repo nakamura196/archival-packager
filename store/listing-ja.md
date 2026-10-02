@@ -77,11 +77,16 @@ Productivity（生産性） ＞ サブカテゴリなし
 
 ## プライバシーポリシーの URL
 
-https://nakamura196.github.io/archival-packager/privacy-policy.html
+https://ap.ldas.jp/privacy-policy.html
 
 ## サポートの連絡先
 
 nakamura.satoru@mail.u-tokyo.ac.jp
+
+※ この節とプライバシーポリシーの URL は **`scripts/store_submit.py` では送られない。**
+Partner Center の Properties の欄にあり、申請 API（v1）の申請 JSON に出てこない
+（2026-10-01 に公開中の申請を読み出して確認。掲載情報の `supportContact` は空で、
+ストアの画面に出ている連絡先とは別物）。変えるときは Properties を手で直して申請する。
 
 ## 対応言語
 
@@ -134,7 +139,7 @@ Siegfried 1.11.6 (Apache-2.0) はファイル形式の判定用で、通信し�
 runFullTrust は、これら同梱実行ファイルを子プロセスとして起動するために宣言しています。
 
 個人情報の収集・送信はありません。
-https://nakamura196.github.io/archival-packager/privacy-policy.html
+https://ap.ldas.jp/privacy-policy.html
 ```
 
 削ったのは、番号付きの体裁、目的の説明、括弧内の例示（常駐保護・システムの変更・

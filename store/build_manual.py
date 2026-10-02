@@ -4,6 +4,8 @@
 貼り付ける文面も全部入れて、この 1 冊だけ見れば済む形にする。
 PDF 化は scripts/../../paper/to_pdf.applescript と同じ手で行う。
 """
+from pathlib import Path
+
 from docx import Document
 from docx.shared import Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -137,7 +139,7 @@ mono("Productivity")
 para("サブカテゴリは指定しません。", indent=0.4)
 para("")
 para("Privacy policy URL（プライバシーポリシー）", bold=True)
-mono("https://nakamura196.github.io/archival-packager/privacy-policy.html")
+mono("https://ap.ldas.jp/privacy-policy.html")
 para("必須です。デスクトップアプリは、規約 10.5.1 で常に求められます。", indent=0.4)
 para("")
 para("Support contact info（サポート連絡先）", bold=True)
@@ -334,7 +336,7 @@ for line in [
     'runFullTrust は、これら同梱実行ファイルを子プロセスとして起動するために宣言しています。',
     " ",
     '個人情報の収集・送信はありません。',
-    'https://nakamura196.github.io/archival-packager/privacy-policy.html',
+    'https://ap.ldas.jp/privacy-policy.html',
 ]:
     mono(line if line.strip() else " ")
 para("")
@@ -342,5 +344,5 @@ para("残したのは、審査で引っかかりうる3点です。ClamAV がウ
      "runFullTrust を宣言している理由、個人情報を扱わないこと。番号付きの体裁や"
      "括弧内の例示は、判断に要らないので落としてあります。")
 
-doc.save("/Users/nakamura/git/kim/archival-packager/store/ストア提出手順.docx")
+doc.save(str(Path(__file__).resolve().parent / "ストア提出手順.docx"))
 print("書き出し: store/ストア提出手順.docx")
