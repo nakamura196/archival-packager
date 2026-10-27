@@ -16,6 +16,7 @@ from archival_packager.core import (
     aip_pipeline,
     bundled,
     clamav,
+    mets,
     package_report,
     siegfried,
     sip_mets,
@@ -319,6 +320,17 @@ class TestSIPWritesMets:
         assert hrefs == ["objects/a.txt", "objects/文書/b&c.txt"]
         adm = {el.get("ADMID") for el in doc.iterfind(".//mets:file", mns)}
         assert adm == {el.get("ID") for el in doc.iterfind("mets:amdSec", mns)}
+
+    def test_struct_map_matches_the_aip_layout(self, source, tmp_path, monkeypatch):
+        """structMap は AIP の METS（core/mets.py）と同じ並び。片方だけ直すとずれる。"""
+        doc = self.mets_of(make_sip(source, tmp_path, monkeypatch))
+        mns = {"mets": sip_mets.METS_NS}
+        sm = doc.find("mets:structMap", mns)
+        assert sm.get("LABEL") == mets.STRUCT_MAP_LABEL
+        outer = sm.find("mets:div", mns)
+        assert outer.get("TYPE") == mets.DIV_DIRECTORY
+        assert outer.get("LABEL") == doc.get("OBJID")
+        assert sorted(p for p, _ in mets.physical_item_paths(doc)) == ["a.txt", "文書/b&c.txt"]
 
     def test_bag_also_has_mets(self, source, tmp_path, monkeypatch):
         sip = make_sip(source, tmp_path, monkeypatch, make_bag=True)

@@ -123,14 +123,14 @@ class TestStructure:
     def test_nested_directories_become_nested_divs(self):
         root = build([a_file("x/y/deep.pdf", "u1")])
         labels = root.xpath("//mets:structMap//mets:div/@LABEL", namespaces=NS)
-        assert labels == ["objects", "x", "y", "deep.pdf"]
+        assert labels == ["aip-uuid", "objects", "x", "y", "deep.pdf"]
 
     def test_ordering_is_deterministic(self):
         """走査順に依存すると、同じ資料から作った AIP を突合できなくなる。"""
         forward = build([a_file(n, f"u{i}") for i, n in enumerate(["b.pdf", "a.pdf", "c.pdf"])])
         reverse = build([a_file(n, f"u{i}") for i, n in enumerate(["c.pdf", "a.pdf", "b.pdf"])])
-        labels_f = forward.xpath("//mets:structMap//mets:div[@TYPE='item']/@LABEL", namespaces=NS)
-        labels_r = reverse.xpath("//mets:structMap//mets:div[@TYPE='item']/@LABEL", namespaces=NS)
+        labels_f = forward.xpath("//mets:structMap//mets:div[@TYPE='Item']/@LABEL", namespaces=NS)
+        labels_r = reverse.xpath("//mets:structMap//mets:div[@TYPE='Item']/@LABEL", namespaces=NS)
         assert labels_f == labels_r == ["a.pdf", "b.pdf", "c.pdf"]
 
 
@@ -252,11 +252,52 @@ class TestEventsAndAgents:
         assert root.xpath("//premis:eventOutcomeDetail", namespaces=NS) == []
 
 
+class TestArchivematicaLayout:
+    def test_outer_directory_div_and_label(self):
+        root = build([a_file("a.pdf", "u1")])
+        sm = root.xpath("//mets:structMap", namespaces=NS)[0]
+        assert sm.get("TYPE") == "physical"
+        assert sm.get("LABEL") == "Archivematica default"
+        outer = sm.xpath("mets:div", namespaces=NS)
+        assert len(outer) == 1
+        assert outer[0].get("TYPE") == "Directory"
+        assert outer[0].get("LABEL") == "aip-uuid"
+        inner = outer[0].xpath("mets:div", namespaces=NS)[0]
+        assert (inner.get("TYPE"), inner.get("LABEL")) == ("Directory", "objects")
+
+    def test_package_name_is_used_as_outer_label(self):
+        xml = mets.build_mets(
+            aip_uuid="u", files=[a_file("a.pdf", "u1")], agents=[], descriptive=None,
+            created_iso="2026-07-25T00:00:00Z", package_name="sip-u",
+        )
+        root = etree.fromstring(xml)
+        assert root.xpath("//mets:structMap/mets:div/@LABEL", namespaces=NS) == ["sip-u"]
+
+    def test_types_are_capitalised(self):
+        root = build([a_file("x/a.pdf", "u1")])
+        types = set(root.xpath("//mets:structMap//mets:div/@TYPE", namespaces=NS))
+        assert types == {"Directory", "Item"}
+
+    def test_reader_accepts_old_and_new_layout(self):
+        new = build([a_file("x/a.pdf", "u1")])
+        old = etree.fromstring(
+            '<mets:mets xmlns:mets="http://www.loc.gov/METS/"><mets:structMap TYPE="physical">'
+            '<mets:div TYPE="directory" LABEL="objects"><mets:div TYPE="directory" LABEL="x">'
+            '<mets:div TYPE="item" LABEL="a.pdf"><mets:fptr FILEID="file-u1"/></mets:div>'
+            "</mets:div></mets:div></mets:structMap></mets:mets>"
+        )
+        expected = [("x/a.pdf", "file-u1")]
+        assert mets.physical_item_paths(new) == expected
+        assert mets.physical_item_paths(old) == expected
+
+
 class TestDescriptiveMetadata:
     def test_whole_dmd_linked_from_top_div(self):
         d = DescriptiveMetadata(title="移管一式")
         root = build([a_file("a.pdf", "u1")], descriptive=d)
-        top = root.xpath("//mets:structMap/mets:div", namespaces=NS)[0]
+        outer = root.xpath("//mets:structMap/mets:div", namespaces=NS)[0]
+        assert outer.get("DMDID") is None
+        top = outer.xpath("mets:div[@LABEL='objects']", namespaces=NS)[0]
         assert top.get("DMDID") == "dmdSec_whole"
 
     def test_no_dmdsec_when_all_fields_empty(self):
@@ -267,7 +308,7 @@ class TestDescriptiveMetadata:
     def test_file_level_dmd_linked_from_item_div(self):
         f = a_file("a.pdf", "u1", descriptive=DescriptiveMetadata(title="個別タイトル"))
         root = build([f])
-        item = root.xpath("//mets:div[@TYPE='item']", namespaces=NS)[0]
+        item = root.xpath("//mets:div[@TYPE='Item']", namespaces=NS)[0]
         assert item.get("DMDID") == "dmdSec_obj0"
 
     def test_empty_fields_are_omitted(self):
