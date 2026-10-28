@@ -33,7 +33,8 @@ PYPROJECT = ROOT / "pyproject.toml"
 # macOS は build/site-packages/<arch>/ の下、Windows は直下に展開される。
 SITE_PACKAGES = ROOT / "build" / "site-packages"
 # 行頭の `dependencies = [` から、行頭の `]` まで（[project] の実行時依存）。
-DEPS_BLOCK = re.compile(r"^dependencies = \[\n.*?^\]\n", re.DOTALL | re.MULTILINE)
+# Windows の checkout は改行が CRLF になるので \r を許す。
+DEPS_BLOCK = re.compile(r"^dependencies = \[\r?\n.*?^\]\r?\n", re.DOTALL | re.MULTILINE)
 
 
 def locked_pins() -> list[str]:
