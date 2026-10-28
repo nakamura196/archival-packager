@@ -252,8 +252,11 @@ cat > "${WORK}/jhove.conf" <<'CONF'
  <module><class>edu.harvard.hul.ois.jhove.module.PdfModule</class></module>
 </jhoveConfig>
 CONF
-(cd "${WORK}" && "${DEST:A}/jre/bin/java" -Djava.awt.headless=true \
-  -cp "$(print -l "${DEST:A}"/jhove/*.jar | paste -sd: -)" \
+# 絶対パスは cd の前に求める。サブシェルの中で ${DEST:A} を書くと、
+# cd した後の ${WORK} を基準に解決されて jar が見つからない。
+dest_abs=${DEST:A}
+(cd "${WORK}" && "${dest_abs}/jre/bin/java" -Djava.awt.headless=true \
+  -cp "$(print -l "${dest_abs}"/jhove/*.jar | paste -sd: -)" \
   edu.harvard.hul.ois.jhove.Jhove -c jhove.conf -h xml -m TIFF-hul jhove.conf \
   > "${WORK}/jhove.xml" 2>/dev/null) || true
 grep -q 'name="Jhove"' "${WORK}/jhove.xml" || {

@@ -32,6 +32,13 @@ EXCLUDES=(
   .ruff_cache
 )
 
+# macOS は最小 OS を 12.0 に上げた雛形を使う（Xcode 27 は 12.0 未満を受け付けない）。
+# 理由と直す箇所は scripts/patch_flet_template.py の冒頭に書いた。
+TEMPLATE_ARGS=()
+if [[ "${TARGET}" == "macos" ]]; then
+  TEMPLATE_ARGS=(--template "$(uv run python scripts/patch_flet_template.py)")
+fi
+
 print "[1/2] flet build ${TARGET}"
 # --yes: Flutter SDK 導入の対話確認を飛ばす（無いと CI で EOFError）
 # --no-rich-output: Windows のコンソールが進捗のスピナー文字を encode できない
@@ -41,7 +48,8 @@ uv run flet build "${TARGET}" . \
   --exclude "${EXCLUDES[@]}" \
   --product "${PRODUCT}" \
   --bundle-id "${BUNDLE_ID}" \
-  --org com.nakamura
+  --org com.nakamura \
+  "${TEMPLATE_ARGS[@]}"
 
 print "[2/2] 成果物"
 if [[ "${TARGET}" == "macos" ]]; then
