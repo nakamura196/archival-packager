@@ -196,7 +196,7 @@ SCENES: dict[str, list[Step]] = {
         ("run", lambda d: d.click("button", "実行", exact=True)),
         ("done", lambda d: d.wait_for("button", "中身を見る")),
         ("view", lambda d: d.click("button", "中身を見る")),
-        ("files", lambda d: d.click("tab", "ファイル", exact=True)),
+        ("files", lambda d: d.click("tab", "資料", exact=True)),
     ],
     "aip": [
         ("intro", None),

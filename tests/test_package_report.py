@@ -182,6 +182,14 @@ class TestSubmissionDocuments:
         assert docs, "提出書類が一覧に出ていない"
         assert all(f.size > 0 for f in docs), "サイズが 0 のままの行がある"
 
+    def test_kept_out_of_the_files_tab(self, aip: Path):
+        """提出書類は「資料」タブに出さない（中身は「パッケージの中身」で見る）。
+        変換の対象でない .txt には、写しが無いこと。"""
+        pairs = package_report.conversions(package_report.read(aip))
+        assert pairs
+        assert all(p.original.use == "原本" for p in pairs)
+        assert all(p.copy is None for p in pairs)
+
     def test_counted_apart_from_originals(self, aip: Path):
         report = package_report.read(aip)
         assert report.overview.original_count < report.overview.file_count
@@ -239,6 +247,20 @@ class TestNormalizedCopiesAreNamed:
         assert tiff.format_name and tiff.format_name != "unknown", (
             "変換後のファイルが未識別に見える"
         )
+
+    def test_files_tab_pairs_each_original_with_its_copy(self, aip_with_png: Path):
+        """「資料」タブは原本だけを並べ、保存用の写しを同じ行に添える。
+
+        提出書類と写しを原本と同じ並びに置いていたころは、資料が何件あるのか
+        表から読み取れなかった（2026-10-27）。組み合わせは PREMIS の
+        derivation 関係で決めているので、そこが読めているかを押さえる。
+        """
+        report = package_report.read(aip_with_png)
+        pairs = package_report.conversions(report)
+        assert [p.original.use for p in pairs] == ["原本"]
+        assert pairs[0].copy is not None
+        assert pairs[0].copy.use == "保存用"
+        assert pairs[0].copy.puid == "fmt/353"
 
     def test_nothing_counts_as_unidentified(self, aip_with_png: Path):
         report = package_report.read(aip_with_png)

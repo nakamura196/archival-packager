@@ -289,7 +289,8 @@ class TestPackageContentsAreNotTranslated:
 
         # 画面では確かに訳される言葉であること（訳が無いから変わらない、では
         # この検査に意味が無い）。
-        assert i18n.t("相対パス") == "Relative path"
+        # 「相対パス」は 2026-10-27 に画面から消えたので、こちらで確かめる。
+        assert i18n.t("ウイルス検査") == "Virus scan"
 
         assert spreadsheets.formats([]).startswith("相対パス,")
         assert spreadsheets.accession([]).startswith("原パス（受入時）,")

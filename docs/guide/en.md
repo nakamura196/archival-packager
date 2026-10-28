@@ -220,8 +220,8 @@ The "Look inside" screen has five tabs.
 | Overview | Which kinds of file, how many, and when the package was made |
 | Preservation events | When, what, with which tool, and with what result — one line per event |
 | Workflow | The same records grouped into stages |
-| Files | Each file's format, size and virus scan result |
-| Raw data | The files inside the package themselves |
+| Items | Each deposited item's format, size, virus scan result and preservation copy |
+| Package contents | The files inside the package themselves |
 
 Besides the green tick, a stage in the Workflow tab may show:
 
