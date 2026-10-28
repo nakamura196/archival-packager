@@ -17,6 +17,7 @@ from archival_packager.core import (
     bundled,
     clamav,
     package_report,
+    siegfried,
     sip_pipeline,
     sip_premis,
 )
@@ -152,6 +153,72 @@ class TestSIPWritesPremis:
     def test_bag_also_has_premis(self, source, tmp_path, monkeypatch):
         sip = make_sip(source, tmp_path, monkeypatch, make_bag=True)
         assert (sip / "data" / "metadata" / "submissionDocumentation" / "premis.xml").is_file()
+
+
+class TestToolVersions:
+    """agent に道具の版を書くこと。
+
+    2026-10-28 まで、agent は "ClamAV" / "Siegfried (PRONOM)" と名前だけだった。
+    識別の結果はシグネチャの版で変わり、「検出なし」の重みは定義 DB の新しさで
+    決まる。版が無いと、あとから記録を見た人がその結果をどこまで信じてよいか
+    判断できない。JHOVE は最初から版を書いているので、それに揃える。
+    """
+
+    SF_OUTPUT = (
+        "siegfried 1.11.6\n"
+        "/x/default.sig (2026-07-12T19:05:09+10:00)\n"
+        "identifiers: \n"
+        "  - pronom: DROID_SignatureFile_V124.xml; container-signature-20260119.xml\n"
+    )
+
+    def test_parse_siegfried_release(self):
+        assert siegfried.parse_release(self.SF_OUTPUT) == (
+            "Siegfried 1.11.6 "
+            "(DROID_SignatureFile_V124.xml; container-signature-20260119.xml)"
+        )
+
+    def test_parse_siegfried_release_rejects_other_output(self):
+        assert siegfried.parse_release("") is None
+        assert siegfried.parse_release("[FATAL] error opening signature file") is None
+
+    def test_parse_clamav_release(self):
+        assert clamav.parse_release("ClamAV 1.5.3/28121/Fri Sep 11 23:24:41 2026\n") == (
+            "ClamAV 1.5.3 (signatures 28121, Fri Sep 11 23:24:41 2026)"
+        )
+
+    def test_parse_clamav_release_without_database(self):
+        """定義 DB を読めなかったときは版だけ。定義の版をでっち上げない。"""
+        assert clamav.parse_release("ClamAV 1.5.3\n") == "ClamAV 1.5.3"
+        assert clamav.parse_release("") is None
+
+    def test_release_is_none_when_the_tool_cannot_run(self, tmp_path):
+        missing = tmp_path / "no-such-tool"
+        assert clamav.release(tool=missing, database=tmp_path) is None
+        assert siegfried.release(tool=missing, home=tmp_path) is None
+
+    def test_virus_agent_carries_the_version(self, source, tmp_path, monkeypatch, fake_clamav):
+        """SIP の premis.xml にも、AIP の METS にも、版つきの agent が載ること。"""
+        agent = "ClamAV 1.5.3 (signatures 28121, Fri Sep 11 23:24:41 2026)"
+        monkeypatch.setattr(clamav, "release", lambda **_kw: agent)
+        sip = make_sip(source, tmp_path, monkeypatch, scan_virus=True)
+        doc = premis_of(sip)
+        for ev in doc.iterfind("premis:event", NS):
+            if ev.findtext("premis:eventType", namespaces=NS) == "virus check":
+                agents = [a.text for a in ev.iterfind(
+                    "premis:linkingAgentIdentifier/premis:linkingAgentIdentifierValue", NS)]
+                assert agent in agents
+        assert agent in [a.text for a in doc.iterfind(".//premis:agent/premis:agentName", NS)]
+
+        aip = make_aip(sip, tmp_path, monkeypatch)
+        mets_doc = etree.parse(str(package_report.find_mets(aip))).getroot()
+        names = {a.text for a in mets_doc.iterfind(".//premis:agent/premis:agentName", NS)}
+        assert agent in names
+
+    @needs_siegfried
+    def test_bundled_siegfried_reports_its_version(self, source, tmp_path, monkeypatch):
+        doc = premis_of(make_sip(source, tmp_path, monkeypatch))
+        names = [a.text for a in doc.iterfind(".//premis:agent/premis:agentName", NS)]
+        assert any(n.startswith("Siegfried ") and "DROID_SignatureFile" in n for n in names), names
 
 
 class TestAIPInheritsTheRecord:
