@@ -98,6 +98,9 @@ def verify() -> int:
 
 
 def main() -> int:
+    # Windows のランナーは標準出力が cp1252 で、日本語の表示だけで落ちる。
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8")
     if len(sys.argv) >= 2 and sys.argv[1] == "verify":
         return verify()
     if len(sys.argv) >= 4 and sys.argv[1] == "build" and sys.argv[2] == "--":
