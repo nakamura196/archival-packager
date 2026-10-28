@@ -131,6 +131,8 @@ def run(
                 descriptive=descriptive,
                 created_iso=now,
                 submission_documentation=_submission_documents(parsed, transfer_mets),
+                # Archivematica と同じ "<名前>-<uuid>"
+                package_name=f"{sip_root.name}-{aip_uuid}",
             )
 
         result = _build(

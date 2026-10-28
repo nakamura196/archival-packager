@@ -168,6 +168,12 @@ class _SectionSink:
         self._out.write(self._close_tag)
 
 
+#: structMap の LABEL と div の TYPE。Archivematica / a3m の書き方に合わせる
+#: （旧版の AP は小文字の "directory" / "item" で、外側の div も無かった）。
+STRUCT_MAP_LABEL = "Archivematica default"
+DIV_DIRECTORY = "Directory"
+DIV_ITEM = "Item"
+
 #: 1 度に組む子要素の数。fileSec と structMap は「1 ファイル = 1 要素」なので、
 #: セクション全体を組むと結局ファイル数に比例した木を持つことになる。
 #: ここで区切って、常駐をこの件数分に抑える。大きすぎると効果が薄れ、
@@ -242,6 +248,7 @@ def build_mets(
     descriptive: DescriptiveMetadata | None,
     created_iso: str,
     submission_documentation: list[SubmissionDocument] | None = None,
+    package_name: str | None = None,
 ) -> bytes:
     """METS を組み立てて UTF-8 のバイト列で返す。
 
@@ -258,6 +265,7 @@ def build_mets(
         descriptive=descriptive,
         created_iso=created_iso,
         submission_documentation=submission_documentation,
+        package_name=package_name,
     )
     return buf.getvalue()
 
@@ -271,6 +279,7 @@ def write_mets(
     descriptive: DescriptiveMetadata | None,
     created_iso: str,
     submission_documentation: list[SubmissionDocument] | None = None,
+    package_name: str | None = None,
 ) -> None:
     """METS をセクションごとに組んでは `out` へ流す。
 
@@ -353,7 +362,13 @@ def write_mets(
     # fileSec / structMap。どちらも 1 ファイルにつき要素が 2 つできるので、
     # セクション単位ではなく子要素を区切って流す。
     _write_file_sec(sink, files, submission_documentation)
-    _write_struct_map(sink, files, whole_dmd_id if has_whole_dmd else None, file_dmd_ids)
+    _write_struct_map(
+        sink,
+        files,
+        whole_dmd_id if has_whole_dmd else None,
+        file_dmd_ids,
+        package_name or aip_uuid,
+    )
 
     sink.finish()
 
@@ -366,6 +381,7 @@ def _build_mets_in_memory(
     descriptive: DescriptiveMetadata | None,
     created_iso: str,
     submission_documentation: list[SubmissionDocument] | None = None,
+    package_name: str | None = None,
 ) -> bytes:
     """**参照用。本番経路では使わない（テストからのみ呼ぶ）。**
 
@@ -479,7 +495,11 @@ def _build_mets_in_memory(
 
     # structMap（原本の物理ツリー）
     _append_struct_map(
-        root, files, whole_dmd_id if has_whole_dmd else None, file_dmd_ids
+        root,
+        files,
+        whole_dmd_id if has_whole_dmd else None,
+        file_dmd_ids,
+        package_name or aip_uuid,
     )
 
     return etree.tostring(
@@ -795,8 +815,13 @@ def _append_struct_map(
     files: list[AIPFile],
     dmd_id: str | None,
     file_dmd_ids: dict[str, str],
+    package_name: str,
 ) -> None:
-    """相対パスから入れ子 div を組む。"""
+    """相対パスから入れ子 div を組む。
+
+    Archivematica / a3m と同じ並び: 外側に AIP のディレクトリ名の div、
+    その中に "objects" の div（全体の記述メタデータはここに付く）。
+    """
     root_node = _Node()
     for f in files:
         comps = f.relative_path.split("/")
@@ -806,11 +831,16 @@ def _append_struct_map(
             cur = cur.dirs.setdefault(d, _Node())
         cur.files.append((name, f"file-{f.uuid}", file_dmd_ids.get(f.relative_path)))
 
-    struct_map = etree.SubElement(parent, _q(METS_NS, "structMap"), TYPE="physical")
-    attrs = {"TYPE": "directory", "LABEL": "objects"}
+    struct_map = etree.SubElement(
+        parent, _q(METS_NS, "structMap"), TYPE="physical", LABEL=STRUCT_MAP_LABEL
+    )
+    outer = etree.SubElement(
+        struct_map, _q(METS_NS, "div"), TYPE=DIV_DIRECTORY, LABEL=package_name
+    )
+    attrs = {"TYPE": DIV_DIRECTORY, "LABEL": "objects"}
     if dmd_id:
         attrs["DMDID"] = dmd_id
-    top = etree.SubElement(struct_map, _q(METS_NS, "div"), **attrs)
+    top = etree.SubElement(outer, _q(METS_NS, "div"), **attrs)
     _render_node(top, root_node)
 
 
@@ -819,7 +849,7 @@ def _render_node(parent: etree._Element, node: _Node) -> None:
     # 同じ資料から 2 回作った AIP を突合できなくなる。
     for name in sorted(node.dirs):
         div = etree.SubElement(
-            parent, _q(METS_NS, "div"), TYPE="directory", LABEL=name
+            parent, _q(METS_NS, "div"), TYPE=DIV_DIRECTORY, LABEL=name
         )
         _render_node(div, node.dirs[name])
 
@@ -831,11 +861,39 @@ def _append_item_div(
     parent: etree._Element, name: str, file_id: str, dmd_id: str | None
 ) -> None:
     """structMap の 1 ファイル分（div と、fileSec への参照）。"""
-    attrs = {"TYPE": "item", "LABEL": name}
+    attrs = {"TYPE": DIV_ITEM, "LABEL": name}
     if dmd_id:
         attrs["DMDID"] = dmd_id
     div = etree.SubElement(parent, _q(METS_NS, "div"), **attrs)
     etree.SubElement(div, _q(METS_NS, "fptr"), FILEID=file_id)
+
+
+def physical_item_paths(root: etree._Element) -> list[tuple[str, str]]:
+    """物理 structMap から (objects からの相対パス, FILEID) を読む。
+
+    新旧どちらの並びも読める。旧版の AP は小文字の TYPE で、objects の div が
+    最上位だった。いまは外側に AIP 名の div があり、TYPE は大文字始まり。
+    "objects" という LABEL の div を探して、その下を辿る（TYPE の大小は問わない）。
+    """
+    ns = {"m": METS_NS}
+    tops = root.xpath(
+        "//m:structMap[@TYPE='physical']//m:div[@LABEL='objects']", namespaces=ns
+    )
+    out: list[tuple[str, str]] = []
+
+    def walk(div: etree._Element, prefix: str) -> None:
+        for child in div.findall("m:div", ns):
+            kind = (child.get("TYPE") or "").lower()
+            label = child.get("LABEL") or ""
+            if kind == "directory":
+                walk(child, f"{prefix}{label}/")
+            elif kind == "item":
+                fptr = child.find("m:fptr", ns)
+                out.append((f"{prefix}{label}", fptr.get("FILEID", "") if fptr is not None else ""))
+
+    for top in tops[:1]:
+        walk(top, "")
+    return out
 
 
 def _build_node_tree(files: list[AIPFile], file_dmd_ids: dict[str, str]) -> _Node:
@@ -860,15 +918,23 @@ def _write_struct_map(
     files: list[AIPFile],
     dmd_id: str | None,
     file_dmd_ids: dict[str, str],
+    package_name: str,
 ) -> None:
     """structMap を、div を開いたまま項目を区切って書き出す。"""
     root_node = _build_node_tree(files, file_dmd_ids)
 
     writer = _NestedWriter(sink)
     writer.open(
-        lambda parent: etree.SubElement(parent, _q(METS_NS, "structMap"), TYPE="physical")
+        lambda parent: etree.SubElement(
+            parent, _q(METS_NS, "structMap"), TYPE="physical", LABEL=STRUCT_MAP_LABEL
+        )
     )
-    attrs = {"TYPE": "directory", "LABEL": "objects"}
+    writer.open(
+        lambda parent: etree.SubElement(
+            parent, _q(METS_NS, "div"), TYPE=DIV_DIRECTORY, LABEL=package_name
+        )
+    )
+    attrs = {"TYPE": DIV_DIRECTORY, "LABEL": "objects"}
     if dmd_id:
         attrs["DMDID"] = dmd_id
 
@@ -880,7 +946,8 @@ def _write_struct_map(
         writer.open(lambda parent: etree.SubElement(parent, _q(METS_NS, "div"), **attrs))
         _write_node(writer, root_node)
         writer.close()
-    writer.close()
+    writer.close()  # 外側の div
+    writer.close()  # structMap
 
 
 def _write_node(writer: _NestedWriter, node: _Node) -> None:
@@ -890,7 +957,7 @@ def _write_node(writer: _NestedWriter, node: _Node) -> None:
     for name in sorted(node.dirs):
         writer.open(
             lambda parent, name=name: etree.SubElement(
-                parent, _q(METS_NS, "div"), TYPE="directory", LABEL=name
+                parent, _q(METS_NS, "div"), TYPE=DIV_DIRECTORY, LABEL=name
             )
         )
         _write_node(writer, node.dirs[name])

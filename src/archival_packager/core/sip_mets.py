@@ -34,7 +34,7 @@ import uuid as _uuid
 
 from lxml import etree
 
-from . import sip_premis
+from . import mets, sip_premis
 from .aip_models import PremisAgent, PremisEvent
 from .models import ScannedFile
 
@@ -119,8 +119,8 @@ def build(
         loc = etree.SubElement(el, _m("FLocat"), LOCTYPE="OTHER", OTHERLOCTYPE="SYSTEM")
         loc.set(f"{{{XLINK_NS}}}href", f"objects/{f.relative_path}")
 
-    _append_struct_map(root, [(f.relative_path, f"file-{n}")
-                              for n, (f, _e) in enumerate(per_file, start=1)])
+    _append_struct_map(root, sip_uuid, [(f.relative_path, f"file-{n}")
+                                        for n, (f, _e) in enumerate(per_file, start=1)])
 
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True)
 
@@ -130,8 +130,14 @@ def _wrap(parent: etree._Element, mdtype: str) -> etree._Element:
     return etree.SubElement(wrap, _m("xmlData"))
 
 
-def _append_struct_map(parent: etree._Element, entries: list[tuple[str, str]]) -> None:
-    """相対パスから入れ子の div を組む。並びは名前順（同じ入力から同じ METS）。"""
+def _append_struct_map(
+    parent: etree._Element, label: str, entries: list[tuple[str, str]]
+) -> None:
+    """相対パスから入れ子の div を組む。並びは名前順（同じ入力から同じ METS）。
+
+    AIP の METS（core/mets.py）と同じ並び: 外側の div の中に "objects" の div。
+    外側の LABEL は SIP の UUID（SIP のフォルダ名はこの時点ではまだ決まっていない）。
+    """
     tree: dict = {}
     for rel, file_id in entries:
         *dirs, name = rel.split("/")
@@ -140,17 +146,20 @@ def _append_struct_map(parent: etree._Element, entries: list[tuple[str, str]]) -
             node = node.setdefault(d, {})
         node[name] = file_id
 
-    struct_map = etree.SubElement(parent, _m("structMap"), TYPE="physical")
-    top = etree.SubElement(struct_map, _m("div"), TYPE="directory", LABEL="objects")
+    struct_map = etree.SubElement(
+        parent, _m("structMap"), TYPE="physical", LABEL=mets.STRUCT_MAP_LABEL
+    )
+    outer = etree.SubElement(struct_map, _m("div"), TYPE=mets.DIV_DIRECTORY, LABEL=label)
+    top = etree.SubElement(outer, _m("div"), TYPE=mets.DIV_DIRECTORY, LABEL="objects")
     _render(top, tree)
 
 
 def _render(parent: etree._Element, node: dict) -> None:
     for name in sorted(k for k, v in node.items() if isinstance(v, dict)):
-        div = etree.SubElement(parent, _m("div"), TYPE="directory", LABEL=name)
+        div = etree.SubElement(parent, _m("div"), TYPE=mets.DIV_DIRECTORY, LABEL=name)
         _render(div, node[name])
     for name in sorted(k for k, v in node.items() if isinstance(v, str)):
-        div = etree.SubElement(parent, _m("div"), TYPE="item", LABEL=name)
+        div = etree.SubElement(parent, _m("div"), TYPE=mets.DIV_ITEM, LABEL=name)
         etree.SubElement(div, _m("fptr"), FILEID=node[name])
 
 
