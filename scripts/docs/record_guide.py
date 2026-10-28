@@ -92,7 +92,8 @@ SIZE = {"width": 1280, "height": 880}
 KOKORO_PYTHON = Path(os.environ.get(
     "KOKORO_PYTHON", Path.home() / "git/zenn/scripts/media/kokoro-ja/.venv/bin/python"))
 #: Kokoro が単語として読んでしまう略語。声だけの読み替えなので、ページの本文には影響しない。
-READINGS_EN = {"AIP": "A I P"}
+#: 「A I P」と空けると、先頭の A を冠詞と読む（"or AIP" が「オア・ア・アイピー」になった）。
+READINGS_EN = {"AIP": "A-I-P"}
 CACHE = Path.home() / ".cache" / "archival-packager-guide"
 
 #: 読み終わってから次の操作までの間（秒）。

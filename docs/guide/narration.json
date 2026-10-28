@@ -110,7 +110,7 @@
     },
     {
       "id": "fixity",
-      "ja": {"text": "「欠け・変化の確認」は、SIP を作ったときの記録と照らし合わせて、ファイルが変わっていないかを確かめた記録です。", "say": "かけ、へんかの確認は、エスアイピーを作ったときの記録とてらしあわせて、ファイルが変わっていないかを、たしかめた記録です。"},
+      "ja": {"text": "「欠け・変化の確認」は、SIP を作ったときの記録と照らし合わせて、ファイルが変わっていないかを確かめた記録です。", "say": "欠け、変化の確認は、エスアイピーを作ったときの記録とてらしあわせて、ファイルが変わっていないかを、たしかめた記録です。"},
       "en": {"text": "\"Fixity check\" records that each file was compared with the record made when the SIP was created, to confirm nothing had changed."}
     },
     {
