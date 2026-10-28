@@ -65,7 +65,8 @@ source** — arguments do not reach the packaged builds. See
 
 Please read [既知の限界](#既知の限界) (Japanese) before relying on this in
 production. In short: normalisation covers images and PostScript/EPS only;
-there is no format validation (no JHOVE or veraPDF equivalent); the personal
+converted files are validated with JHOVE, but originals are not, and there is no
+PDF/A validation (no veraPDF); the personal
 information scan looks at five categories and has measured limits
 ([docs/pii-accuracy.md](docs/pii-accuracy.md)); and interoperability has been
 checked against specifications but not yet against a running AtoM or
@@ -145,25 +146,33 @@ LibreOffice（Office → PDF/A）や ffmpeg（音声・動画）が要るが、�
 このアプリが作るのは SIP と AIP だけである。品質を落とした派生物を AIP に入れても
 保存上の価値はなく、容量が増えるだけになる。提供は下流のシステムの役割と考えている。
 
-### 形式の適合性検査（validate）は行っていない
+### 形式の適合性検査（validate）は、変換で作ったファイルだけ
 
-保存用に変換した PDF が PDF/A として妥当か、TIFF が TIFF の仕様に適合しているかを
-**確かめていない。** Archivematica は veraPDF や JHOVE で検査している。
-相当する機能は入っていない（どちらも Java 製で、同梱できないため。
-「[外部ツールの同梱方針](#外部ツールの同梱方針)」を参照）。
+識別（これは何形式か）と検証（その形式として正しいか）は別の工程である。
+**変換で作った TIFF と PDF は、JHOVE で検証している**（Archivematica が
+変換後の派生物に行っている検査に相当する）。JHOVE は Java 製なので、
+Java の実行環境ごと同梱している（「[外部ツールの同梱方針](#外部ツールの同梱方針)」）。
 
-識別（これは何形式か）と検証（その形式として正しいか）は別の工程で、
-本アプリが行っているのは識別までである。
+検証は 2 段ある。
 
-**やっているのは「開き直せるか」だけ。** 変換で作った TIFF は Pillow で、
-PDF は pypdf で、もう一度開いて読めることを確かめている。読めなければ、その
-派生物は AIP に入れず、原本のまま保存して report に警告を出す。中途半端な
-派生物を保存用として記録するほうが、変換できなかったと記録するより悪いため。
+1. **開き直し。** TIFF は Pillow で、PDF は pypdf で、もう一度開いて読めるか
+2. **形式の適合性。** JHOVE の TIFF-hul / PDF-hul で、仕様に適合しているか
+   （"Well-Formed and valid" だけを適合とみなす）
 
-結果は PREMIS の `validation` イベントとして METS に残る（成功・失敗・
-「読み戻す道具が無くて確認していない」の 3 通りを書き分ける）。ただし
-**これは veraPDF / JHOVE の代わりにはならない。** 開けたことは、その形式の
-仕様に適合していることを意味しない。
+どちらかに通らなかった派生物は AIP に入れず、原本のまま保存して report に
+警告を出す。中途半端な派生物を保存用として記録するほうが、変換できなかったと
+記録するより悪いため。結果はどちらも PREMIS の `validation` イベントとして
+METS に残る（成功・失敗・確かめていない、の 3 通りを書き分ける。何で確かめたかは
+道具の名前と版で分かる）。
+
+**確かめていないこと:**
+
+- **原本の形式の適合性。** 受け入れた資料そのものは検証していない
+- **PDF/A への適合。** veraPDF は入れていない。変換で作る PDF が PDF/A では
+  ないため、入れても判定が必ず「不適合」になるだけである
+- **JHOVE を動かせなかったとき。** 同梱の Java は Apple Silicon 用なので、
+  Intel Mac では起動しない。その場合は「未検査」と記録し、report に 1 行の
+  警告を出して、開き直しの確認だけで保存する
 
 ### 相互運用は仕様との突合までしか確かめていない
 
@@ -295,7 +304,27 @@ Swift 版はこれを行っていない。
 | siegfried | フォーマット識別 | ✅ | 公式ビルドあり。`default.sig` も必須なので一緒に入れる |
 | ClamAV | ウイルス検査 | ✅ | 公式ビルドあり。定義 DB はアプリから `freshclam` で取得 |
 | Pillow | 画像 → TIFF | ✅（pip） | 外部プロセス不要。両OSで同一 wheel＝同一 libtiff |
+| JHOVE | 変換した派生物の形式検査 | ✅（jar） | LGPL-2.1。Maven Central の jar をハッシュ固定で取得 |
+| Java（Temurin 21） | JHOVE の実行 | ✅ | GPL-2.0 + Classpath Exception。jlink で 3 モジュールに絞り約 50MB |
+| veraPDF | PDF/A の検査 | ❌ | 変換で作る PDF が PDF/A ではないため、入れても意味が無い |
 | Ghostscript | PostScript/EPS → PDF | ❌ | **AGPL-3.0**。macOS 向け公式ビルドも無い |
+
+### Java を同梱する理由（JHOVE）
+
+当初は「JHOVE も veraPDF も Java 製なので同梱できない」として、変換した派生物を
+開き直すだけにしていた（[#7](https://github.com/nakamura196/archival-packager/issues/7)）。2026-10 に、変換後のファイルを検証できないのは
+大きな課題だという指摘を受け、同梱する形に改めた。
+
+- Java の実行環境は、Temurin の JDK から jlink で要るモジュール
+  （java.base / java.desktop / java.logging）だけを取り出して作る。
+  JRE をそのまま入れると約 150MB、絞ると約 50MB
+- ライセンスは GPL-2.0 に Classpath Exception が付いたもので、
+  上で動くプログラム（JHOVE、本アプリ）には及ばない。JHOVE は LGPL-2.1
+- macOS では、同梱の java だけに JIT の許可（`scripts/entitlements-java.plist`）を
+  付けて署名する。hardened runtime の下では、これが無いと Java は起動しない
+- Java の起動に 0.15〜0.6 秒かかるので、派生物はまとめて 1 回の起動で検査する
+- 同梱の Java は Apple Silicon 用（siegfried と同じ）。Intel Mac では
+  「未検査」と記録して続ける
 
 ### Ghostscript を同梱しない理由
 

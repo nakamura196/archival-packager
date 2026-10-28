@@ -649,7 +649,7 @@ class TestArchivematicaAipShape:
         assert "About this package" in text
         # METS の実ファイル名を案内すること（UUID が埋まっていないと迷子になる）。
         assert f"METS.{aip.aip_uuid}.xml" in text
-        # 読み戻し確認を形式適合性検査と読み違えられては困る。
+        # 検査の範囲（JHOVE で何を見たか・veraPDF は使っていない）を書いておく。
         assert "veraPDF" in text and "JHOVE" in text
 
     def test_readme_html_references_nothing_outside_the_package(self, aip):

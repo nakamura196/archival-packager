@@ -193,11 +193,18 @@ Building an AIP does three things:
 - normalizes to preservation formats, if you asked for it
 - writes a METS with PREMIS events embedded, and wraps the whole thing as a BagIt bag
 
-Derivatives produced by normalization are **opened again and read back** —
-a TIFF is fully decoded with Pillow, a PDF is re-opened with pypdf and must
-report at least one page. A derivative that cannot be read back is discarded,
-and the event is recorded as a failure. This is not format validation: opening
-a file says nothing about whether it conforms to its specification.
+Derivatives produced by normalization are validated in two steps:
+
+1. **Opened again and read back** — a TIFF is fully decoded with Pillow, a PDF
+   is re-opened with pypdf and must report at least one page
+2. **Validated against the format specification with JHOVE** — only
+   "Well-Formed and valid" counts as conforming
+
+A derivative that fails either step is discarded (the original is kept), and
+the event is recorded as a failure. Only converted files are validated, not
+the originals, and PDF/A conformance (veraPDF) is not checked. If JHOVE cannot
+be run (on an Intel Mac, for instance), this is recorded as "not checked" and
+the report carries a one-line warning.
 
 ---
 

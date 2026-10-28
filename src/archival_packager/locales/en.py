@@ -239,9 +239,10 @@ TEXTS: dict[str, str] = {
     "長期保存に向く形式へ変換した記録です。対象の形式だけが変換されます。":
         "Records of converting files to formats suited to long-term preservation. "
         "Only formats with a conversion rule are converted.",
-    "変換で作ったファイルを開き直せたかの確認です。原本の形式適合性の検査（JHOVE など）ではありません。":
-        "Checks that each converted file could be opened again. This is not a "
-        "format conformance check of the originals (such as JHOVE).",
+    "変換で作ったファイルを開き直せたか、JHOVE で形式の仕様に"
+    "適合しているかの確認です。原本は検査していません。":
+        "Checks that each converted file could be opened again and conforms to its "
+        "format specification (JHOVE). The originals are not validated.",
     "SIP を作るとき、ファイル名を安全な名前に変えた記録です。"
     "元の名前は詳細と accession.csv に残っています。":
         "Records of renaming files to safe names when the SIP was made. The "

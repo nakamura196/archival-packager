@@ -173,32 +173,35 @@ class DerivativePurpose(Enum):
 
 
 class CheckOutcome(Enum):
-    """派生物を開き直せたかどうか。"""
+    """派生物の検証（開き直し・形式の適合性）の結果。"""
 
     PASSED = "passed"
     FAILED = "failed"
-    #: 読み戻す道具を持っていない形式だった。**「確認して通った」と混同させない。**
+    #: 確かめられなかった（道具が無い形式だった、JHOVE が動かなかった等）。
+    #: **「確認して通った」と混同させない。**
     SKIPPED = "skipped"
 
 
 @dataclass(slots=True)
 class DerivativeCheck:
-    """生成した派生物を開き直した結果。PREMIS の validation event として書き出す。
+    """生成した派生物の検証結果。PREMIS の validation event として書き出す。
 
-    **これは形式の適合性検査ではない。** Archivematica は veraPDF で PDF/A の
-    適合を、JHOVE で形式の well-formed / valid を見ている。どちらも Java 製で
-    同梱できないため（NOTICE と README の「外部ツールの同梱方針」）、ここで
-    行っているのは同梱済みの Pillow / pypdf で**開き直せるか**だけである。
+    派生物ごとに 2 つ付く（Derivative.check と Derivative.conformance）。
 
-    それでも記録する価値があるのは、「変換したつもりで、実は読めないものが
-    できていた」が最も気づきにくい壊れ方だからである。読めないものを保存用と
-    して記録するくらいなら、変換できなかったと記録するほうがまだ良い。
+    - **開き直し**（check）: 同梱の Pillow / pypdf で開き直せるか。
+      「変換したつもりで、実は読めないものができていた」を捕まえる
+    - **形式の適合性**（conformance）: JHOVE で、その形式の仕様に適合しているか。
+      Archivematica が変換後の派生物に行っている検査に相当する（core/jhove.py）
+
+    2 つを分けて残すのは、見ているものが違うからである。開けることは
+    仕様への適合を意味しないし、JHOVE が動かなかったときに開き直しの
+    結果まで失うのは惜しい。
     """
 
     outcome: CheckOutcome
     #: 何を見て、何が分かったか（PREMIS の eventOutcomeDetailNote に入る）。
     note: str
-    #: 開き直しに使った道具と版（例 "Pillow 12.3.0 (libtiff 4.7.0)"）。
+    #: 検証に使った道具と版（例 "Pillow 12.3.0 (libtiff 4.7.0)" / "JHOVE 1.34.0 (TIFF-hul 1.9.5)"）。
     #: **版まで書く。** 読めた／読めなかったは、その版の挙動でしかない。
     #: 道具を持たずに飛ばしたときは空。
     agent: str = ""
@@ -236,6 +239,8 @@ class Derivative:
     #: （normalizer が必ず付ける。テストが手で組んだ Derivative では付かない）。
     #: 「確かめて通った」は CheckOutcome.PASSED で表す。両者を混ぜないこと。
     check: DerivativeCheck | None = None
+    #: JHOVE による形式の適合性検査の結果（aip_pipeline が変換の後でまとめて付ける）。
+    conformance: DerivativeCheck | None = None
 
 
 @dataclass(slots=True)

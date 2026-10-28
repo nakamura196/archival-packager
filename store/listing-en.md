@@ -47,6 +47,8 @@ What it does
 - Builds a Submission Information Package (SIP), optionally as a BagIt bag
 - Builds an Archival Information Package (AIP): a METS document with PREMIS
   events embedded, recording what was done and when
+- Validates the files it converts for preservation (TIFF and PDF) with JHOVE.
+  Copies that do not conform are left out, and the original is kept
 
 Why you might use it
 
@@ -73,9 +75,8 @@ Please note
 - The virus definition database is not bundled. Download it from within the
   application
 - Converting PostScript / EPS needs Ghostscript, which is not bundled
-- Format validation (the equivalent of JHOVE or veraPDF) is not included.
-  Files produced by conversion are opened again to confirm they can be read,
-  which is not the same as confirming they conform to a specification
+- Format validation covers the files produced by conversion, not the
+  originals. PDF/A conformance (veraPDF) is not checked
 
 Developed by Satoru Nakamura (The University of Tokyo) and Boyoung Kim
 (National Institutes for the Humanities).

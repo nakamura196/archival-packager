@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  同梱の Java（Resources/bin/jre/bin/java）だけに付ける。アプリ本体には付けない。
+
+	  hardened runtime の下では、実行時にコードを生成する JIT が許されない。
+	  Java は JIT 無しでは起動時点で落ちるので、これだけは要る。
+
+	  Temurin 自身の java は allow-jit のほかに
+	  allow-unsigned-executable-memory / disable-library-validation /
+	  allow-dyld-environment-variables / debugger を付けて配っている。
+	  2026-10-27 に Developer ID で署名し直して JHOVE を動かし、
+	  allow-jit だけで足りることを確かめた（同梱の dylib は全部こちらの
+	  Team ID で署名し直すので、library validation も通る）。最小権限にする。
+	-->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+</dict>
+</plist>

@@ -195,7 +195,10 @@ jobs:
         if: matrix.target == 'windows'
         shell: pwsh
         run: |
-          $bin = (Get-ChildItem -Recurse -Path build\windows -Directory -Filter "bin" | Select-Object -First 1).FullName
+          # 名前が "bin" のディレクトリを再帰で探すと、同梱した Java の jre\bin も
+          # 候補に入る。配置の手順と同じく .exe の隣から決める。
+          $exes = @(Get-ChildItem -Path build\windows -Filter "*.exe" -File)
+          $bin = Join-Path $exes[0].DirectoryName "bin"
           & (Join-Path $bin "clamscan.exe") --version
           if ($LASTEXITCODE -ne 0) { throw "同梱 clamscan が起動しません" }
           # sf は -home を渡さないとユーザ領域（%LOCALAPPDATA%\siegfried）の署名 DB を
@@ -208,6 +211,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "同梱 sf が起動しません" }
           if (-not (Get-ChildItem -Path (Join-Path $bin "clamav-certs") -Filter "*.crt")) {
             throw "CVD 検証用の証明書が入っていません"
+          }
+          # JHOVE（変換した派生物の形式検査）。Java が起動しなければ、アプリは
+          # 「形式の適合性は未検査」と記録して続けるので、ここで止めないと気づけない。
+          & (Join-Path $bin "jre\bin\java.exe") -Djava.awt.headless=true -version
+          if ($LASTEXITCODE -ne 0) { throw "同梱の Java が起動しません" }
+          if (-not (Get-ChildItem -Path (Join-Path $bin "jhove") -Filter "jhove-core-*.jar")) {
+            throw "JHOVE が入っていません"
           }
           $root = Split-Path $bin -Parent
           foreach ($doc in @("LICENSE", "NOTICE")) {

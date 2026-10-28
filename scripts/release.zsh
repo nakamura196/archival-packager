@@ -129,6 +129,12 @@ MOUNTED_BIN="$MOUNTED_APP/Contents/Resources/bin"
 # ここでも同じ条件で（＝同梱した default.sig が読めるかを）確かめる。
 "$MOUNTED_BIN/sf" -home "$MOUNTED_BIN" -version | tail -1 | sed 's/^/  同梱 siegfried: /'
 
+# Java は hardened runtime の下で JIT の許可（entitlements-java.plist）が無いと
+# 起動時点で落ちる。署名し直した後の、公証を通った実物で確かめる。
+"$MOUNTED_BIN/jre/bin/java" -Djava.awt.headless=true -version 2>&1 | head -1 | sed 's/^/  同梱 Java: /'
+ls "$MOUNTED_BIN/jhove"/jhove-core-*.jar >/dev/null \
+  || { print -u2 "  JHOVE がバンドルに入っていません"; exit 1 }
+
 hdiutil detach "$MOUNT" -quiet
 trap - EXIT
 rmdir "$MOUNT" 2>/dev/null || true

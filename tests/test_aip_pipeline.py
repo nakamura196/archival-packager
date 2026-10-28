@@ -11,7 +11,13 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
-from archival_packager.core import aip_pipeline, conversion_registry, sip_pipeline, sip_reader
+from archival_packager.core import (
+    aip_pipeline,
+    conversion_registry,
+    jhove,
+    sip_pipeline,
+    sip_reader,
+)
 from archival_packager.core.aip_models import (
     AIPOptions,
     AIPPipelineError,
@@ -22,6 +28,11 @@ from archival_packager.core.mets import METS_NS, PREMIS_NS
 from archival_packager.core.models import SIPMetadata, SIPOptions
 
 NS = {"mets": METS_NS, "premis": PREMIS_NS}
+
+
+def _is_conformance_note(note: str) -> bool:
+    """validation の記録のうち、JHOVE による形式の適合性検査のものか。"""
+    return "JHOVE" in note or "形式の適合性" in note
 
 
 @pytest.fixture(autouse=True)
@@ -569,8 +580,9 @@ class TestDerivativeValidationEndToEnd:
     METS からは同じに見えていた（イベントが無いだけ）。保存用の派生物が
     実は読めないものだった、という壊れ方は開き直すまで分からない。
 
-    ここで確かめているのは読み戻せるかどうかだけで、**形式の適合性検査
-    （veraPDF / JHOVE 相当）ではない。** それらは Java 製で同梱できない。
+    このクラスが見ているのは読み戻しの記録だけ。JHOVE による形式の
+    適合性検査は TestDerivativeConformance で見る（JHOVE は同梱の有無で
+    結果が変わるので、ここでは読み戻しの記録だけを取り出して比べる）。
     """
 
     def _notes(self, mets_path, event_type):
@@ -588,6 +600,17 @@ class TestDerivativeValidationEndToEnd:
             namespaces=NS,
         )
 
+    def _readback_outcomes(self, mets_path):
+        """validation のうち、読み戻しの記録だけの結果。"""
+        root = etree.fromstring(mets_path.read_bytes())
+        return [
+            e.xpath("string(.//premis:eventOutcome)", namespaces=NS)
+            for e in root.xpath("//premis:event[premis:eventType='validation']", namespaces=NS)
+            if not _is_conformance_note(
+                e.xpath("string(.//premis:eventOutcomeDetailNote)", namespaces=NS)
+            )
+        ]
+
     def test_event_type_is_the_premis_vocabulary_term(self, sip_with_image, tmp_path):
         """**eventType は PREMIS の語彙どおり "validation"。**
 
@@ -595,7 +618,7 @@ class TestDerivativeValidationEndToEnd:
         記録なのか分からなくなる。綴りは固定する。
         """
         result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
-        assert self._outcomes(result.mets_path, "validation") == ["pass"]
+        assert self._readback_outcomes(result.mets_path) == ["pass"]
 
     def test_the_reading_tool_and_version_are_recorded(self, sip_with_image, tmp_path):
         """何で開き直したかを残すこと。
@@ -691,8 +714,11 @@ out_extension = "jp2"
 
         result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
         assert result.derivative_count == 1, "確認できないことは破棄の理由にしない"
-        assert self._outcomes(result.mets_path, "validation") == ["skipped"]
-        assert any("未確認" in n for n in self._notes(result.mets_path, "validation"))
+        # 読み戻しも形式の適合性も、どちらも「確かめていない」と書く。
+        assert self._outcomes(result.mets_path, "validation") == ["skipped", "skipped"]
+        notes = self._notes(result.mets_path, "validation")
+        assert any("未確認" in n for n in notes)
+        assert any("JHOVE の検査部品が無い形式" in n for n in notes)
 
     def test_no_validation_event_when_nothing_was_converted(self, sip, tmp_path):
         """変換していないファイルに validation の event を付けないこと。
@@ -701,6 +727,164 @@ out_extension = "jp2"
         """
         result, _ = run_aip(sip, tmp_path, normalize=True)
         assert self._outcomes(result.mets_path, "validation") == []
+
+
+class TestDerivativeConformance:
+    """変換で作った派生物を JHOVE で検査し、その結果を記録と取捨に反映すること。
+
+    **開けることは、仕様に適合していることを意味しない。** 2026-10 に
+    「変換後のファイルを検証できていないのは大きな課題」と指摘を受けて
+    足した検査（以前は Java 製だからと見送り、開き直しだけにしていた）。
+
+    JHOVE の判定そのものは tests/test_jhove.py で見る。ここでは判定を
+    差し替えて、パイプラインの扱い（捨てる・残す・記録する）だけを見る。
+    """
+
+    def _conformance_events(self, mets_path):
+        root = etree.fromstring(mets_path.read_bytes())
+        events = []
+        for e in root.xpath("//premis:event[premis:eventType='validation']", namespaces=NS):
+            note = e.xpath("string(.//premis:eventOutcomeDetailNote)", namespaces=NS)
+            if _is_conformance_note(note):
+                agents = e.xpath(".//premis:linkingAgentIdentifierValue/text()", namespaces=NS)
+                outcome = e.xpath("string(.//premis:eventOutcome)", namespaces=NS)
+                events.append((outcome, note, agents))
+        return events
+
+    def _fake_jhove(self, monkeypatch, status, messages=()):
+        def fake(paths, scratch_parent, **_):
+            return {
+                p: jhove.JhoveResult(status, "TIFF-hul 1.9.5", "TIFF", "6.0", list(messages))
+                for p in paths
+            }, "JHOVE 1.34.0"
+
+        monkeypatch.setattr(aip_pipeline.jhove, "validate", fake)
+
+    def test_conforming_derivative_is_kept_and_recorded(
+        self, sip_with_image, tmp_path, monkeypatch
+    ):
+        """適合した派生物は残し、何で検査したか（道具・部品・版）を残す。
+
+        「適合した」はその道具のその版の判定でしかない。版が分からないと、
+        後から同じ検査を再現できない。
+        """
+        self._fake_jhove(monkeypatch, jhove.VALID)
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+
+        assert result.derivative_count == 1
+        [(outcome, note, agents)] = self._conformance_events(result.mets_path)
+        assert outcome == "pass"
+        assert "Well-Formed and valid" in note
+        assert "JHOVE 1.34.0 (TIFF-hul 1.9.5)" in agents
+
+    def test_non_conforming_derivative_is_not_in_the_package(
+        self, sip_with_image, tmp_path, monkeypatch
+    ):
+        """**仕様に適合しない派生物は成果物に入れない。原本は残す。**
+
+        開けない派生物と同じ扱いにする。不適合なものを保存用として残すと、
+        後から見た人は「保存用がある」と信じて原本ではなくそちらを使う。
+        """
+        self._fake_jhove(
+            monkeypatch, jhove.NOT_VALID, ["error: Invalid strip offset (TIFF-HUL-29)"]
+        )
+        result, messages = run_aip(sip_with_image, tmp_path, normalize=True)
+
+        assert result.derivative_count == 0
+        assert not (result.aip_path / "data" / "objects" / "写真-preservation.tiff").exists()
+        assert (result.aip_path / "data" / "objects" / "写真.png").is_file(), "原本は残す"
+        # 黙って落とさない。理由（JHOVE のメッセージ）まで利用者に届くこと。
+        assert any("適合しない" in w and "TIFF-HUL-29" in w for w in result.warnings)
+        assert any("適合しない" in m for m in messages)
+
+        [(outcome, _, _)] = self._conformance_events(result.mets_path)
+        assert outcome == "fail"
+        root = etree.fromstring(result.mets_path.read_bytes())
+        normalization = root.xpath(
+            "//premis:event[premis:eventType='normalization']"
+            "//premis:eventOutcomeDetailNote/text()",
+            namespaces=NS,
+        )
+        assert any("仕様に適合しなかったため破棄" in n for n in normalization)
+
+    def test_undecided_status_is_skipped_not_failed(
+        self, sip_with_image, tmp_path, monkeypatch
+    ):
+        """JHOVE が判定できなかった（"Unknown" 等）ものを不適合と読まない。
+
+        読めなかっただけで不適合と扱うと、道具の都合で健全な派生物を捨てる。
+        """
+        self._fake_jhove(monkeypatch, "Unknown", ["error: File not found (JHOVE-CORE-1)"])
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+
+        assert result.derivative_count == 1
+        [(outcome, note, _)] = self._conformance_events(result.mets_path)
+        assert outcome == "skipped"
+        assert "判定できませんでした" in note
+
+    def test_jhove_unavailable_is_said_once_and_keeps_the_derivative(
+        self, sip_with_image, tmp_path, monkeypatch
+    ):
+        """**JHOVE が動かなかったことを黙らない。ただし派生物は捨てない。**
+
+        Intel Mac（同梱の Java は arm64）やソースから動かした環境で起こる。
+        「検査していない」を「問題なし」に見せると、個人情報スキャンで
+        一度起きた取り違えを繰り返す。一方で、道具の不調は派生物を捨てる
+        理由にならない。警告は 1 行だけ（件数分出すと他の警告が埋もれる）。
+        """
+        def unavailable(paths, scratch_parent, **_):
+            raise jhove.JhoveUnavailable("JHOVE が同梱されていません")
+
+        monkeypatch.setattr(aip_pipeline.jhove, "validate", unavailable)
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+
+        assert result.derivative_count == 1
+        jhove_warnings = [w for w in result.warnings if "JHOVE" in w]
+        assert len(jhove_warnings) == 1
+        assert "実施できませんでした" in jhove_warnings[0]
+        [(outcome, note, _)] = self._conformance_events(result.mets_path)
+        assert outcome == "skipped"
+        assert "同梱されていません" in note
+
+    def test_unreadable_derivative_is_not_sent_to_jhove(
+        self, sip_with_image, tmp_path, monkeypatch
+    ):
+        """開き直せなかった派生物は検査に回さない（既に捨てると決まっている）。
+
+        回すと、捨てた派生物についての「不適合」の記録が増え、
+        何が理由で捨てたのかが記録から読みにくくなる。
+        """
+        def broken(src, dest):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"not a TIFF")
+            return "壊れた出力"
+
+        seen: list = []
+
+        def spy(paths, scratch_parent, **_):
+            seen.extend(paths)
+            return {}, "JHOVE 1.34.0"
+
+        monkeypatch.setattr(aip_pipeline.normalizer.image_normalize, "to_tiff", broken)
+        monkeypatch.setattr(aip_pipeline.jhove, "validate", spy)
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+
+        assert seen == []
+        assert self._conformance_events(result.mets_path) == []
+
+    @pytest.mark.skipif(jhove.locate() is None, reason="JHOVE が同梱されていない")
+    def test_with_the_bundled_jhove(self, sip_with_image, tmp_path):
+        """同梱の JHOVE を実際に動かし、Pillow の TIFF が適合と判定されること。
+
+        差し替えのテストだけでは、設定ファイルや引数の渡し方の誤りを
+        捕まえられない（2026-10-27、設定の名前空間の誤りを実機で踏んだ）。
+        """
+        result, _ = run_aip(sip_with_image, tmp_path, normalize=True)
+
+        assert result.derivative_count == 1
+        [(outcome, note, agents)] = self._conformance_events(result.mets_path)
+        assert outcome == "pass", note
+        assert any(a.startswith("JHOVE ") and "TIFF-hul" in a for a in agents)
 
 
 class TestReadmeHtml:
@@ -736,8 +920,8 @@ class TestReadmeHtml:
     def test_says_what_was_not_checked(self, sip, tmp_path):
         """**確認していないことを、確認したことと同じ場所に書く。**
 
-        読み戻し確認を形式適合性検査と読み違えられると、このパッケージは
-        実際より強い主張をしていることになる。
+        検査の範囲（変換したものだけ・PDF/A は見ていない）を読み違えられると、
+        このパッケージは実際より強い主張をしていることになる。
         """
         result, _ = run_aip(sip, tmp_path)
         text = (result.aip_path / "data" / "README.html").read_text(encoding="utf-8")
