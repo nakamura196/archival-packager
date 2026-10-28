@@ -32,6 +32,7 @@ DC_NS = "http://purl.org/dc/elements/1.1/"
 
 #: PREMIS の eventType は英語で書く決まりなので、表示のときだけ日本語にする。
 EVENT_LABELS = {
+    "filename change": "ファイル名の変更",
     "ingestion": "取り込み",
     "fixity check": "完全性の確認",
     "format identification": "フォーマットの識別",
@@ -51,9 +52,12 @@ EVENT_LABELS = {
 #: 「作った派生物を開き直せたか」であり、変換より前には起こりえない。
 #: 原本の形式適合性（JHOVE / veraPDF の類）はまだ行っていない。
 #:
-#: 記録の時刻はどれも同じ（AIP 化の開始時刻）なので、これは時刻順ではなく
-#: 処理の意味の上での順である。
+#: これは時刻順ではなく処理の意味の上での順である。2026-10-27 から、識別・
+#: チェックサム・ウイルス検査は SIP を作った時刻、取り込み以降は AIP を作った
+#: 時刻で記録している（core/sip_premis.py）。ファイル名の変更は SIP を作る
+#: 最初の段なので先頭に置く。
 WORKFLOW_ORDER = (
+    "filename change",
     "ingestion",
     "virus check",
     "format identification",
@@ -421,7 +425,8 @@ def _read_sip(root: Path) -> PackageReport:
         identifier = (first.get("Identifier") or "").strip()
 
     note = "" if files else "技術インベントリ（formats.csv）が見つかりませんでした"
-    summary = _summarize(files, [])
+    events = _sip_events(metadata / "premis.xml")
+    summary = _summarize(files, events)
     created = _sip_created(metadata)
     return PackageReport(
         root=root,
@@ -437,7 +442,32 @@ def _read_sip(root: Path) -> PackageReport:
             note=note,
         ),
         files=files,
+        events=events,
     )
+
+
+def _sip_events(path: Path) -> list[EventRow]:
+    """SIP 作成時の処理の記録（core/sip_premis.py が書く premis.xml）。
+
+    2026-10-27 より前に作った SIP には無いので、そのときは空を返す。
+    """
+    try:
+        doc = etree.parse(str(path), _SAFE_PARSER).getroot()
+    except (OSError, etree.XMLSyntaxError):
+        return []
+    agents: dict[str, str] = {}
+    for agent in doc.iterfind(f"{{{PREMIS_NS}}}agent"):
+        aid = _text(agent, f"{{{PREMIS_NS}}}agentIdentifier/{{{PREMIS_NS}}}agentIdentifierValue")
+        if aid:
+            agents[aid] = _text(agent, f"{{{PREMIS_NS}}}agentName") or aid
+    return [
+        _event_row(
+            ev, agents,
+            _text(ev, f"{{{PREMIS_NS}}}linkingObjectIdentifier/"
+                      f"{{{PREMIS_NS}}}linkingObjectIdentifierValue"),
+        )
+        for ev in doc.iterfind(f"{{{PREMIS_NS}}}event")
+    ]
 
 
 def _sip_created(metadata: Path) -> str:
@@ -540,9 +570,9 @@ def workflow(report: PackageReport) -> list[Stage]:
             for a in e.agents:
                 if a not in agents:
                     agents.append(a)
-        # このアプリはチェックサムの算出を event として書いていない。
-        # 値そのものは PREMIS の object（fixity/messageDigest）に入っているので、
-        # その件数を別に数えて、段が空でも「算出はされている」と分かるようにする。
+        # premis.xml の無い古い SIP から作ったものには、チェックサムの算出の
+        # event が無い。値そのものは PREMIS の object（fixity/messageDigest）に
+        # 入っているので、その件数を別に数えて、段が空でも「算出はされている」と分かるようにする。
         digests = (
             sum(1 for f in report.files if f.sha256)
             if kind == "message digest calculation" else 0

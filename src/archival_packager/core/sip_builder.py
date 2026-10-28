@@ -87,6 +87,9 @@ class SubmissionDocs:
     #: 知らない既存の呼び出し（テストを含む）をそのまま通すため。
     #: 空なら atom-import.csv 自体を作らない。
     atom_import_csv: str = ""
+    #: SIP 作成中に行った処理の PREMIS 記録（core/sip_premis.py）。
+    #: 空なら premis.xml 自体を作らない（既存の呼び出しをそのまま通すため）。
+    premis_xml: bytes = b""
 
 
 @dataclass(slots=True)
@@ -230,6 +233,8 @@ def _write_submission_docs(subdoc: Path, docs: SubmissionDocs) -> dict[str, Path
     report = subdoc / "report.txt"
     _write_text(docs.report_text, report)
     _write_text(docs.report_html, subdoc / "report.html")
+    if docs.premis_xml:
+        _write_bytes(docs.premis_xml, subdoc / "premis.xml")
 
     out: dict[str, Path] = {"description": description, "report": report}
     if arrangement := _write_optional_csv(docs.arrangement_map_csv, "arrangement-map.csv", subdoc):
