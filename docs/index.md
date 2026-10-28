@@ -9,6 +9,7 @@ nav:
   - { title: はじめての方へ, url: guide/ }
   - { title: 画面の使い方, url: manual/ }
   - { title: 詳しい使い方, url: usage.html }
+  - { title: 変更履歴, url: changelog.html }
   - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
 quick_links:
   - { title: はじめての方へ, text: インストールと使い方（動画つき）, url: guide/, mark: "▶" }

@@ -11,6 +11,7 @@ nav:
   - { title: Getting started, url: guide/en.html }
   - { title: Using the window, url: manual/en.html }
   - { title: Full manual, url: usage-en.html }
+  - { title: What's new, url: changelog-en.html }
   - { title: GitHub, url: "https://github.com/nakamura196/archival-packager" }
 quick_links:
   - { title: Getting started, text: Install and first use, with videos, url: guide/en.html, mark: "▶" }
