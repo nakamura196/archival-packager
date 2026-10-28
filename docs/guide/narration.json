@@ -58,8 +58,8 @@
     },
     {
       "id": "files",
-      "ja": {"text": "「ファイル」のタブでは、ファイルごとの形式や大きさが見られます。元のファイルは変更されていません。", "say": "ファイルのタブでは、ファイルごとの形式や、大きさが見られます。もとのファイルは、変更されていません。"},
-      "en": {"text": "The Files tab shows each file's format and size. The original files have not been changed."}
+      "ja": {"text": "「資料」のタブでは、ファイルごとの形式や大きさが見られます。元のファイルは変更されていません。", "say": "資料のタブでは、ファイルごとの形式や、大きさが見られます。もとのファイルは、変更されていません。"},
+      "en": {"text": "The Items tab shows each file's format and size. The original files have not been changed."}
     }
   ],
   "aip": [
