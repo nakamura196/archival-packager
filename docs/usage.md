@@ -101,7 +101,7 @@ macOS で「開発元を確認できないため開けません」と出た場�
 | BagIt bag として梱包する | SIP を BagIt の形（`bagit.txt` と `manifest-sha256.txt` を持つ形）にする |
 | 個人情報(PII)を走査する | メール・電話・マイナンバー・カード番号・郵便番号の候補を探し、`pii-report.csv` に出す |
 | ウイルス検査を行う | 同梱の ClamAV で検査する。**定義データベースが要ります**（後述） |
-| ファイル名を安全化する | 使えない文字や長すぎる名前を直す。元の名前は `accession.csv` に残る |
+| ファイル名を安全化する | Windows などで使えない記号を `_` に置き換え、末尾のピリオド・空白を取り、`CON` などの予約名を避ける。同じ名前になったら `_2` を付ける。日本語はそのまま。長すぎるパスは直さず、警告だけ出す。`accession.csv` に元の名前と SIP 内の名前が並ぶ |
 | 成果物を ZIP に固める | できたパッケージを無圧縮の ZIP にする（受け渡し用） |
 | 保存用フォーマットへ変換する | AIP で画像を TIFF に、PostScript/EPS を PDF にする |
 
@@ -351,7 +351,7 @@ if [[ $VIRUS -gt 0 ]]; then print "要確認: ウイルス $VIRUS 件"; fi
       description.csv           AtoM / ISAD(G) の記述シート（人が書き込む）
       atom-import.csv           AtoM に読ませる用（機械名の列）
       formats.csv               技術インベントリ（形式・PRONOM・サイズ・SHA-256・ウイルス検査）
-      accession.csv             受入記録（元のファイル名・パス）
+      accession.csv             受入記録（元のファイル名・パスと、SIP 内のパス）
       dfxml.xml                 技術メタデータ（DFXML）
       report.txt / report.html  人が読むまとめ
       checksum.sha256           SIP ルートからの相対パスで SHA-256
