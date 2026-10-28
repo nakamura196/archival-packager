@@ -110,6 +110,36 @@ TEXTS: dict[str, str] = {
         "Sanitize file names (the original names are kept in accession.csv)",
     "成果物を ZIP（無圧縮）に固める": "Serialize the output as a ZIP (stored, uncompressed)",
     "保存用フォーマットへ変換する（AIP）": "Normalize to preservation formats (AIP)",
+    "SIP を BagIt の形にします。bagit.txt と manifest-sha256.txt が付き、"
+    "受け取った側で中身が欠けていないか確かめられます。":
+        "Packages the SIP as a BagIt bag. It gets bagit.txt and manifest-sha256.txt, "
+        "so the receiver can check that nothing is missing or altered.",
+    "メールアドレス・電話番号・マイナンバー・カード番号・郵便番号の候補を探し、"
+    "pii-report.csv に出します。値は伏せ字で書きます。ファイルは変えません。":
+        "Looks for likely e-mail addresses, phone numbers, My Number IDs, card numbers "
+        "and postal codes, and lists them in pii-report.csv. Values are masked. "
+        "The files themselves are not changed.",
+    "同梱の ClamAV で全ファイルを検査します。"
+    "先に下の「ウイルス定義データベース」で定義を取得してください。":
+        "Scans every file with the bundled ClamAV. "
+        "Download the definitions first under \"Virus definition database\" below.",
+    "Windows などで使えない記号（\\ : * ? \" < > | & ; [ ]）を _ に置き換えます。"
+    "末尾のピリオド・空白を取り、CON などの予約名には先頭に _ を付けます。"
+    "同じ名前になったら _2 を付けます。日本語はそのまま残します。"
+    "accession.csv に元の名前と SIP 内の名前が並びます。":
+        "Replaces characters that Windows and other systems cannot use "
+        "(\\ : * ? \" < > | & ; [ ]) with _. Trailing dots and spaces are removed, "
+        "and reserved names such as CON get a leading _. If two names collide, "
+        "_2 is added. Japanese text is kept as is. "
+        "accession.csv lists the original name next to the name in the SIP.",
+    "できたパッケージを 1 つの ZIP にまとめます（受け渡し用）。"
+    "圧縮しないので、中のファイルのバイト列は変わりません。":
+        "Puts the finished package into a single ZIP for handing over. "
+        "It is stored without compression, so the files inside stay byte-for-byte the same.",
+    "AIP を作るとき、画像を TIFF に、PostScript / EPS を PDF に変換した"
+    "保存用の複製を加えます。元のファイルもそのまま残ります。":
+        "When building the AIP, adds preservation copies: images converted to TIFF, "
+        "PostScript / EPS converted to PDF. The original files are kept as well.",
 
     # ------------------------------------------------------------------
     # ウイルス定義データベース

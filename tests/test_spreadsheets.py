@@ -134,6 +134,19 @@ class TestAccessionCSV:
         f = sf("a_b.txt", original_relative_path="a:b.txt")
         rows = parse_csv(spreadsheets.accession([f]))
         assert rows[1][0] == "a:b.txt", "受入時の元パスを残す"
+        assert rows[1][4] == "a_b.txt", "変更後の名前も読めるようにする"
+
+    def test_sip_path_column_is_last(self):
+        """既存の列番号を崩さない（末尾に足す）。"""
+        rows = parse_csv(spreadsheets.accession([sf("plain.txt")]))
+        assert rows[0] == ["原パス（受入時）", "SHA-256", "サイズ(バイト)", "更新日時", "SIP 内のパス"]
+        assert rows[1][4] == "plain.txt"
+
+    def test_new_format_still_parses_as_prior(self):
+        """足した列があっても、前回の accession.csv として読める。"""
+        f = sf("a_b.txt", original_relative_path="a:b.txt")
+        recs = accession.parse(spreadsheets.accession([f]))
+        assert [(r.original_path, r.sha256) for r in recs] == [("a:b.txt", "a" * 64)]
 
     def test_records_current_path_when_not_sanitized(self):
         rows = parse_csv(spreadsheets.accession([sf("plain.txt")]))

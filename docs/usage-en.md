@@ -126,7 +126,7 @@ options are on ("Defaults" when none are).
 | Wrap the output as a BagIt bag | Writes the SIP as a BagIt bag (`bagit.txt` and `manifest-sha256.txt`) |
 | Scan for personally identifiable information (PII) | Looks for email addresses, phone numbers, Japanese individual numbers, card numbers and Japanese postal codes, and lists candidates in `pii-report.csv` |
 | Run a virus scan | Scans with the bundled ClamAV. **The definition database has to be downloaded first** ([below](#the-virus-definition-database)) |
-| Sanitize file names | Repairs characters that cannot be used and names that are too long. The original names are kept in `accession.csv` |
+| Sanitize file names | Replaces characters that Windows and other systems cannot use with `_`, removes trailing dots and spaces, and avoids reserved names such as `CON`. Colliding names get `_2`. Japanese text is kept. Paths that are too long are not shortened, only warned about. `accession.csv` lists the original name next to the name in the SIP |
 | Serialize the output as a ZIP | Packs the finished package into an uncompressed ZIP, for handing over |
 | Normalize to preservation formats (AIP) | Converts images to TIFF and PostScript/EPS to PDF while building the AIP |
 
@@ -395,7 +395,7 @@ is what watches the application itself for regressions).
       description.csv           AtoM / ISAD(G) description sheet (filled in by a person)
       atom-import.csv           For importing into AtoM (machine column names)
       formats.csv               Technical inventory (format, PRONOM, size, SHA-256, virus scan)
-      accession.csv             Accession record (original file names and paths)
+      accession.csv             Accession record (original file names and paths, and the path in the SIP)
       dfxml.xml                 Technical metadata (DFXML)
       premis.xml                Processing record of the SIP (PREMIS: identification, checksums, virus scan, renaming)
       report.txt / report.html  Summary for people to read

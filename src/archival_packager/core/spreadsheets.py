@@ -218,17 +218,24 @@ def accession(files: list[ScannedFile]) -> str:
     同一性アンカーは内容ハッシュのみ。原本は一切変更しない。
     内容が完全に同一のファイルは原パスの対応が一意に定まらないが、
     内容が等価なため保存・完全性の観点で実害は小さい。
+
+    「SIP 内のパス」は sanitize 後の名前。**これが無いと、名前が変わったことも、
+    何に変わったかも表から読めない**（元名しか載らず、SHA-256 を自分で
+    照らし合わせるしかなかった）。読み手の列番号を崩さないよう末尾に足す。
+    前回の accession.csv の読み込みは列見出しで引くので、旧形式も読める。
     """
-    rows: list[list[str]] = [["原パス（受入時）", "SHA-256", "サイズ(バイト)", "更新日時"]]
+    rows: list[list[str]] = [
+        ["原パス（受入時）", "SHA-256", "サイズ(バイト)", "更新日時", "SIP 内のパス"]
+    ]
     for f in files:
         rows.append(
             [
-                # sanitize した場合は受入時の元パスを記録する
-                # （SIP 内の sanitize 後名とは SHA-256 で突合できる）。
+                # sanitize した場合は受入時の元パスを記録する。
                 f.original_relative_path or f.relative_path,
                 f.sha256 or "",
                 str(f.size_bytes),
                 _iso(f.modified),
+                f.relative_path,
             ]
         )
     return _to_csv(rows)

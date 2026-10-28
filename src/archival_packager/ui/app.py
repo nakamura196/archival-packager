@@ -206,25 +206,67 @@ def main(page: ft.Page) -> None:
     # オプション
     # ------------------------------------------------------------------
 
-    def option_box(label: str, value: bool) -> ft.Checkbox:
+    def option_box(label: str, value: bool, help_text: str) -> ft.Checkbox:
         """オプションのチェックボックス。
 
         **ラベルは Text で渡す。** 文字列のままだと 1 行に固定され、左の列
         （幅 420）に収まらない分が切れていた（「元名は accession.csv に残」で
         途切れ、英語ではさらに短い所で切れる）。Text なら折り返す。
         見出しの要約に使うため、文字列は data に持たせる。
+
+        **ラベルだけでは何が起きるか分からない**（「ファイル名を安全化する」で
+        どう変わるのか読めない）ので、隣に ⓘ を置き、重ねると説明が出るようにする。
+        ⓘ はラベルの中に入れる。外に並べると、表示・非表示の切り替えを
+        チェックボックスと別に持つことになる。
         """
-        # 幅は左の列（420）から余白とチェックの枠を引いたもの。幅を決めないと折り返さない。
-        box = ft.Checkbox(label=ft.Text(label, width=300), value=value)
+        # 幅は左の列（420）から余白・チェックの枠・ⓘ を引いたもの。幅を決めないと折り返さない。
+        box = ft.Checkbox(
+            label=ft.Row(
+                [
+                    ft.Text(label, width=276),
+                    ft.Icon(ft.Icons.INFO_OUTLINE, size=16,
+                            color=ft.Colors.ON_SURFACE_VARIANT, tooltip=help_text),
+                ],
+                spacing=4,
+                tight=True,
+            ),
+            value=value,
+        )
         box.data = label
         return box
 
-    make_bag = option_box(t("BagIt bag として梱包する"), False)
-    scan_pii = option_box(t("個人情報(PII)を走査する"), False)
-    scan_virus = option_box(t("ウイルス検査を行う（定義 DB が必要）"), False)
-    sanitize = option_box(t("ファイル名を安全化する（元名は accession.csv に残ります）"), False)
-    serialize_zip = option_box(t("成果物を ZIP（無圧縮）に固める"), False)
-    normalize = option_box(t("保存用フォーマットへ変換する（AIP）"), True)
+    make_bag = option_box(
+        t("BagIt bag として梱包する"), False,
+        t("SIP を BagIt の形にします。bagit.txt と manifest-sha256.txt が付き、"
+          "受け取った側で中身が欠けていないか確かめられます。"),
+    )
+    scan_pii = option_box(
+        t("個人情報(PII)を走査する"), False,
+        t("メールアドレス・電話番号・マイナンバー・カード番号・郵便番号の候補を探し、"
+          "pii-report.csv に出します。値は伏せ字で書きます。ファイルは変えません。"),
+    )
+    scan_virus = option_box(
+        t("ウイルス検査を行う（定義 DB が必要）"), False,
+        t("同梱の ClamAV で全ファイルを検査します。"
+          "先に下の「ウイルス定義データベース」で定義を取得してください。"),
+    )
+    sanitize = option_box(
+        t("ファイル名を安全化する（元名は accession.csv に残ります）"), False,
+        t("Windows などで使えない記号（\\ : * ? \" < > | & ; [ ]）を _ に置き換えます。"
+          "末尾のピリオド・空白を取り、CON などの予約名には先頭に _ を付けます。"
+          "同じ名前になったら _2 を付けます。日本語はそのまま残します。"
+          "accession.csv に元の名前と SIP 内の名前が並びます。"),
+    )
+    serialize_zip = option_box(
+        t("成果物を ZIP（無圧縮）に固める"), False,
+        t("できたパッケージを 1 つの ZIP にまとめます（受け渡し用）。"
+          "圧縮しないので、中のファイルのバイト列は変わりません。"),
+    )
+    normalize = option_box(
+        t("保存用フォーマットへ変換する（AIP）"), True,
+        t("AIP を作るとき、画像を TIFF に、PostScript / EPS を PDF に変換した"
+          "保存用の複製を加えます。元のファイルもそのまま残ります。"),
+    )
 
     # ------------------------------------------------------------------
     # ウイルス定義データベース
