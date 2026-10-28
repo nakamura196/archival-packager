@@ -51,7 +51,7 @@ normally does not happen; if it does, open it once from the right-click menu
 
 **The first thing to do**, if you will use the virus scan, is to download the
 definition database (several hundred megabytes). Use "Download / update
-definitions" under "Virus definition database". See
+definitions" under "Virus definitions". See
 [below](#the-virus-definition-database) for details.
 
 ### Switching the interface to English
@@ -123,12 +123,12 @@ options are on ("Defaults" when none are).
 
 | Option | What changes |
 | --- | --- |
-| Wrap the output as a BagIt bag | Writes the SIP as a BagIt bag (`bagit.txt` and `manifest-sha256.txt`) |
-| Scan for personally identifiable information (PII) | Looks for email addresses, phone numbers, Japanese individual numbers, card numbers and Japanese postal codes, and lists candidates in `pii-report.csv` |
+| Package in BagIt format | Writes the SIP as a BagIt bag (`bagit.txt` and `manifest-sha256.txt`) |
+| Check for personal information (PII) | Looks for email addresses, phone numbers, Japanese individual numbers, card numbers and Japanese postal codes, and lists candidates in `pii-report.csv` |
 | Run a virus scan | Scans with the bundled ClamAV. **The definition database has to be downloaded first** ([below](#the-virus-definition-database)) |
-| Sanitize file names | Replaces characters that Windows and other systems cannot use with `_`, removes trailing dots and spaces, and avoids reserved names such as `CON`. Colliding names get `_2`. Japanese text is kept. Paths that are too long are not shortened, only warned about. `accession.csv` lists the original name next to the name in the SIP |
-| Serialize the output as a ZIP | Packs the finished package into an uncompressed ZIP, for handing over |
-| Normalize to preservation formats (AIP) | Converts images to TIFF and PostScript/EPS to PDF while building the AIP |
+| Replace characters that cannot be used in file names | Replaces characters that Windows and other systems cannot use with `_`, removes trailing dots and spaces, and avoids reserved names such as `CON`. Colliding names get `_2`. Japanese text is kept. Paths that are too long are not shortened, only warned about. `accession.csv` lists the original name next to the name in the SIP |
+| Put the result in a single ZIP | Packs the finished package into an uncompressed ZIP, for handing over |
+| Also make copies in preservation formats (AIP) | Converts images to TIFF and PostScript/EPS to PDF while building the AIP |
 
 #### Should file names be sanitized?
 
@@ -166,7 +166,7 @@ codes in particular. Email addresses and card numbers are not
 Japan-specific; phone numbers assume Japanese digit counts. Measured precision
 and recall are in [docs/pii-accuracy.md](pii-accuracy.md).
 
-### 4. Enter the descriptive metadata
+### 4. Describe the materials
 
 - **Identifier** — the identifier of the transfer (e.g. `2026-transfer-general-affairs`). It becomes the folder name.
 - **Title** — required. The name of the body of material.

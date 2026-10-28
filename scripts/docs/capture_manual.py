@@ -242,7 +242,7 @@ def story(d: Driver, cam: Camera, out: Path) -> None:
              box([tip(d, "使い方・ライセンス・連絡先")]), clip=[0, 0, w, 60])
 
     # ---- 何を作るか ---------------------------------------------------
-    cam.shot("mode", band(d.find("radio", SIP_RADIO), d.find("radio", "素材から AIP まで一気通貫"),
+    cam.shot("mode", band(d.find("radio", SIP_RADIO), d.find("radio", "素材から AIP まで続けて作る"),
                           top=26, bottom=34), clip=left_col)
 
     # ---- 入力と出力先 -------------------------------------------------
@@ -260,7 +260,7 @@ def story(d: Driver, cam: Camera, out: Path) -> None:
 
     # ---- 記述メタデータ ----------------------------------------------
     # オプションを開く前に入れる（開くと欄が下へ押し出され、探せなくなる）。
-    d.type("識別子", "2026-transfer-01")
+    d.type("ID（整理番号）", "2026-transfer-01")
     d.type("タイトル（必須）",
            "総務課 移管文書" if d.lang == "ja" else "Records transfer, General Affairs")
     d.type("年代", "2024–2025")
@@ -270,12 +270,12 @@ def story(d: Driver, cam: Camera, out: Path) -> None:
 
     # ---- オプション ---------------------------------------------------
     d.click("button", "オプション")
-    d.click("checkbox", "個人情報(PII)を走査する", dx=0.1)
+    d.click("checkbox", "個人情報が含まれていないか調べる", dx=0.1)
     page.wait_for_timeout(300)
     cam.shot("options", band(d.find("button", "オプション"),
-                             d.find("checkbox", "成果物を ZIP（無圧縮）に固める")),
+                             d.find("checkbox", "できたものを 1 つの ZIP にまとめる（圧縮なし）")),
              clip=left_col)
-    d.click("checkbox", "ウイルス検査を行う（定義 DB が必要）", dx=0.1)
+    d.click("checkbox", "ウイルス検査をする（先にウイルス定義ファイルの取得が必要）", dx=0.1)
     page.wait_for_timeout(300)
     scroll_left(400)  # 定義の欄は「実行」の陰になるので、左の列を送る
     cam.shot("virus", band(d.find("button", "定義を取得 / 更新"), top=44), clip=left_col)
@@ -311,11 +311,11 @@ def story(d: Driver, cam: Camera, out: Path) -> None:
              clip=left_col)
     d.click("button", "フォルダを選ぶ", exact=True)  # 出力先を AIP 用に
     # オプションは SIP のときに開いたまま残っている。閉じていれば開く。
-    if not d.find("checkbox", "成果物を ZIP（無圧縮）に固める").count():
+    if not d.find("checkbox", "できたものを 1 つの ZIP にまとめる（圧縮なし）").count():
         d.click("button", "オプション")
     page.wait_for_timeout(400)
     cam.shot("aip-options", band(d.find("button", "オプション"),
-                                 d.find("checkbox", "成果物を ZIP（無圧縮）に固める")),
+                                 d.find("checkbox", "できたものを 1 つの ZIP にまとめる（圧縮なし）")),
              clip=left_col)
     d.click("button", "実行", exact=True)
     d.wait_for("button", "中身を見る")
@@ -343,7 +343,7 @@ def story(d: Driver, cam: Camera, out: Path) -> None:
     cam.shot("workflow-aip")
     for stage, name in (("ウイルス検査", "stage-virus"),
                         ("保存用形式への変換", "stage-normalization"),
-                        ("完全性の確認", "stage-fixity")):
+                        ("欠け・変化の確認", "stage-fixity")):
         d.click("button", stage)
         page.wait_for_timeout(500)
         cam.shot(name, box([d.find("button", stage)]))
@@ -353,10 +353,10 @@ def story(d: Driver, cam: Camera, out: Path) -> None:
     d.click("button", "閉じる")
     page.wait_for_timeout(600)
 
-    # ---- 一気通貫 -----------------------------------------------------
-    d.click("radio", "素材から AIP まで一気通貫")
+    # ---- 続けて作る -----------------------------------------------------
+    d.click("radio", "素材から AIP まで続けて作る")
     page.wait_for_timeout(400)
-    cam.shot("full", band(d.find("radio", "素材から AIP まで一気通貫"), bottom=34), clip=left_col)
+    cam.shot("full", band(d.find("radio", "素材から AIP まで続けて作る"), bottom=34), clip=left_col)
     d.click("radio", SIP_RADIO)
 
     # ---- このアプリについて -------------------------------------------
