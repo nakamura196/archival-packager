@@ -68,12 +68,15 @@ METS に残る（成功・失敗・確かめていない、の 3 通りを書き
   Intel Mac では起動しない。その場合は「未検査」と記録し、report に 1 行の
   警告を出して、開き直しの確認だけで保存する
 
-## 相互運用は仕様との突合までしか確かめていない
+## Archivematica には実際に読み込ませていない
 
 パッケージ構造と記述メタデータは、Archivematica と AtoM の公式仕様と項目単位で
 突き合わせてある（[docs/interoperability.md](interoperability.md)）。
-**ただし、実際に両システムに読み込ませたわけではない。**
-実機で確かめる手順は [docs/atom-verification.md](atom-verification.md) に置いた。
+**AtoM には、2026年10月28日に AtoM 2.10.2 で実際に取り込ませた。**
+記述の CSV（`atom-import.csv`）が検査を通り、階層つきで入ることを確かめた。
+手順は [docs/atom-verification.md](atom-verification.md) にある。
+**Archivematica は、まだ動かしていない。** 転送の構造と AIP の構造は、
+仕様の文面と合わせただけである。
 
 ## 個人情報の検出は 5 種別だけ
 

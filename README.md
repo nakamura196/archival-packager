@@ -70,8 +70,9 @@ but originals in other formats are not, and there is no
 PDF/A validation (no veraPDF); the personal
 information scan looks at five categories and has measured limits
 ([docs/pii-accuracy.md](docs/pii-accuracy.md)); and interoperability has been
-checked against specifications but not yet against a running AtoM or
-Archivematica instance ([docs/interoperability.md](docs/interoperability.md)).
+checked against specifications; the AtoM description CSV has been imported
+into a running AtoM 2.10.2, but nothing has been run through Archivematica yet
+([docs/interoperability.md](docs/interoperability.md)).
 
 The interface is Japanese and English.
 
@@ -147,7 +148,7 @@ source availability obligation.
 - 利用のための縮小版やサムネイルは作りません
 - ファイル形式として正しいかの検査（JHOVE）は、TIFF と PDF だけに行います（変換で作ったものと原本の両方）。原本は不適合でも捨てずに保存し、警告を出します
 - 個人情報の検出は 5 種類だけです。「見つからなかった」は「個人情報が無い」という意味ではありません
-- AtoM と Archivematica との受け渡しは、仕様と突き合わせただけで、動いているシステムではまだ確かめていません
+- AtoM へは、記述の表を動いている AtoM（2.10.2）に実際に取り込んで確かめました。Archivematica とは、仕様と突き合わせただけで、動いているシステムではまだ確かめていません
 - 画面は日本語と英語です。パッケージの中の見出しなどは日本語のままです
 
 ## そのほかの文書
