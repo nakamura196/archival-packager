@@ -404,6 +404,9 @@ class TestAtomImportCsv:
         - BOM: UTF-8 の BOM は ERROR にならないが、**剥がすとは書かれていない**。
           残ったまま読まれると先頭の列名が legacyId と認識されず、未知の列として
           捨てられる。それでは legacyId を出した意味が無い。
+          2026-10-28 に AtoM 2.10.2 で試したところ、BOM 付きでも legacyId は
+          認識された（取り込み処理が BOM を読み飛ばす）。古い版は確かめていない
+          ので、BOM 無しのまま固定しておく。
         """
         raw = self._path(plain_sip).read_bytes()
         assert not raw.startswith(UTF8_BOM)

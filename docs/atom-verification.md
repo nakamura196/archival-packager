@@ -8,6 +8,10 @@ eyebrow: Archival Packager 技術資料
 
 この文書は、それを**実機の裏付けに変える**ための手順である。
 
+**2026年10月28日に、この手順で AtoM 2.10.2 に通した。** 結果は
+`docs/interoperability.md` の「6.1 AtoM で確かめたこと」にある。
+版を変えて確かめ直すときも、この手順を使う。
+
 ## なぜ優先度が高いか
 
 ストアの掲載文と学会予稿に「AtoM が受け取れる形式」と書いてある。
@@ -78,12 +82,32 @@ docker compose exec atom php symfony import:bulk --help
 
 ## 4. 結果を持ち帰る
 
-**`docs/interoperability.md` の「6. この検証の限界」を書き換えること。**
-いまは「実機では確かめていない」と書いてある。確かめたら、いつ・どの版の AtoM で・
-何が通って何が落ちたかに差し替える。
+**`docs/interoperability.md` の 6 節（実機で確かめたことと、限界）を書き換えること。**
+いつ・どの版の AtoM で・何が通って何が落ちたかを書く。
 
 ずれが見つかったら `tests/test_interoperability.py` の `KNOWN_GAPS` に足す。
 **文書とテストは 1 対 1 で対応させてある**（件数を assert している）ので、片方だけ直すと落ちる。
+
+## 10月28日に実際に打ったコマンド
+
+compose の外から打つ場合の形。コンテナ名は `docker ps` で確かめること
+（`docker/` で起動すると `docker-atom-1` になる）。CSV はコンテナの中に複写してから渡す。
+
+```
+docker exec docker-atom-1 mkdir -p /tmp/ap
+docker cp atom-import.csv docker-atom-1:/tmp/ap/
+docker exec -w /atom/src docker-atom-1 php symfony csv:check-import -i /tmp/ap/atom-import.csv
+docker exec -w /atom/src docker-atom-1 php symfony csv:import --source-name=ap-issue2 --index --no-confirmation /tmp/ap/atom-import.csv
+docker exec -w /atom/src docker-atom-1 php symfony csv:import --source-name=ap-issue2 --update=match-and-update --index --no-confirmation /tmp/ap/atom-import.csv
+```
+
+- **入れ直しの確かめには `--source-name` を揃えること。** AtoM は `legacyId` を
+  取り込み元の名前ごとに覚えているので、名前が違うと別物として新しく作る。
+  指定しないとファイル名（`atom-import.csv`）が使われる
+- `--update` も `--skip-matched` も付けずに流すと、照合をせずに新しく作る
+  （`lib/QubitFlatfileImport.class.php` の既定の動きとして書かれている。実機では流していない）
+- 取り込んだ記述は「下書き」になるので、ログインしないと画面で見えない（HTTP 403）。
+  中身はデータベースの `keymap`（`source_name` で絞る）から `information_object` を引いて確かめた
 
 ## Archivematica はどうするか
 
