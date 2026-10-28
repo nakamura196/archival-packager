@@ -98,9 +98,9 @@ The package is written, as new files, into the destination.
 If you choose a destination **inside the source folder**, a red warning appears and Run cannot be pressed.
 This keeps anything from being written into the originals. Choose another place.
 
-### Descriptive metadata
+### Description of the materials
 
-![The descriptive metadata fields, filled in](media/en/metadata.png)
+![The description fields, filled in](media/en/metadata.png)
 
 Enter information about the material. It is kept in the package as the accession record.
 
@@ -124,17 +124,17 @@ Even while it is closed, the line under the heading shows **what is currently sw
 
 | Option | What changes |
 | --- | --- |
-| Wrap the output as a BagIt bag | Packs the SIP in BagIt, a layout commonly used for handing files over |
-| Sanitize file names | Fixes characters that other computers struggle with, and names that are too long. The original names are kept on record |
-| Scan for personally identifiable information (PII) | Looks for things like e-mail addresses and phone numbers. Anything found is listed in the result |
-| Run a virus scan | Checks the files for viruses. It needs the definition database (next section) |
-| Serialize the output as a ZIP | Puts the finished package into a single ZIP file, which is handy for handing it over |
+| Package in BagIt format | Packs the SIP in BagIt, a layout commonly used for handing files over |
+| Replace characters that cannot be used in file names | Fixes characters that other computers struggle with, and names that are too long. The original names are kept on record |
+| Check for personal information (PII) | Looks for things like e-mail addresses and phone numbers. Anything found is listed in the result |
+| Run a virus scan | Checks the files for viruses. It needs the virus definitions (next section) |
+| Put the result in a single ZIP (no compression) | Puts the finished package into a single ZIP file, which is handy for handing it over |
 
-### Virus definition database
+### Virus definitions
 
-![The definition database section, shown when the virus scan is ticked](media/en/virus.png)
+![The virus definitions section, shown when the virus scan is ticked](media/en/virus.png)
 
-Ticking **Run a virus scan** shows the **Virus definition database** section.
+Ticking **Run a virus scan** shows the **Virus definitions** section.
 This is the data used to recognise viruses; it is a few hundred MB.
 
 - If it says the definitions have been downloaded, you can go ahead. The date is when they were last updated
@@ -233,7 +233,7 @@ To build the AIP on another day, choose **Create an AIP** yourself and use
 **Choose the SIP folder** under **Input**.
 If you choose a folder that is not a SIP (such as the source folder), a red note tells you so.
 
-The descriptive metadata fields are not shown when creating an AIP; what you entered for the SIP is carried over.
+The description fields are not shown when creating an AIP; what you entered for the SIP is carried over.
 
 ### Destination and options
 
@@ -245,8 +245,8 @@ Two options apply to an AIP:
 
 | Option | What changes |
 | --- | --- |
-| Normalize to preservation formats (AIP) | Adds TIFF copies of images and PDF copies of PostScript/EPS. **Ticked from the start** |
-| Serialize the output as a ZIP | Puts the finished package into a single ZIP file |
+| Also make copies in preservation formats (AIP) | Adds TIFF copies of images and PDF copies of PostScript/EPS. **Ticked from the start** |
+| Put the result in a single ZIP (no compression) | Puts the finished package into a single ZIP file |
 
 **The originals go into the AIP as well.** Normalization only adds copies.
 
@@ -255,7 +255,7 @@ Two options apply to an AIP:
 ![The right half after the AIP has been built](media/en/aip-result.png)
 
 Press **Run**, and **Created the AIP** appears.
-The numbers in brackets are how many original files there are, and how many copies (derivatives) normalization made.
+The numbers in brackets are how many original files there are, and how many preservation copies the conversion made.
 
 While building the AIP, the application also checks that the SIP's files
 **have not changed since they were received**.
@@ -342,7 +342,7 @@ Items that were not show "Not converted (kept as received)".
 ![With "From source material through to an AIP" chosen](media/en/full.png)
 
 Choosing **From source material through to an AIP** builds the SIP and then carries straight on to the AIP.
-The input is the source folder, and you enter the descriptive metadata as for a SIP.
+The input is the source folder, and you enter the description of the materials as for a SIP.
 The options for both the SIP and the AIP are listed.
 
 Because there is no chance to check the SIP in between,

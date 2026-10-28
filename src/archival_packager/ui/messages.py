@@ -39,29 +39,29 @@ def _rule(pattern: str, render: Callable[[re.Match[str]], str]) -> _Rule:
 #: 進捗の行。core/sip_pipeline.py と core/aip_pipeline.py の progress() に対応する。
 _PROGRESS: list[_Rule] = [
     _rule(raw(r"^入力フォルダを走査しています…$"),
-          lambda m: t("入力フォルダを走査しています…")),
+          lambda m: t("入力フォルダの中を調べています…")),
     _rule(raw(r"^Archivematica transfer 構造を検出しました（objects/ をそのまま尊重）$"),
-          lambda m: t("Archivematica transfer 構造を検出しました（objects/ をそのまま尊重）")),
+          lambda m: t("Archivematica の transfer の形だと分かりました（objects/ の中はそのまま使います）")),
     _rule(raw(r"^入力 ZIP を展開しています…$"), lambda m: t("入力 ZIP を展開しています…")),
     _rule(raw(r"^対象ファイル: (\d+) 件$"),
           lambda m: t("対象ファイル: {count} 件", count=m[1])),
     _rule(raw(r"^ファイル名サニタイズ: (\d+) 件を安全な名前に変更（元名は accession.csv に保持）$"),
-          lambda m: t("ファイル名を安全化: {count} 件の名前を変更しました"
+          lambda m: t("ファイル名の記号を置き換え: {count} 件の名前を変更しました"
                       "（元の名前は accession.csv に残ります）", count=m[1])),
     _rule(raw(r"^siegfried が同梱されていないため、フォーマット識別をスキップします。$"),
-          lambda m: t("siegfried が同梱されていないため、フォーマット識別をスキップします。")),
+          lambda m: t("siegfried が同梱されていないため、ファイル形式の判定をスキップします。")),
     _rule(raw(r"^フォーマットを識別しています（siegfried）…$"),
-          lambda m: t("フォーマットを識別しています（siegfried）…")),
+          lambda m: t("ファイルの形式を調べています（siegfried）…")),
     _rule(raw(r"^フォーマット識別に失敗したためスキップします: (.*)$"),
-          lambda m: t("フォーマット識別に失敗したためスキップします: {detail}", detail=m[1])),
+          lambda m: t("ファイル形式の判定に失敗したためスキップします: {detail}", detail=m[1])),
     _rule(raw(r"^画像の技術的特性を読み取っています…（(\d+) 件）$"),
-          lambda m: t("画像の技術的特性を読み取っています…（{count} 件）", count=m[1])),
+          lambda m: t("画像の大きさや色の情報を読み取っています…（{count} 件）", count=m[1])),
     _rule(raw(r"^チェックサム\(SHA-256\)を計算しています…$"),
           lambda m: t("チェックサム(SHA-256)を計算しています…")),
     _rule(raw(r"^ClamAV が同梱されていないため、ウイルスチェックをスキップします。$"),
           lambda m: t("ClamAV が同梱されていないため、ウイルスチェックをスキップします。")),
     _rule(raw(r"^ウイルス定義 DB が未取得のため、ウイルスチェックをスキップします。$"),
-          lambda m: t("ウイルス定義 DB が未取得のため、ウイルスチェックをスキップします。")),
+          lambda m: t("ウイルス定義ファイルを取得していないため、ウイルスチェックをスキップします。")),
     _rule(raw(r"^ウイルスチェック中（ClamAV）…$"), lambda m: t("ウイルスチェック中（ClamAV）…")),
     _rule(raw(r"^ウイルスチェックに失敗しましたが、SIP 作成は続行します: (.*)$"),
           lambda m: t("ウイルスチェックに失敗しましたが、SIP 作成は続行します: {detail}",
@@ -69,71 +69,72 @@ _PROGRESS: list[_Rule] = [
     _rule(raw(r"^ウイルスは検出されませんでした。$"),
           lambda m: t("ウイルスは検出されませんでした。")),
     _rule(raw(r"^ウイルス検出: (\d+) 件。report.txt を確認してください。$"),
-          lambda m: t("ウイルス検出: {count} 件。report.txt を確認してください。", count=m[1])),
+          lambda m: t("ウイルスが見つかりました: {count} 件。report.txt を確認してください。", count=m[1])),
     _rule(raw(r"^個人情報\(PII\)をスキャンしています…$"),
-          lambda m: t("個人情報(PII)をスキャンしています…")),
+          lambda m: t("個人情報が含まれていないか調べています…")),
     _rule(raw(r"^PII 候補は見つかりませんでした。"
               r"(?: ただし (\d+) ファイルは中身を読めず、走査できていません。)?$"),
           lambda m: t("PII 候補は見つかりませんでした。") + (
-              t(" ただし {count} ファイルは中身を読めず、走査できていません。", count=m[1])
+              t(" ただし {count} ファイルは中身を読めず、調べられていません。", count=m[1])
               if m[1] else "")),
     _rule(raw(r"^PII 候補: (\d+) 件（(\d+) ファイル）。pii-report.csv を確認してください。"
               r"(?: ただし (\d+) ファイルは中身を読めず、走査できていません。)?$"),
           lambda m: t("PII 候補: {count} 件（{files} ファイル）。pii-report.csv を確認してください。",
                       count=m[1], files=m[2]) + (
-              t(" ただし {count} ファイルは中身を読めず、走査できていません。", count=m[3])
+              t(" ただし {count} ファイルは中身を読めず、調べられていません。", count=m[3])
               if m[3] else "")),
     _rule(raw(r"^スプレッドシートを生成しています…$"),
-          lambda m: t("スプレッドシートを生成しています…")),
+          lambda m: t("表（スプレッドシート）を作っています…")),
     _rule(raw(r"^入力の metadata/metadata.csv を継承します$"),
-          lambda m: t("入力の metadata/metadata.csv を継承します")),
+          lambda m: t("入力の metadata/metadata.csv を引き継ぎます")),
     _rule(raw(r"^前回の accession.csv を読めませんでした: (.*)。対応表をスキップします。$"),
           lambda m: t("前回の accession.csv を読めませんでした: {name}。対応表をスキップします。",
                       name=m[1])),
     _rule(raw(r"^配列前後を突合: (\d+)/(\d+) 行が一致（arrangement-map.csv）$"),
-          lambda m: t("配列前後を突合: {matched}/{total} 行が一致（arrangement-map.csv）",
+          lambda m: t("並べ替えの前後を照らし合わせました: {matched}/{total} 行が一致（arrangement-map.csv）",
                       matched=m[1], total=m[2])),
-    _rule(raw(r"^BagIt bag を組み立てています…$"), lambda m: t("BagIt bag を組み立てています…")),
+    _rule(raw(r"^BagIt bag を組み立てています…$"), lambda m: t("BagIt 形式でまとめています…")),
     _rule(raw(r"^SIP を組み立てています…$"), lambda m: t("SIP を組み立てています…")),
-    _rule(raw(r"^ZIP（無圧縮）に固めています…$"), lambda m: t("ZIP（無圧縮）に固めています…")),
+    _rule(raw(r"^ZIP（無圧縮）に固めています…$"), lambda m: t("1 つの ZIP（圧縮なし）にまとめています…")),
     _rule(raw(r"^ZIP を作成しました: (.*)$"),
           lambda m: t("ZIP を作成しました: {name}", name=m[1])),
     _rule(raw(r"^完了しました。$"), lambda m: t("完了しました。")),
     # AIP
     _rule(raw(r"^入力を読み取っています（BagIt bag）…$"),
-          lambda m: t("入力を読み取っています（BagIt bag）…")),
+          lambda m: t("入力を読み取っています（BagIt 形式）…")),
     _rule(raw(r"^入力を読み取っています（SIP ディレクトリ）…$"),
-          lambda m: t("入力を読み取っています（SIP ディレクトリ）…")),
+          lambda m: t("入力を読み取っています（SIP フォルダ）…")),
     _rule(raw(r"^原本 (\d+) 件（ハッシュ継承 (\d+) 件 / 再計算 (\d+) 件）$"),
-          lambda m: t("原本 {count} 件（ハッシュ継承 {inherited} 件 / 再計算 {recomputed} 件）",
+          lambda m: t("原本 {count} 件（チェックサムを引き継ぎ {inherited} 件 / 計算し直し {recomputed} 件）",
                       count=m[1], inherited=m[2], recomputed=m[3])),
     _rule(raw(r"^完全性を確認しています（マニフェスト照合）…$"),
-          lambda m: t("完全性を確認しています（マニフェスト照合）…")),
+          lambda m: t("ファイルが欠けたり変わったりしていないか確かめています（ファイル一覧と照合）…")),
     _rule(raw(r"^完全性確認: (\d+) 件すべて一致$"),
-          lambda m: t("完全性確認: {count} 件すべて一致", count=m[1])),
+          lambda m: t("欠け・変化の確認: {count} 件すべて一致", count=m[1])),
     _rule(raw(r"^完全性確認: (\d+) 件の不一致。要確認$"),
-          lambda m: t("完全性確認: {count} 件の不一致。要確認", count=m[1])),
+          lambda m: t("欠け・変化の確認: {count} 件が一致しません。確かめてください", count=m[1])),
     _rule(raw(r"^完全性確認をスキップ: (.*)$"),
-          lambda m: t("完全性確認をスキップ: {reason}", reason=m[1])),
+          lambda m: t("欠け・変化の確認をスキップ: {reason}", reason=m[1])),
     _rule(raw(r"^フォーマット変換は行いません（オプション OFF）$"),
-          lambda m: t("フォーマット変換は行いません（オプション OFF）")),
+          lambda m: t("保存用の形式への変換はしません（オプションがオフ）")),
     _rule(raw(r"^正規化の対象はありません（既に保存に適した形式、または未知の形式）$"),
-          lambda m: t("正規化の対象はありません（既に保存に適した形式、または未知の形式）")),
+          lambda m: t("変換するファイルはありません"
+                      "（もともと保存に向いた形式か、判定できなかった形式です）")),
     _rule(raw(r"^フォーマット変換: (\d+) 件$"),
-          lambda m: t("フォーマット変換: {count} 件", count=m[1])),
+          lambda m: t("保存用の形式に変換: {count} 件", count=m[1])),
     _rule(raw(r"^形式の適合性検査（JHOVE）: (\d+) 件$"),
-          lambda m: t("形式の適合性検査（JHOVE）: {count} 件", count=m[1])),
+          lambda m: t("形式が仕様どおりかの検査（JHOVE）: {count} 件", count=m[1])),
     _rule(raw(r"^原本の形式の適合性検査（JHOVE）: (\d+) 件$"),
-          lambda m: t("原本の形式の適合性検査（JHOVE）: {count} 件", count=m[1])),
-    _rule(raw(r"^METS を生成しています…$"), lambda m: t("METS を生成しています…")),
+          lambda m: t("原本の形式が仕様どおりかの検査（JHOVE）: {count} 件", count=m[1])),
+    _rule(raw(r"^METS を生成しています…$"), lambda m: t("METS（パッケージの目録）を作っています…")),
     _rule(raw(r"^AIP（BagIt bag）を組み立てています…$"),
-          lambda m: t("AIP（BagIt bag）を組み立てています…")),
+          lambda m: t("AIP を BagIt 形式でまとめています…")),
 ]
 
 #: 「目視確認が必要な点」の 1 行は「種類: 対象」の形。種類だけを訳し、
 #: 対象（ファイル名）はそのまま出す。core/sip_builder.py の collect_warnings ほか。
 _WARNING_KINDS: dict[str, Callable[[], str]] = {
-    raw("ウイルス検出"): lambda: t("ウイルス検出"),
+    raw("ウイルス検出"): lambda: t("ウイルスが見つかった"),
     raw("PII候補"): lambda: t("個人情報の候補"),
     raw("未識別"): lambda: t("形式を特定できない"),
     raw("未識別フォーマット"): lambda: t("形式を特定できない"),
@@ -142,14 +143,14 @@ _WARNING_KINDS: dict[str, Callable[[], str]] = {
     raw("パスが長すぎます（Windows で開けない可能性）"):
         lambda: t("パスが長すぎます（Windows で開けない可能性）"),
     raw("ファイル名が NFC 正規化されていません（Windows/Linux で別名と判定される可能性）"):
-        lambda: t("ファイル名が NFC 正規化されていません（Windows/Linux で別名と判定される可能性）"),
+        lambda: t("ファイル名の濁点などが分かれた形のままです（Windows/Linux で別の名前と扱われる可能性）"),
     raw("変換ツールが無いため原本のまま保存"): lambda: t("変換ツールが無いため原本のまま保存"),
     raw("変換に失敗（原本のまま保存）"): lambda: t("変換に失敗（原本のまま保存）"),
     raw("変換結果を読み戻せないため原本のまま保存"):
-        lambda: t("変換結果を読み戻せないため原本のまま保存"),
+        lambda: t("変換したファイルを開き直せないため原本のまま保存"),
     raw("変換結果が形式の仕様に適合しないため原本のまま保存"):
         lambda: t("変換結果が形式の仕様に適合しないため原本のまま保存"),
-    raw("完全性確認をスキップ"): lambda: t("完全性確認をスキップ"),
+    raw("完全性確認をスキップ"): lambda: t("欠け・変化の確認をスキップ"),
     raw("変換規則表"): lambda: t("変換規則表"),
     raw("形式の仕様に適合しない原本"): lambda: t("形式の仕様に適合しない原本"),
 }
@@ -160,7 +161,7 @@ _MORE = re.compile(raw(r"^（他 (\d+) 件）$"))
 #: よいか分からない（「未識別 54 件」と出ても手が止まる）。
 _WARNING_ADVICE: dict[str, Callable[[], str]] = {
     raw("ウイルス検出"): lambda: t(
-        "ウイルス検出: 該当ファイルを開かず、担当の部署に相談してください。"),
+        "ウイルスが見つかった: 該当ファイルを開かず、担当の部署に相談してください。"),
     raw("PII候補"): lambda: t(
         "個人情報の候補: 公開の可否を判断するため、pii-report.csv で箇所を確かめてください。"),
     raw("未識別"): lambda: _unidentified_advice(),
@@ -211,12 +212,12 @@ def warning_line(line: str) -> str:
     """「目視確認が必要な点」の 1 行を今の言語に。"""
     m = _JHOVE_UNAVAILABLE.match(line)
     if m:
-        return t("形式の適合性検査（JHOVE）を実施できませんでした: {reason}。"
+        return t("形式が仕様どおりかの検査（JHOVE）をできませんでした: {reason}。"
                  "変換結果 {count} 件は開き直しの確認だけで保存しています",
                  reason=jhove_reason(m[1]), count=m[2])
     m = _JHOVE_UNAVAILABLE_ORIGINALS.match(line)
     if m:
-        return t("原本の形式の適合性検査（JHOVE）を実施できませんでした: {reason}。"
+        return t("原本の形式が仕様どおりかの検査（JHOVE）をできませんでした: {reason}。"
                  "原本 {count} 件は検査せずに保存しています",
                  reason=jhove_reason(m[1]), count=m[2])
     kind, rest = _split_warning(line)

@@ -208,10 +208,10 @@ class TestRunButtonBecomesPressable:
         _, found = self._screen()
         headings = [
             i for i, c in enumerate(found)
-            if isinstance(c, ft.Text) and c.value in ("オプション", "記述メタデータ")
+            if isinstance(c, ft.Text) and c.value in ("オプション", "資料の説明")
         ]
         labels = [found[i].value for i in headings]
-        assert labels == ["オプション", "記述メタデータ"], labels
+        assert labels == ["オプション", "資料の説明"], labels
 
     def test_says_what_is_missing(self, tmp_path):
         """押せない理由を画面に出すこと。灰色のボタンだけでは伝わらない。"""

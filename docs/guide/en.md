@@ -167,13 +167,13 @@ Nothing is selected at first. The defaults work as they are.
 | Option | What it does |
 | --- | --- |
 | Run a virus scan | Checks the files for viruses. **Needs a one-time download first** (see below) |
-| Scan for personally identifiable information (PII) | Looks for things that look like e-mail addresses or phone numbers and lists them. Nothing is removed |
-| Sanitize file names | Fixes characters that cannot be used and names that are too long. The original names are kept in the record |
-| Wrap the output as a BagIt bag | Uses a layout that libraries and archives commonly use for transfers |
-| Serialize the output as a ZIP | Turns the finished package into one ZIP file, handy for handing it over |
+| Check for personal information (PII) | Looks for things that look like e-mail addresses or phone numbers and lists them. Nothing is removed |
+| Replace characters that cannot be used in file names | Fixes characters that cannot be used and names that are too long. The original names are kept in the record |
+| Package in BagIt format | Uses a layout that libraries and archives commonly use for transfers |
+| Put the result in a single ZIP (no compression) | Turns the finished package into one ZIP file, handy for handing it over |
 
 > **Before using the virus scan**, press **"Download / update definitions"**
-> under "Virus definition database" once. It downloads the data used to
+> under "Virus definitions" once. It downloads the data used to
 > recognise viruses (several hundred MB). This section appears when the virus
 > scan is selected. If you run without the data, no scan is done and it is
 > recorded as "skipped" — never as "nothing found".
@@ -194,7 +194,7 @@ Under "What to create", choose "Create an AIP".
 
 For the input, choose the SIP folder we just created. Right after creating a SIP, pressing "Build an AIP from this SIP" under the result does the same.
 
-Choose a destination. The descriptive metadata comes from the SIP, so there is nothing to type again.
+Choose a destination. The description of the materials comes from the SIP, so there is nothing to type again.
 
 Press "Run". The application checks that no file has changed since it was received, and copies images into a format suited to long-term preservation.
 
@@ -250,7 +250,7 @@ something at the SIP stage, though, it is safer to do them separately.
   them. Use "Show in folder" and open them with your usual applications
 - **Not sure what to hand over** — inside the destination, the folder with the
   same name as the identifier is one package. Hand over that whole folder. To
-  make it a single file, create it again with "Serialize the output as a ZIP"
+  make it a single file, create it again with "Put the result in a single ZIP"
 {: .faq }
 
 For every part of the window, with screenshots, see [Using the window](../manual/en.md).

@@ -49,7 +49,7 @@ TEXTS: dict[str, str] = {
         "Create a SIP (from a source folder or ZIP)",
     "AIP 作成（SIP から長期保存パッケージ）":
         "Create an AIP (preservation package from a SIP)",
-    "素材から AIP まで一気通貫": "From source material through to an AIP",
+    "素材から AIP まで続けて作る": "From source material through to an AIP",
     "素材フォルダ（または ZIP）から受入パッケージを作ります。原本は変更しません。":
         "Builds a submission package from a folder (or ZIP) of source material. "
         "The originals are left unchanged.",
@@ -75,8 +75,8 @@ TEXTS: dict[str, str] = {
     "出力先フォルダを選ぶ": "Choose the destination folder",
     "前回の accession.csv を選ぶ": "Choose the previous accession.csv",
     "accession.csv を選ぶ": "Choose accession.csv",
-    "前回の受入記録（配列前後の突合）":
-        "Previous accession record (to match against the arrangement)",
+    "前回の受け入れ記録（並べ替えの前後を照らし合わせる）":
+        "Previous accession record (to compare before and after rearranging)",
     "素材フォルダ": "Source folder",
     "SIP フォルダ": "SIP folder",
     "タイトル": "Title",
@@ -85,8 +85,8 @@ TEXTS: dict[str, str] = {
     # ------------------------------------------------------------------
     # 記述メタデータ（ISAD(G) の項目名に合わせる）
     # ------------------------------------------------------------------
-    "記述メタデータ": "Descriptive metadata",
-    "識別子": "Identifier",
+    "資料の説明": "Description of the materials",
+    "ID（整理番号）": "Identifier",
     "例: 2026-移管-総務課": "e.g. 2026-transfer-general-affairs",
     "タイトル（必須）": "Title (required)",
     "タイトルだけ必須です。ほかは空でもかまいません。":
@@ -97,25 +97,26 @@ TEXTS: dict[str, str] = {
     "年代": "Dates",
     "例: 2024–2025": "e.g. 2024–2025",
     "担当者名": "Archivist",
-    "PREMIS に保存処理の実施者として記録されます":
-        "Recorded in PREMIS as the agent that performed the preservation actions",
+    "処理の記録（PREMIS）に、作業した人として残ります":
+        "Recorded in the processing log (PREMIS) as the person who did the work",
 
     # ------------------------------------------------------------------
     # オプション
     # ------------------------------------------------------------------
     "オプション": "Options",
     "既定のまま": "Defaults",
-    "BagIt bag として梱包する": "Wrap the output as a BagIt bag",
-    "個人情報(PII)を走査する": "Scan for personally identifiable information (PII)",
-    "ウイルス検査を行う（定義 DB が必要）":
-        "Run a virus scan (needs the definition database)",
-    "ファイル名を安全化する（元名は accession.csv に残ります）":
-        "Sanitize file names (the original names are kept in accession.csv)",
-    "成果物を ZIP（無圧縮）に固める": "Serialize the output as a ZIP (stored, uncompressed)",
-    "保存用フォーマットへ変換する（AIP）": "Normalize to preservation formats (AIP)",
-    "SIP を BagIt の形にします。bagit.txt と manifest-sha256.txt が付き、"
+    "BagIt 形式でまとめる": "Package in BagIt format",
+    "個人情報が含まれていないか調べる": "Check for personal information (PII)",
+    "ウイルス検査をする（先にウイルス定義ファイルの取得が必要）":
+        "Run a virus scan (download the virus definitions first)",
+    "ファイル名の使えない記号を置き換える（元の名前は accession.csv に残ります）":
+        "Replace characters that cannot be used in file names (the original names are kept in accession.csv)",
+    "できたものを 1 つの ZIP にまとめる（圧縮なし）": "Put the result in a single ZIP (no compression)",
+    "保存に向いた形式の写しも作る（AIP）": "Also make copies in preservation formats (AIP)",
+    "SIP を BagIt（受け渡しに広く使われる形式）にします。bagit.txt と manifest-sha256.txt が付き、"
     "受け取った側で中身が欠けていないか確かめられます。":
-        "Packages the SIP as a BagIt bag. It gets bagit.txt and manifest-sha256.txt, "
+        "Packages the SIP in BagIt, a widely used format for handing over files. "
+        "It gets bagit.txt and manifest-sha256.txt, "
         "so the receiver can check that nothing is missing or altered.",
     "メールアドレス・電話番号・マイナンバー・カード番号・郵便番号の候補を探し、"
     "pii-report.csv に出します。値は伏せ字で書きます。ファイルは変えません。":
@@ -123,9 +124,9 @@ TEXTS: dict[str, str] = {
         "and postal codes, and lists them in pii-report.csv. Values are masked. "
         "The files themselves are not changed.",
     "同梱の ClamAV で全ファイルを検査します。"
-    "先に下の「ウイルス定義データベース」で定義を取得してください。":
+    "先に下の「ウイルス定義ファイル」で定義を取得してください。":
         "Scans every file with the bundled ClamAV. "
-        "Download the definitions first under \"Virus definition database\" below.",
+        "Download the definitions first under \"Virus definitions\" below.",
     "Windows などで使えない記号（\\ : * ? \" < > | & ; [ ]）を _ に置き換えます。"
     "末尾のピリオド・空白を取り、CON などの予約名には先頭に _ を付けます。"
     "同じ名前になったら _2 を付けます。Mac で作った名前の濁点の分かれ"
@@ -154,9 +155,9 @@ TEXTS: dict[str, str] = {
         "PostScript / EPS converted to PDF. The original files are kept as well.",
 
     # ------------------------------------------------------------------
-    # ウイルス定義データベース
+    # ウイルス定義ファイル
     # ------------------------------------------------------------------
-    "ウイルス定義データベース": "Virus definition database",
+    "ウイルス定義ファイル": "Virus definitions",
     "定義を取得 / 更新": "Download / update definitions",
     "ウイルス定義: ClamAV が同梱されていないため検査できません":
         "Virus definitions: ClamAV is not bundled, so no scan can be run",
@@ -170,13 +171,13 @@ TEXTS: dict[str, str] = {
     "――― AIP 作成 ―――": "――― Building the AIP ―――",
     "SIP を作成しました（{count} 件 / {size} バイト）":
         "Created the SIP ({count} files / {size} bytes)",
-    "AIP を作成しました（原本 {originals} 件 / 派生物 {derivatives} 件）":
-        "Created the AIP ({originals} originals / {derivatives} derivatives)",
+    "AIP を作成しました（原本 {originals} 件 / 保存用の写し {derivatives} 件）":
+        "Created the AIP ({originals} originals / {derivatives} preservation copies)",
     "中身を見る": "Look inside",
-    "記述スプレッドシート": "Description spreadsheet",
+    "資料の説明の表": "Description spreadsheet",
     "レポート": "Report",
     "PII レポート": "PII report",
-    "配列前後の対応表": "Arrangement map",
+    "並べ替え前後の対応表": "Arrangement map",
     "目視確認が必要な点: {count} 件": "Points to check by eye: {count}",
     "・{warning}": "• {warning}",
     "目視確認が必要な点はありません。": "There is nothing that needs checking by eye.",
@@ -220,8 +221,8 @@ TEXTS: dict[str, str] = {
     "その他 {count} 種": "{count} other formats",
     "保存用に変換": "Normalized",
     "ウイルス検査済": "Virus-scanned",
-    "未識別": "Unidentified",
-    "拡張子が不一致": "Extension mismatch",
+    "形式不明": "Unidentified",
+    "拡張子と中身が違う": "Extension mismatch",
 
     # 処理の記録タブ（PREMIS）
     "処理の記録がありません": "No preservation events were recorded",
@@ -243,34 +244,40 @@ TEXTS: dict[str, str] = {
     "ワークフロー": "Workflow",
     "ファイル名の変更": "Filename change",
     "取り込み": "Ingestion",
-    "フォーマットの識別": "Format identification",
+    "ファイル形式の判定": "Format identification",
     "保存用形式への変換": "Normalization",
-    "変換結果の検証": "Validation",
-    "チェックサムの算出": "Checksum calculation",
-    "完全性の確認": "Fixity check",
+    "変換結果の確認": "Validation",
+    "チェックサムの計算": "Checksum calculation",
+    "欠け・変化の確認": "Fixity check",
     "SIP の原本を AIP に取り込んだ記録です。":
         "Records that the originals in the SIP were taken into the AIP.",
     "ClamAV で検査した記録です。検査しなかったときは記録を書きません。":
         "Records of scanning with ClamAV. Nothing is recorded when no scan was run.",
-    "Siegfried で PRONOM の形式を特定した記録です。":
-        "Records of identifying the PRONOM format with Siegfried.",
+    "Siegfried で、ファイルの形式を PRONOM（ファイル形式の国際的な登録簿）の"
+    "番号で特定した記録です。":
+        "Records of identifying each file's format with Siegfried, as a PRONOM "
+        "number (PRONOM is the international registry of file formats).",
     "長期保存に向く形式へ変換した記録です。対象の形式だけが変換されます。":
         "Records of converting files to formats suited to long-term preservation. "
         "Only formats with a conversion rule are converted.",
-    "変換で作ったファイルを開き直せたか、JHOVE で形式の仕様に"
-    "適合しているかの確認です。原本は検査していません。":
+    "変換で作ったファイルを開き直せたか、JHOVE で形式の仕様どおりに"
+    "なっているかの確認です。原本は検査していません。":
         "Checks that each converted file could be opened again and conforms to its "
         "format specification (JHOVE). The originals are not validated.",
     "SIP を作るとき、ファイル名を安全な名前に変えた記録です。"
     "元の名前は詳細と accession.csv に残っています。":
         "Records of renaming files to safe names when the SIP was made. The "
         "original names are in the details and in accession.csv.",
-    "SIP を作るときに SHA-256 を算出した記録です。"
+    "SIP を作るときに SHA-256（中身から計算する値。1 バイトでも変わると値が変わります）を"
+    "計算した記録です。"
     "古い版で作った SIP では記録が無く、値だけが各ファイルに入っています。":
-        "Records of calculating SHA-256 when the SIP was made. SIPs made with an "
+        "Records of calculating SHA-256 (a value computed from the contents that changes "
+        "if even one byte changes) when the SIP was made. SIPs made with an "
         "older version have no such record; only the value is stored for each file.",
-    "SIP の BagIt マニフェストとチェックサムを照合した記録です。":
-        "Records of comparing checksums against the SIP's BagIt manifest.",
+    "SIP のファイル一覧（BagIt のマニフェスト）にあるチェックサムと照らし合わせ、"
+    "ファイルが欠けたり変わったりしていないかを確かめた記録です。":
+        "Records of comparing checksums against the SIP's BagIt manifest (its file list), "
+        "to confirm that no file is missing or changed.",
     "SHA-256 が記録されたファイル: {count} 件": "Files with a SHA-256 recorded: {count}",
     "この段階の記録はありません。行わなかったか、記録されていません。":
         "There are no records for this stage. It was either not performed or not "
@@ -341,16 +348,19 @@ TEXTS: dict[str, str] = {
     "素材のフォルダ（または ZIP）と、成果物を置くフォルダを指定します。原本は読み取るだけで、変更しません。":
         "Give the folder (or ZIP) holding the source material, and the folder the "
         "results should go in. The originals are only read, never modified.",
-    "3. 記述メタデータを入れる": "3. Enter the descriptive metadata",
+    "3. 資料の説明を入れる": "3. Describe the materials",
     "タイトルなどを入力します。ここで入れた内容が、受入記録としてパッケージに残ります。":
         "Enter the title and the other fields. What you enter here stays in the "
         "package as the accession record.",
     "4. 実行する": "4. Run it",
-    "フォーマットの識別、チェックサムの算出、必要なら検査を行い、情報パッケージを作ります。":
-        "Formats are identified, checksums are calculated, scans are run if you "
+    "ファイル形式の判定と、チェックサム（中身が変わっていないかを後で確かめるための値）の"
+    "計算をし、必要なら検査もして、情報パッケージを作ります。":
+        "File formats are identified, checksums (values used later to confirm the contents "
+        "have not changed) are calculated, scans are run if you "
         "asked for them, and the information package is built.",
     "5. 中身を確かめる": "5. Check what was made",
-    "できあがったら「中身を見る」で、生成された構造とファイルの内容をそのまま読めます。":
+    "できあがったら「中身を見る」で、できたパッケージの構成とファイルの内容を"
+    "そのまま読めます。":
         "Once it is finished, \"Look inside\" shows the structure that was built "
         "and lets you read the files themselves.",
     "デジタル資料から、国際標準 OAIS の情報パッケージを作成します。":
@@ -378,93 +388,97 @@ TEXTS: dict[str, str] = {
     # core から来る文（進捗・目視確認・ファイル一覧の値）。ui/messages.py
     # 画面に出すときだけ訳す。パッケージに書かれる文は日本語のまま。
     # ------------------------------------------------------------------
-    "入力フォルダを走査しています…": "Scanning the input folder…",
-    "Archivematica transfer 構造を検出しました（objects/ をそのまま尊重）":
+    "入力フォルダの中を調べています…": "Looking through the input folder…",
+    "Archivematica の transfer の形だと分かりました（objects/ の中はそのまま使います）":
         "Found an Archivematica transfer layout (objects/ is kept as it is)",
     "入力 ZIP を展開しています…": "Extracting the input ZIP…",
     "対象ファイル: {count} 件": "Files to process: {count}",
-    "ファイル名を安全化: {count} 件の名前を変更しました（元の名前は accession.csv に残ります）":
-        "Sanitized file names: {count} renamed (the original names are kept in accession.csv)",
-    "siegfried が同梱されていないため、フォーマット識別をスキップします。":
+    "ファイル名の記号を置き換え: {count} 件の名前を変更しました（元の名前は accession.csv に残ります）":
+        "Replaced unusable characters in file names: {count} renamed "
+        "(the original names are kept in accession.csv)",
+    "siegfried が同梱されていないため、ファイル形式の判定をスキップします。":
         "Siegfried is not bundled, so format identification is skipped.",
-    "フォーマットを識別しています（siegfried）…": "Identifying formats (Siegfried)…",
-    "フォーマット識別に失敗したためスキップします: {detail}":
+    "ファイルの形式を調べています（siegfried）…": "Identifying file formats (Siegfried)…",
+    "ファイル形式の判定に失敗したためスキップします: {detail}":
         "Format identification failed and was skipped: {detail}",
-    "画像の技術的特性を読み取っています…（{count} 件）":
-        "Reading the technical characteristics of images… ({count})",
+    "画像の大きさや色の情報を読み取っています…（{count} 件）":
+        "Reading image size and color information… ({count})",
     "チェックサム(SHA-256)を計算しています…": "Calculating checksums (SHA-256)…",
     "ClamAV が同梱されていないため、ウイルスチェックをスキップします。":
         "ClamAV is not bundled, so the virus scan is skipped.",
-    "ウイルス定義 DB が未取得のため、ウイルスチェックをスキップします。":
+    "ウイルス定義ファイルを取得していないため、ウイルスチェックをスキップします。":
         "The virus definitions have not been downloaded, so the virus scan is skipped.",
     "ウイルスチェック中（ClamAV）…": "Scanning for viruses (ClamAV)…",
     "ウイルスチェックに失敗しましたが、SIP 作成は続行します: {detail}":
         "The virus scan failed; building the SIP continues: {detail}",
     "ウイルスは検出されませんでした。": "No viruses were found.",
-    "ウイルス検出: {count} 件。report.txt を確認してください。":
+    "ウイルスが見つかりました: {count} 件。report.txt を確認してください。":
         "Viruses found: {count}. Check report.txt.",
-    "個人情報(PII)をスキャンしています…": "Scanning for personal information (PII)…",
+    "個人情報が含まれていないか調べています…": "Scanning for personal information (PII)…",
     "PII 候補は見つかりませんでした。": "No possible personal information was found.",
     "PII 候補: {count} 件（{files} ファイル）。pii-report.csv を確認してください。":
         "Possible personal information: {count} ({files} files). Check pii-report.csv.",
-    " ただし {count} ファイルは中身を読めず、走査できていません。":
+    " ただし {count} ファイルは中身を読めず、調べられていません。":
         " However, {count} files could not be read and were not scanned.",
-    "スプレッドシートを生成しています…": "Writing the spreadsheets…",
-    "入力の metadata/metadata.csv を継承します":
+    "表（スプレッドシート）を作っています…": "Writing the spreadsheets…",
+    "入力の metadata/metadata.csv を引き継ぎます":
         "Carrying over metadata/metadata.csv from the input",
     "前回の accession.csv を読めませんでした: {name}。対応表をスキップします。":
         "Could not read the previous accession.csv: {name}. The arrangement map is skipped.",
-    "配列前後を突合: {matched}/{total} 行が一致（arrangement-map.csv）":
+    "並べ替えの前後を照らし合わせました: {matched}/{total} 行が一致（arrangement-map.csv）":
         "Matched against the previous arrangement: {matched}/{total} rows "
         "(arrangement-map.csv)",
-    "BagIt bag を組み立てています…": "Assembling the BagIt bag…",
+    "BagIt 形式でまとめています…": "Packaging in BagIt format…",
     "SIP を組み立てています…": "Assembling the SIP…",
-    "ZIP（無圧縮）に固めています…": "Packing into a ZIP (uncompressed)…",
+    "1 つの ZIP（圧縮なし）にまとめています…": "Putting everything into one ZIP (no compression)…",
     "ZIP を作成しました: {name}": "Created the ZIP: {name}",
     "完了しました。": "Done.",
-    "入力を読み取っています（BagIt bag）…": "Reading the input (BagIt bag)…",
-    "入力を読み取っています（SIP ディレクトリ）…": "Reading the input (SIP folder)…",
-    "原本 {count} 件（ハッシュ継承 {inherited} 件 / 再計算 {recomputed} 件）":
+    "入力を読み取っています（BagIt 形式）…": "Reading the input (BagIt format)…",
+    "入力を読み取っています（SIP フォルダ）…": "Reading the input (SIP folder)…",
+    "原本 {count} 件（チェックサムを引き継ぎ {inherited} 件 / 計算し直し {recomputed} 件）":
         "{count} originals ({inherited} checksums carried over / {recomputed} recalculated)",
-    "完全性を確認しています（マニフェスト照合）…":
-        "Checking fixity (against the manifest)…",
-    "完全性確認: {count} 件すべて一致": "Fixity check: all {count} match",
-    "完全性確認: {count} 件の不一致。要確認": "Fixity check: {count} do not match. Needs checking",
-    "完全性確認をスキップ: {reason}": "Fixity check skipped: {reason}",
-    "フォーマット変換は行いません（オプション OFF）":
+    "ファイルが欠けたり変わったりしていないか確かめています（ファイル一覧と照合）…":
+        "Checking that no file is missing or changed (against the file list)…",
+    "欠け・変化の確認: {count} 件すべて一致": "Fixity check: all {count} match",
+    "欠け・変化の確認: {count} 件が一致しません。確かめてください":
+        "Fixity check: {count} do not match. Please check them",
+    "欠け・変化の確認をスキップ: {reason}": "Fixity check skipped: {reason}",
+    "保存用の形式への変換はしません（オプションがオフ）":
         "No format conversion (the option is off)",
-    "正規化の対象はありません（既に保存に適した形式、または未知の形式）":
-        "Nothing to normalize (already in a preservation format, or an unknown format)",
-    "フォーマット変換: {count} 件": "Format conversions: {count}",
-    "形式の適合性検査（JHOVE）: {count} 件": "Format validation (JHOVE): {count} files",
-    "原本の形式の適合性検査（JHOVE）: {count} 件":
+    "変換するファイルはありません（もともと保存に向いた形式か、判定できなかった形式です）":
+        "Nothing to convert (already in a preservation format, or a format that could not be identified)",
+    "保存用の形式に変換: {count} 件": "Converted to preservation formats: {count}",
+    "形式が仕様どおりかの検査（JHOVE）: {count} 件": "Format validation (JHOVE): {count} files",
+    "原本の形式が仕様どおりかの検査（JHOVE）: {count} 件":
         "Format validation of originals (JHOVE): {count} files",
-    "METS を生成しています…": "Writing the METS…",
-    "AIP（BagIt bag）を組み立てています…": "Assembling the AIP (BagIt bag)…",
+    "METS（パッケージの目録）を作っています…":
+        "Writing the METS (the package's table of contents)…",
+    "AIP を BagIt 形式でまとめています…": "Packaging the AIP in BagIt format…",
 
     # 目視確認が必要な点（種類: 対象）
-    "ウイルス検出": "Virus found",
+    "ウイルスが見つかった": "Virus found",
     "個人情報の候補": "Possible personal information",
     "形式を特定できない": "Format not identified",
     "拡張子と中身が食い違う": "Extension does not match the content",
     "画像を読めません": "Image cannot be read",
     "パスが長すぎます（Windows で開けない可能性）":
         "Path too long (may not open on Windows)",
-    "ファイル名が NFC 正規化されていません（Windows/Linux で別名と判定される可能性）":
-        "File name is not NFC-normalized (Windows/Linux may treat it as a different name)",
+    "ファイル名の濁点などが分かれた形のままです（Windows/Linux で別の名前と扱われる可能性）":
+        "File name has characters in decomposed form, not NFC "
+        "(Windows/Linux may treat it as a different name)",
     "変換ツールが無いため原本のまま保存":
         "Kept as the original because the conversion tool is missing",
     "変換に失敗（原本のまま保存）": "Conversion failed (kept as the original)",
-    "変換結果を読み戻せないため原本のまま保存":
-        "Kept as the original because the converted file could not be read back",
-    "完全性確認をスキップ": "Fixity check skipped",
+    "変換したファイルを開き直せないため原本のまま保存":
+        "Kept as the original because the converted file could not be reopened",
+    "欠け・変化の確認をスキップ": "Fixity check skipped",
     "変換結果が形式の仕様に適合しないため原本のまま保存":
         "Kept the original because the converted file does not conform to its format",
-    "形式の適合性検査（JHOVE）を実施できませんでした: {reason}。"
+    "形式が仕様どおりかの検査（JHOVE）をできませんでした: {reason}。"
     "変換結果 {count} 件は開き直しの確認だけで保存しています":
         "Format validation (JHOVE) could not be run: {reason}. {count} converted "
         "files were kept after the reopen check only",
-    "原本の形式の適合性検査（JHOVE）を実施できませんでした: {reason}。"
+    "原本の形式が仕様どおりかの検査（JHOVE）をできませんでした: {reason}。"
     "原本 {count} 件は検査せずに保存しています":
         "Format validation of originals (JHOVE) could not be run: {reason}. "
         "{count} originals were kept without being validated",
@@ -476,7 +490,7 @@ TEXTS: dict[str, str] = {
         "depositor for the original file.",
     "変換規則表": "Conversion rules",
     # 種類ごとの、次にすること
-    "ウイルス検出: 該当ファイルを開かず、担当の部署に相談してください。":
+    "ウイルスが見つかった: 該当ファイルを開かず、担当の部署に相談してください。":
         "Virus found: do not open the file; consult the staff responsible.",
     "個人情報の候補: 公開の可否を判断するため、pii-report.csv で箇所を確かめてください。":
         "Possible personal information: check the passages in pii-report.csv before "
@@ -563,7 +577,7 @@ TEXTS: dict[str, str] = {
         "The folder you chose is not a SIP. The SIP is \"{name}\" inside it; choose "
         "that one.",
     "選んだフォルダは SIP ではありません。素材のフォルダから作るときは、"
-    "「何を作るか」で「SIP 作成」か「素材から AIP まで一気通貫」を選んでください。":
+    "「何を作るか」で「SIP 作成」か「素材から AIP まで続けて作る」を選んでください。":
         "The folder you chose is not a SIP. To start from a folder of records, choose "
         "\"Create a SIP\" or \"From source material through to an AIP\" under "
         "\"What to create\".",
@@ -581,8 +595,8 @@ TEXTS: dict[str, str] = {
         "(1) \"Input\" on the left now holds the SIP you just made.",
     "(2) 左の「出力先」を確かめてください。":
         "(2) Check \"Destination\" on the left.",
-    "(3) 必要なら「オプション」で、保存用フォーマットへの変換を選びます。":
-        "(3) If needed, choose conversion to preservation formats under \"Options\".",
+    "(3) 必要なら「オプション」で、保存に向いた形式の写しを作るかを選びます。":
+        "(3) If needed, choose under \"Options\" whether to also make preservation-format copies.",
     "(4) 左下の「実行」を押すと、AIP を作り始めます。":
         "(4) Press \"Run\" at the bottom left to start building the AIP.",
     "進み具合は、ここに表示されます。": "Progress will appear here.",
