@@ -7,7 +7,11 @@
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
+
+import pytest
+from PIL import Image
 
 from archival_packager.core import preview
 
@@ -115,3 +119,105 @@ class TestWalk:
         (tmp_path / "ok.txt").write_text("x", encoding="utf-8")
         entries = preview.walk(tmp_path)
         assert any(e.name == "ok.txt" for e in entries)
+
+
+class TestReadTable:
+    """「パッケージの中身」で CSV を表として見せるための読み取り。"""
+
+    def test_rows_and_columns(self, tmp_path: Path):
+        p = tmp_path / "a.csv"
+        p.write_text('名前,説明\nA,"カンマ, を含む"\n', encoding="utf-8")
+        out = preview.read_table(p)
+        assert out is not None
+        assert out.rows == [["名前", "説明"], ["A", "カンマ, を含む"]]
+        assert not out.truncated
+
+    def test_excel_bom_is_not_part_of_the_header(self, tmp_path: Path):
+        """Excel で保存した CSV は BOM が付く。見出しの 1 列目に混ざると照合を誤る。"""
+        p = tmp_path / "a.csv"
+        p.write_bytes("﻿識別子,題名\n1,x\n".encode())
+        out = preview.read_table(p)
+        assert out is not None and out.rows[0][0] == "識別子"
+
+    def test_shift_jis_csv(self, tmp_path: Path):
+        """日本の現場では Shift_JIS の CSV が普通にある。"""
+        p = tmp_path / "a.csv"
+        p.write_bytes("年代,件名\n昭和,移管\n".encode("cp932"))
+        out = preview.read_table(p)
+        assert out is not None and out.rows[1] == ["昭和", "移管"]
+
+    def test_ragged_rows_are_padded(self, tmp_path: Path):
+        """列の数が行ごとに違っても表が崩れないよう、短い行を埋める。"""
+        p = tmp_path / "a.csv"
+        p.write_text("a,b,c\n1\n\n2,3\n", encoding="utf-8")
+        out = preview.read_table(p)
+        assert out is not None
+        assert out.rows == [["a", "b", "c"], ["1", "", ""], ["2", "3", ""]]
+
+    def test_tsv(self, tmp_path: Path):
+        p = tmp_path / "a.tsv"
+        p.write_text("a\tb\n1\t2\n", encoding="utf-8")
+        out = preview.read_table(p)
+        assert out is not None and out.rows[1] == ["1", "2"]
+
+    def test_partial_last_row_is_dropped(self, tmp_path: Path):
+        """先頭だけ読んだとき、最後の行は途中で切れている。切れた値を見せない。"""
+        p = tmp_path / "big.csv"
+        line = "x" * 99 + "\n"
+        p.write_text("h\n" + line * (preview.MAX_BYTES // 100 + 10), encoding="utf-8")
+        out = preview.read_table(p)
+        assert out is not None and out.truncated
+        assert all(r == ["x" * 99] for r in out.rows[1:])
+
+    def test_row_limit(self, tmp_path: Path):
+        """行が多いと画面が固まる。上限で切り、切ったことを伝える。"""
+        p = tmp_path / "many.csv"
+        p.write_text("h\n" + "1\n" * (preview.MAX_TABLE_ROWS + 5), encoding="utf-8")
+        out = preview.read_table(p)
+        assert out is not None
+        assert len(out.rows) == preview.MAX_TABLE_ROWS and out.truncated
+
+    def test_not_a_table(self, tmp_path: Path):
+        p = tmp_path / "a.txt"
+        p.write_text("a,b\n", encoding="utf-8")
+        assert preview.read_table(p) is None
+        b = tmp_path / "b.csv"
+        b.write_bytes(b"\x00\x01")
+        assert preview.read_table(b) is None
+
+
+class TestReadImage:
+    """画像を画面用の PNG に描き直す。TIFF は画面の部品が直接描けない。"""
+
+    def test_large_image_is_reduced_and_original_untouched(self, tmp_path: Path):
+        """原本（ここではパッケージ内のファイル）には書き込まない。"""
+        p = tmp_path / "big.tif"
+        Image.new("RGB", (4000, 1000), "red").save(p)
+        before = p.read_bytes()
+        out = preview.read_image(p)
+        assert (out.width, out.height) == (4000, 1000)
+        with Image.open(io.BytesIO(out.png)) as shown:
+            assert shown.format == "PNG"
+            assert max(shown.size) == preview.MAX_IMAGE_SIDE
+        assert p.read_bytes() == before
+
+    def test_16bit_grey_is_not_blown_out(self, tmp_path: Path):
+        """16 bit のグレーをそのまま 8 bit にすると上位が切れて真っ白になる。"""
+        p = tmp_path / "g16.tif"
+        Image.new("I;16", (10, 10), 0x4000).save(p)
+        out = preview.read_image(p)
+        with Image.open(io.BytesIO(out.png)) as shown:
+            assert shown.convert("L").getpixel((0, 0)) == 0x40
+
+    def test_multipage_tiff_reports_pages(self, tmp_path: Path):
+        p = tmp_path / "multi.tif"
+        pages = [Image.new("L", (8, 8), v) for v in (0, 128, 255)]
+        pages[0].save(p, save_all=True, append_images=pages[1:])
+        assert preview.read_image(p).frames == 3
+
+    def test_broken_image_raises(self, tmp_path: Path):
+        """読めない画像は例外で返す。画面は「表示できませんでした」と出す（黙らない）。"""
+        p = tmp_path / "broken.png"
+        p.write_bytes(b"\x89PNG\r\n\x1a\nnot really")
+        with pytest.raises(OSError):  # PIL.UnidentifiedImageError
+            preview.read_image(p)

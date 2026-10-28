@@ -304,7 +304,20 @@ TEXTS: dict[str, str] = {
     "左のファイルを選ぶと内容を表示します": "Select a file on the left to see its contents",
     "読み取れませんでした: {error}": "Could not be read: {error}",
     "テキストとして表示できない形式です": "This format cannot be shown as text",
-    "サイズ: {size}": "Size: {size}",
+    "フォルダで表示": "Show in folder",
+    "PDF や動画などは「フォルダで表示」から、ほかのアプリでご覧ください。":
+        "For PDFs, videos and the like, use \"Show in folder\" and open them in another app.",
+    "{rows} 行 × {cols} 列（1 行目を見出しとしています）":
+        "{rows} rows × {cols} columns (the first row is treated as the header)",
+    "テキストで見る": "View as text",
+    "※ 先頭の {rows} 行だけを表にしています。全体はファイルを直接お開きください。":
+        "* Only the first {rows} rows are shown. Open the file directly to see all of it.",
+    "画像として表示できませんでした: {error}": "Could not display this as an image: {error}",
+    "「フォルダで表示」から、ほかのアプリでご覧ください。":
+        "Use \"Show in folder\" and open it in another app.",
+    "{width} × {height} ピクセル・{mode}": "{width} × {height} pixels, {mode}",
+    "・{frames} ページ中の 1 ページ目": ", page 1 of {frames}",
+    "※ 縮小して表示しています。": "* Shown reduced in size.",
     "先頭バイト: {head}": "First bytes: {head}",
     "※ 先頭 {size} のみ表示しています。全体はファイルを直接お開きください。":
         "Note: only the first {size} is shown. Open the file itself to read all "

@@ -210,6 +210,11 @@ Everything in the package folder, record files included, shown as a tree.
 Choose a file on the left to see its contents on the right.
 Use it to look at the record files themselves (METS, CSV and so on).
 
+- CSV files are shown as a table. Press "View as text" to see the raw text
+- Images are shown reduced in size. TIFF works too; for a multi-page TIFF only the first page is shown
+- XML is shown with colour highlighting
+- PDFs, videos and the like cannot be opened here. Press "Show in folder" and open them in another app
+
 ---
 
 ## 4. Building a preservation package (AIP)
