@@ -125,13 +125,22 @@ TEXTS: dict[str, str] = {
         "Download the definitions first under \"Virus definition database\" below.",
     "Windows などで使えない記号（\\ : * ? \" < > | & ; [ ]）を _ に置き換えます。"
     "末尾のピリオド・空白を取り、CON などの予約名には先頭に _ を付けます。"
-    "同じ名前になったら _2 を付けます。日本語はそのまま残します。"
-    "accession.csv に元の名前と SIP 内の名前が並びます。":
+    "同じ名前になったら _2 を付けます。Mac で作った名前の濁点の分かれ"
+    "（「か」と「゛」の 2 文字）も 1 文字にそろえます。日本語はそのまま残します。"
+    "accession.csv に元の名前と SIP 内の名前が並びます。\n\n"
+    "ほかの機関や Windows の機械に渡すなら、オンをおすすめします。"
+    "オフのままだと、記号を含む名前のファイルが、渡した先で展開・コピーできない"
+    "ことがあります。名前そのものを資料として残したいときは、オフにしてください。":
         "Replaces characters that Windows and other systems cannot use "
         "(\\ : * ? \" < > | & ; [ ]) with _. Trailing dots and spaces are removed, "
         "and reserved names such as CON get a leading _. If two names collide, "
-        "_2 is added. Japanese text is kept as is. "
-        "accession.csv lists the original name next to the name in the SIP.",
+        "_2 is added. Accented characters that macOS stores in decomposed form "
+        "are composed (Unicode NFC). Japanese text is kept as is. "
+        "accession.csv lists the original name next to the name in the SIP.\n\n"
+        "Recommended if the package goes to another institution or to a Windows "
+        "machine. Left off, files whose names contain these characters may fail "
+        "to extract or copy there. Leave it off if the names themselves must be "
+        "kept as part of the record.",
     "できたパッケージを 1 つの ZIP にまとめます（受け渡し用）。"
     "圧縮しないので、中のファイルのバイト列は変わりません。":
         "Puts the finished package into a single ZIP for handing over. "
