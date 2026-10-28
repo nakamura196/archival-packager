@@ -121,6 +121,8 @@ _PROGRESS: list[_Rule] = [
           lambda m: t("正規化の対象はありません（既に保存に適した形式、または未知の形式）")),
     _rule(raw(r"^フォーマット変換: (\d+) 件$"),
           lambda m: t("フォーマット変換: {count} 件", count=m[1])),
+    _rule(raw(r"^形式の適合性検査（JHOVE）: (\d+) 件$"),
+          lambda m: t("形式の適合性検査（JHOVE）: {count} 件", count=m[1])),
     _rule(raw(r"^METS を生成しています…$"), lambda m: t("METS を生成しています…")),
     _rule(raw(r"^AIP（BagIt bag）を組み立てています…$"),
           lambda m: t("AIP（BagIt bag）を組み立てています…")),
@@ -143,6 +145,8 @@ _WARNING_KINDS: dict[str, Callable[[], str]] = {
     raw("変換に失敗（原本のまま保存）"): lambda: t("変換に失敗（原本のまま保存）"),
     raw("変換結果を読み戻せないため原本のまま保存"):
         lambda: t("変換結果を読み戻せないため原本のまま保存"),
+    raw("変換結果が形式の仕様に適合しないため原本のまま保存"):
+        lambda: t("変換結果が形式の仕様に適合しないため原本のまま保存"),
     raw("完全性確認をスキップ"): lambda: t("完全性確認をスキップ"),
     raw("変換規則表"): lambda: t("変換規則表"),
 }
@@ -186,8 +190,20 @@ def _split_warning(line: str) -> tuple[str, str]:
     return "", line
 
 
+#: JHOVE を動かせなかったときの 1 行（core/aip_pipeline.py の _check_conformance）。
+#: 「種類: 対象」の形ではないので、まるごと読む。
+_JHOVE_UNAVAILABLE = re.compile(raw(
+    r"^形式の適合性検査（JHOVE）を実施できませんでした: (.*)。"
+    r"変換結果 (\d+) 件は開き直しの確認だけで保存しています$"))
+
+
 def warning_line(line: str) -> str:
     """「目視確認が必要な点」の 1 行を今の言語に。"""
+    m = _JHOVE_UNAVAILABLE.match(line)
+    if m:
+        return t("形式の適合性検査（JHOVE）を実施できませんでした: {reason}。"
+                 "変換結果 {count} 件は開き直しの確認だけで保存しています",
+                 reason=jhove_reason(m[1]), count=m[2])
     kind, rest = _split_warning(line)
     more = _MORE.match(rest)
     if more:
@@ -311,7 +327,43 @@ _DETAILS: list[_Rule] = [
           lambda m: t("読み戻せる道具を持っていない形式のため未確認（{ext}）", ext=m[1])),
     _rule(raw(r"^生成した派生物を開き直せませんでした: (.*)$"),
           lambda m: t("生成した派生物を開き直せませんでした: {detail}", detail=m[1])),
+    # 派生物の形式の適合性（validation）。"JHOVE: TIFF 6.0 Well-Formed and valid" は英語のまま。
+    _rule(raw(r"^形式の適合性は未検査（JHOVE の検査部品が無い形式: (.*)）$"),
+          lambda m: t("形式の適合性は未検査（JHOVE の検査部品が無い形式: {ext}）", ext=m[1])),
+    _rule(raw(r"^形式の適合性は未検査（(.*)）$"),
+          lambda m: t("形式の適合性は未検査（{reason}）", reason=jhove_reason(m[1]))),
+    _rule(raw(r"^形式の適合性を判定できませんでした（(.*)）$"),
+          lambda m: t("形式の適合性を判定できませんでした（{detail}）", detail=m[1])),
 ]
+
+#: JHOVE を動かせなかった理由（core/jhove.py の JhoveUnavailable）。後ろに付く
+#: OS や Java のメッセージはそのまま出す。
+_JHOVE_REASONS: list[_Rule] = [
+    _rule(raw(r"^JHOVE が同梱されていません$"), lambda m: t("JHOVE が同梱されていません")),
+    _rule(raw(r"^JHOVE が結果を返しませんでした$"),
+          lambda m: t("JHOVE が結果を返しませんでした")),
+    _rule(raw(r"^同梱の Java を実行できません: (.*)$"),
+          lambda m: t("同梱の Java を実行できません: {detail}", detail=m[1])),
+    _rule(raw(r"^検査用の作業場所を作れません: (.*)$"),
+          lambda m: t("検査用の作業場所を作れません: {detail}", detail=m[1])),
+    _rule(raw(r"^検査用の写しを作れません: (.*)$"),
+          lambda m: t("検査用の写しを作れません: {detail}", detail=m[1])),
+    _rule(raw(r"^JHOVE を起動できません: (.*)$"),
+          lambda m: t("JHOVE を起動できません: {detail}", detail=m[1])),
+    _rule(raw(r"^JHOVE が異常終了しました (.*)$"),
+          lambda m: t("JHOVE が異常終了しました {detail}", detail=m[1])),
+    _rule(raw(r"^JHOVE の出力を読めません: (.*)$"),
+          lambda m: t("JHOVE の出力を読めません: {detail}", detail=m[1])),
+]
+
+
+def jhove_reason(text: str) -> str:
+    """JHOVE を動かせなかった理由を今の言語に。知らない形ならそのまま。"""
+    for pattern, render in _JHOVE_REASONS:
+        m = pattern.match(text)
+        if m:
+            return render(m)
+    return text
 
 #: 変換（normalization）の記録に混ざる日本語の句。rule="..." の並びは機械向けの
 #: 値なので訳さず、句だけを置き換える。core/image_normalize.py の to_tiff と
@@ -323,6 +375,8 @@ _NORMALIZATION_PHRASES: list[_Rule] = [
     _rule(raw(r"ICC プロファイルを保持"), lambda m: t("ICC プロファイルを保持")),
     _rule(raw(r"; 読み戻せなかったため破棄しました$"),
           lambda m: t("; 読み戻せなかったため破棄しました")),
+    _rule(raw(r"; 形式の仕様に適合しなかったため破棄しました$"),
+          lambda m: t("; 形式の仕様に適合しなかったため破棄しました")),
 ]
 
 
