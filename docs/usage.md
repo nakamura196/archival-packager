@@ -7,7 +7,7 @@ alternate: { title: English, url: usage-en.html, lang: en }
 ---
 
 このアプリの使い方を、**画面**と**コマンドライン**の両方について書いています。
-できないことは [README の「既知の限界」](../README.md#既知の限界)にまとめてあります。
+できないことは [既知の限界](limits.md)にまとめてあります。
 **使う前に一度そちらを読んでください。**
 
 ### コマンドラインは「ソースから動かす人」向けです
@@ -423,7 +423,7 @@ METS の中身は `inspect` か画面の「中身を見る」で読めます。
 
 使う前に読んでください。
 
-- [README「既知の限界」](../README.md#既知の限界) — 変換の範囲、検証機能が無いこと、ほか
+- [既知の限界](limits.md) — 変換の範囲、検証機能が無いこと、ほか
 - [docs/pii-accuracy.md](pii-accuracy.md) — 個人情報の検出は 5 種別だけ。実測した見落としと誤検出
 - [docs/interoperability.md](interoperability.md) — AtoM / Archivematica との突合は**仕様との比較まで**
 - [docs/rules.md](rules.md) — 変換規則を自分で足す方法
