@@ -82,6 +82,58 @@ def identify(
     return _records_from(output)
 
 
+def release(*, tool: Path | None = None, home: Path | None = None) -> str | None:
+    """PREMIS の agent に書く、sf の版とシグネチャの版。取れなければ None。
+
+    **識別の結果は、道具の版とシグネチャの版で変わる。** 同じファイルでも、
+    PRONOM の新しい版で PUID が付き直ることがある。名前だけでは、
+    あとから結果を見た人がどの版で識別したかを辿れない。
+
+    例: ``Siegfried 1.11.6 (DROID_SignatureFile_V124.xml; container-signature-20260119.xml)``
+    """
+    tool = tool or bundled.find("sf")
+    if tool is None:
+        return None
+    args = [str(tool)]
+    sig_home = home if home is not None else bundled.signature_home()
+    if sig_home is not None:
+        args += ["-home", str(sig_home)]
+    args.append("-version")
+    try:
+        proc = subprocess.run(
+            args, capture_output=True, timeout=30, encoding="utf-8", errors="replace",
+            **bundled.no_window(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    return parse_release(proc.stdout)
+
+
+def parse_release(text: str) -> str | None:
+    """``sf -version`` の出力から agent の値を作る。
+
+    出力の形（1.11.6 で確認）::
+
+        siegfried 1.11.6
+        /path/default.sig (2026-07-12T19:05:09+10:00)
+        identifiers:
+          - pronom: DROID_SignatureFile_V124.xml; container-signature-20260119.xml
+    """
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines or not lines[0].lower().startswith("siegfried "):
+        return None
+    version = lines[0].split(None, 1)[1].strip()
+    signatures = [
+        ln.split(":", 1)[1].strip()
+        for ln in lines[1:]
+        if ln.startswith("- ") and ":" in ln
+    ]
+    signatures = [x for x in signatures if x]
+    return f"Siegfried {version}" + (f" ({'; '.join(signatures)})" if signatures else "")
+
+
 def _records_from(output: object) -> dict[str, SiegfriedRecord]:
     """siegfried の -json 出力を SiegfriedRecord へ変換する。
 

@@ -179,6 +179,49 @@ def update_database(
         )
 
 
+def release(*, tool: Path | None = None, database: Path | None = None) -> str | None:
+    """PREMIS の agent に書く、clamscan の版と定義 DB の版。取れなければ None。
+
+    **「検出なし」の重みは定義 DB の新しさで決まる。** 半年前の定義で
+    検出なしだったのか、昨日の定義でなのかを、あとから区別できるようにする。
+    検査と同じ定義 DB を渡すこと（`--database` を付けないと版が出ない）。
+
+    例: ``ClamAV 1.5.3 (signatures 28121, Fri Sep 11 23:24:41 2026)``
+    """
+    tool = tool or find_tool()
+    if tool is None:
+        return None
+    db = database or database_directory()
+    try:
+        proc = subprocess.run(
+            [str(tool), f"--database={db}", "--version"],
+            capture_output=True, timeout=60, encoding="utf-8", errors="replace",
+            env=_tool_environment(),
+            **bundled.no_window(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    return parse_release(proc.stdout)
+
+
+def parse_release(text: str) -> str | None:
+    """``clamscan --version`` の 1 行目から agent の値を作る。
+
+    出力は ``ClamAV 1.5.3/28121/Fri Sep 11 23:24:41 2026``（定義 DB を読めたとき）か
+    ``ClamAV 1.5.3``（読めなかったとき）。
+    """
+    line = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
+    if not line.startswith("ClamAV "):
+        return None
+    parts = line[len("ClamAV "):].split("/", 2)
+    version = parts[0].strip()
+    if len(parts) == 3 and parts[1].strip():
+        return f"ClamAV {version} (signatures {parts[1].strip()}, {parts[2].strip()})"
+    return f"ClamAV {version}"
+
+
 def scan(root: Path, *, tool: Path | None = None, database: Path | None = None) -> dict[str, str]:
     """root 配下を検査し、{絶対パス: シグネチャ名} を返す。検出が無ければ空。"""
     tool = tool or find_tool()

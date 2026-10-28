@@ -286,7 +286,7 @@ Archivematica の AIP は bag で、`data/` の下に `METS.<uuid>.xml`、`READM
 | 保存処理ログ | `data/logs/` | 同じ | 一致 |
 | 提出書類 | `data/objects/submissionDocumentation/` | 同じ | 一致 |
 | METS のセクション | dmdSec / amdSec / fileSec / structMap | 4 つとも出力 | 一致 |
-| PREMIS | object / event / agent で来歴を表す | 3 つとも出力（PREMIS v3 名前空間）。SIP 作成時の event（識別・チェックサム・ウイルス検査）は SIP の `premis.xml` から日時を変えずに移す（2026-10-27〜） | 一致 |
+| PREMIS | object / event / agent で来歴を表す | 3 つとも出力（PREMIS v3 名前空間）。SIP 作成時の event（識別・チェックサム・ウイルス検査）は SIP の `premis.xml` から日時を変えずに移す（2026-10-27〜）。agent には道具の版と、シグネチャ・定義 DB の版を書く（2026-10-28〜） | 一致 |
 | structMap | 物理構造 | `TYPE="physical"` | 一致 |
 | **`data/README.html`** | AIP の構造を説明する HTML | **書いている**（2026-09-12〜） | 一致 |
 | **tagmanifest** | 公式例は `tagmanifest-md5.txt` | `tagmanifest-sha256.txt` | **不一致（実害なし）** |

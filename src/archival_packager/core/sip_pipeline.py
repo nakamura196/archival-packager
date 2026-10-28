@@ -117,7 +117,10 @@ def run(
         files, format_status = _identify_formats(files, root, progress)
         if format_status.startswith("実施"):
             provenance.stages.append(
-                sip_premis.Stage("format identification", started, sip_premis.IDENTIFICATION_AGENT)
+                sip_premis.Stage(
+                    "format identification", started,
+                    siegfried.release() or sip_premis.IDENTIFICATION_AGENT,
+                )
             )
 
         _characterise_images(files, progress)
@@ -129,7 +132,9 @@ def run(
         virus_status = _scan_virus(files, root, options, progress)
         if any(f.scanned_for_virus for f in files):
             provenance.stages.append(
-                sip_premis.Stage("virus check", started, sip_premis.VIRUS_AGENT)
+                sip_premis.Stage(
+                    "virus check", started, clamav.release() or sip_premis.VIRUS_AGENT
+                )
             )
         _scan_pii(files, options, progress)
 

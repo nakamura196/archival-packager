@@ -42,7 +42,8 @@ FILE_NAME = "premis.xml"
 #: object の識別子の種類。UUID ではないことを明示する。
 OBJECT_ID_TYPE = "SIP relative path"
 
-#: 道具の agent。aip_pipeline の linkingAgent と同じ値にして、AIP で同じ agent に束ねる。
+#: 道具の版が取れなかったときの agent。aip_pipeline の linkingAgent と同じ値。
+#: 版が取れたときは siegfried.release() / clamav.release() の値を使う。
 IDENTIFICATION_AGENT = "Siegfried (PRONOM)"
 VIRUS_AGENT = "ClamAV"
 
