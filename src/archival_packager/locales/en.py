@@ -157,8 +157,8 @@ TEXTS: dict[str, str] = {
     "生成結果: {name}": "Result: {name}",
     "概要": "Overview",
     "処理の記録": "Preservation events",
-    "ファイル": "Files",
-    "生データ": "Raw data",
+    "資料": "Items",
+    "パッケージの中身": "Package contents",
     "保存用情報パッケージ（AIP）": "Archival Information Package (AIP)",
     "提出用情報パッケージ（SIP）": "Submission Information Package (SIP)",
     "作成日時": "Created",
@@ -231,17 +231,24 @@ TEXTS: dict[str, str] = {
 
     # ファイルタブ
     "ファイルの一覧を読めませんでした": "The file list could not be read",
-    "{count} 件。中身を見るときは、右端のボタンでファイルの場所を開きます。":
-        "{count} files. To look at one, use the button on the right to open its "
-        "location.",
-    "区分": "Use",
-    "相対パス": "Relative path",
-    "フォーマット": "Format",
+    "資料 {count} 件（うち {converted} 件を保存用の形式に変換）。":
+        "{count} items ({converted} converted to a preservation format). ",
+    "資料 {count} 件。": "{count} items. ",
+    "提出書類や METS も含めた全体は「パッケージの中身」で見られます。":
+        "Everything in the package, including the submission documents and METS, "
+        "is under Package contents.",
+    "資料（預かったファイル）": "Item (as received)",
+    "形式": "Format",
+    "保存用の写し": "Preservation copy",
+    "変換なし（原本のまま保存）": "Not converted (kept as received)",
+    "SHA-256: {digest}": "SHA-256: {digest}",
     "サイズ": "Size",
     "ウイルス検査": "Virus scan",
     "警告": "Warning",
 
-    # 生データタブ
+    # パッケージの中身タブ
+    "パッケージに入っているものを、記録用のファイルも含めてすべて並べています。":
+        "Everything in the package, including the files that keep its records.",
     "左のファイルを選ぶと内容を表示します": "Select a file on the left to see its contents",
     "読み取れませんでした: {error}": "Could not be read: {error}",
     "テキストとして表示できない形式です": "This format cannot be shown as text",

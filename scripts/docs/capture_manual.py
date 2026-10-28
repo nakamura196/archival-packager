@@ -295,7 +295,7 @@ def story(d: Driver, cam: Camera, out: Path) -> None:
     page.wait_for_timeout(800)
     cam.shot("overview")
     # SIP の段階では処理の記録は空（「まだありません」と出る）。その画面も 1 枚撮る。
-    for tab, name in (("処理の記録", "events-empty"), ("ファイル", "files"), ("生データ", "raw")):
+    for tab, name in (("処理の記録", "events-empty"), ("資料", "files"), ("パッケージの中身", "raw")):
         d.click("tab", tab, exact=True)
         page.wait_for_timeout(700)
         cam.shot(name)
@@ -341,7 +341,7 @@ def story(d: Driver, cam: Camera, out: Path) -> None:
         d.click("button", stage)
         page.wait_for_timeout(500)
         cam.shot(name, box([d.find("button", stage)]))
-    d.click("tab", "ファイル", exact=True)
+    d.click("tab", "資料", exact=True)
     page.wait_for_timeout(700)
     cam.shot("files-aip")
     d.click("button", "閉じる")

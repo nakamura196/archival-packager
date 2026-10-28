@@ -192,21 +192,23 @@ For a SIP, this tab says "No preservation events were recorded". **That is expec
 Preservation events are written when the AIP is built ([section 5](#5-looking-inside-the-aip-and-the-workflow-tab)).
 The **Workflow** tab shows the same message.
 
-### Files
+### Items
 
-![The Files tab](media/en/files.png)
+![The Items tab](media/en/files.png)
 
-One line per file, with its format (for example Plain Text File), size, virus scan result and so on.
+One line per item you deposited, with its format (for example Plain Text File), size, virus scan result and so on.
+The record files written by the application (submission documentation) are not listed here; see Package contents.
 The button at the end of each line opens the folder the file is in.
 
 **The originals have not been changed.** What is listed here are the copies inside the package.
 
-### Raw data
+### Package contents
 
-![The Raw data tab](media/en/raw.png)
+![The Package contents tab](media/en/raw.png)
 
-The package folder, shown as a tree. Choose a file on the left to see its contents on the right.
-You will not usually need this; it is for looking at the record files themselves.
+Everything in the package folder, record files included, shown as a tree.
+Choose a file on the left to see its contents on the right.
+Use it to look at the record files themselves (METS, CSV and so on).
 
 ---
 
@@ -308,12 +310,13 @@ what the stage checks, how many records there are, how many files they cover, th
 Checksums (the numbers used to tell whether a file has changed) are stored with each file's own information,
 and are not written as a separate preservation event.
 
-### Files
+### Items
 
-![The AIP's Files tab](media/en/files-aip.png)
+![The AIP's Items tab](media/en/files-aip.png)
 
-For an AIP, the list contains the originals (use "Originals"), the copies made by normalization
-(use "Preservation copy"), and the record files (use "Submission documentation").
+For an AIP, each item is shown with the copy made from it, in the "Preservation copy" column.
+Items that were normalized, such as images, show the copy's format and file name.
+Items that were not show "Not converted (kept as received)".
 
 ---
 

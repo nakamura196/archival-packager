@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import csv
 import io
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from lxml import etree
@@ -110,6 +110,18 @@ class FileRow:
     sha256: str = ""
     virus: str = ""
     warning: str = ""
+    #: PREMIS の objectIdentifierValue。保存用の写しを原本に結び付けるのに使う。
+    uuid: str = ""
+    #: 保存用の写しなら、元になった原本の UUID（PREMIS の derivation 関係）。
+    derived_from: str = ""
+
+
+@dataclass(frozen=True)
+class Conversion:
+    """原本 1 件と、そこから作った保存用の写し（無ければ None）。"""
+
+    original: FileRow
+    copy: FileRow | None = None
 
 
 @dataclass(frozen=True)
@@ -254,6 +266,9 @@ def _read_mets(root: Path, mets_path: Path) -> PackageReport:
                     puid=_text(obj, f".//{{{PREMIS_NS}}}formatRegistryKey"),
                     size=size,
                     sha256=_text(obj, f".//{{{PREMIS_NS}}}messageDigest"),
+                    uuid=_text(obj, f"{{{PREMIS_NS}}}objectIdentifier/"
+                                    f"{{{PREMIS_NS}}}objectIdentifierValue"),
+                    derived_from=_derived_from(obj),
                 )
             )
 
@@ -320,14 +335,42 @@ def _merge_inherited_csv(root: Path, files: list[FileRow]) -> list[FileRow]:
             merged.append(f)
             continue
         merged.append(
-            FileRow(
-                path=f.path, use=f.use, format_name=f.format_name, puid=f.puid,
-                size=f.size, sha256=f.sha256,
+            replace(
+                f,
                 virus=(row.get("ウイルス検査") or "").strip(),
                 warning=(row.get("拡張子警告") or "").strip(),
             )
         )
     return merged
+
+
+def _derived_from(obj) -> str:
+    """PREMIS object の derivation 関係から、元になった object の UUID を返す。"""
+    for rel in obj.iterfind(f"{{{PREMIS_NS}}}relationship"):
+        if _text(rel, f"{{{PREMIS_NS}}}relationshipType") == "derivation":
+            return _text(rel, f"{{{PREMIS_NS}}}relatedObjectIdentifier/"
+                              f"{{{PREMIS_NS}}}relatedObjectIdentifierValue")
+    return ""
+
+
+def conversions(report: PackageReport) -> list[Conversion]:
+    """変換の対象（原本）だけを、保存用の写しと組にして返す。
+
+    「資料」タブで見たいのは預かった資料そのものと、それをどう変換したか。
+    提出書類（formats.csv や report.html など、このアプリが書いた記録）や
+    保存用の写しを原本と同じ並びに置くと、資料が何件あるのかが読み取れない。
+    それらは「パッケージの中身」で見る。
+
+    組み合わせは PREMIS の derivation 関係で決める。ファイル名の
+    "-preservation" から推すと、原本の名前がたまたまそう終わるときに外れる。
+    """
+    copies = {f.derived_from: f for f in report.files
+              if f.use == "保存用" and f.derived_from}
+    return [
+        Conversion(original=f, copy=copies.get(f.uuid) if f.uuid else None)
+        for f in report.files
+        if f.use in ("原本", "")
+    ]
 
 
 def _size_on_disk(root: Path, href: str) -> int:

@@ -8,8 +8,8 @@
   概要     何がいくつ入っているか
   処理の記録  いつ・何を・どのツールで行い、結果はどうだったか（PREMIS）
   ワークフロー 同じ記録を段階ごとに束ねた流れ図。段階を押すと中身が出る
-  ファイル   フォーマット・PRONOM・サイズ・SHA-256・ウイルス検査
-  生データ   XML や CSV をそのまま読みたいとき（従来の表示）
+  資料     変換の対象（原本）だけ。形式・サイズ・保存用の写し・ウイルス検査
+  パッケージの中身  記録用のファイルも含めてすべて。XML や CSV をそのまま読みたいとき
 
 読み取りは core/package_report.py、色分けは core/preview.py にある。
 ここは並べ方だけを持つ。
@@ -183,11 +183,25 @@ def _raw_browser(root: Path) -> ft.Control:
         )
     )
 
-    return ft.Row(
+    head = ft.Container(
+        ft.Text(
+            t("パッケージに入っているものを、記録用のファイルも含めてすべて並べています。"),
+            size=12, color=_LABEL_COLOR,
+        ),
+        padding=ft.Padding.only(left=16, top=12, bottom=4),
+    )
+    return ft.Column(
         [
-            ft.Container(tree, width=340),
-            ft.VerticalDivider(width=1),
-            ft.Container(body, expand=True, padding=10),
+            head,
+            ft.Row(
+                [
+                    ft.Container(tree, width=340),
+                    ft.VerticalDivider(width=1),
+                    ft.Container(body, expand=True, padding=10),
+                ],
+                expand=True,
+                spacing=0,
+            ),
         ],
         expand=True,
         spacing=0,
@@ -662,9 +676,23 @@ def _workflow_tab(report: package_report.PackageReport) -> ft.Control:
     )
 
 
+def _display_path(path: str) -> str:
+    """METS の href は objects/ から始まる。利用者が預けたときの並びで見せる。"""
+    return path.split("objects/", 1)[-1] if path.startswith("objects/") else path
+
+
 def _files_tab(report: package_report.PackageReport) -> ft.Control:
-    if not report.files:
+    """変換の対象（原本）だけを並べ、保存用の写しを同じ行に添える。
+
+    提出書類（このアプリが書いた記録）と、写しを 1 行ずつ並べていたころは、
+    資料が何件あるのかが表から読み取れなかった。パッケージの中身すべては
+    「パッケージの中身」で見る。
+    """
+    pairs = package_report.conversions(report)
+    if not pairs:
         return _empty(t("ファイルの一覧を読めませんでした"), report.overview.note)
+    # SIP はまだ変換していない。空の列を並べても意味がない。
+    is_aip = report.overview.kind == "AIP"
 
     def open_row(path: str):
         def handler(_e: ft.ControlEvent) -> None:
@@ -675,9 +703,38 @@ def _files_tab(report: package_report.PackageReport) -> ft.Control:
                 plat.reveal_in_file_manager(target)
         return handler
 
+    def format_cell(f: package_report.FileRow) -> ft.Control:
+        # METS には特定できなかった形式が "unknown" と書かれる（SIP の CSV では空欄）。
+        # 同じ意味なので同じ言葉で出す。PRONOM の番号は名前の下に小さく添える。
+        name = f.format_name if f.format_name not in ("", "unknown") else t("不明")
+        lines: list[ft.Control] = [ft.Text(name, size=12)]
+        if f.puid:
+            lines.append(ft.Text(f.puid, size=10, font_family=_MONO, color=_LABEL_COLOR))
+        return ft.Column(lines, spacing=0, tight=True)
+
+    def copy_cell(copy: package_report.FileRow | None) -> ft.Control:
+        if copy is None:
+            return ft.Text(t("変換なし（原本のまま保存）"), size=11, color=_LABEL_COLOR)
+        name = copy.format_name if copy.format_name not in ("", "unknown") else t("不明")
+        return ft.Row(
+            [
+                ft.Icon(ft.Icons.ARROW_FORWARD, size=14, color=ft.Colors.GREEN_700),
+                ft.Column(
+                    [
+                        ft.Text(name, size=12),
+                        _mono(_display_path(copy.path).rsplit("/", 1)[-1], 10),
+                    ],
+                    spacing=0, tight=True,
+                ),
+            ],
+            spacing=4,
+            tooltip=t("SHA-256: {digest}", digest=copy.sha256) if copy.sha256 else None,
+        )
+
     rows = []
-    for f in report.files:
-        warning = ft.Text("", size=11)
+    for pair in pairs:
+        f = pair.original
+        warning: ft.Control = ft.Text("-", size=11, color=_LABEL_COLOR)
         # 比べている相手は core が CSV に書いた値。ここを訳すと突合が外れる。
         if f.warning and f.warning not in ("", "-", raw("なし")):
             # siegfried の原文（PRONOM の番号が並ぶ英文）は読めないので言い換え、
@@ -691,42 +748,49 @@ def _files_tab(report: package_report.PackageReport) -> ft.Control:
                 ],
                 spacing=4,
             )
-        rows.append([
-            ft.Text(messages.value(f.use), size=11, color=_LABEL_COLOR),
-            _mono(f.path, 12),
-            # METS には特定できなかった形式が "unknown" と書かれる（SIP の CSV では空欄）。
-            # 同じ意味なので同じ言葉で出す。
-            ft.Text(f.format_name if f.format_name not in ("", "unknown") else t("不明"),
-                    size=12),
-            _mono(f.puid),
+        row = [
+            ft.Row(
+                [
+                    ft.Icon(_icon_for(f.path), size=14, color=_LABEL_COLOR),
+                    ft.Text(_display_path(f.path), size=12, selectable=True,
+                            tooltip=t("SHA-256: {digest}", digest=f.sha256)
+                            if f.sha256 else None),
+                ],
+                spacing=6,
+            ),
+            format_cell(f),
             ft.Text(package_report.human_bytes(f.size), size=12),
+        ]
+        if is_aip:
+            row.append(copy_cell(pair.copy))
+        row += [
             ft.Text(messages.value(f.virus) or "-", size=11, color=_LABEL_COLOR),
             warning,
-            _mono((f.sha256[:12] + "…") if f.sha256 else ""),
             ft.IconButton(
                 ft.Icons.FOLDER_OPEN, icon_size=16, tooltip=t("場所を開く"),
                 on_click=open_row(f.path),
             ),
-        ])
+        ]
+        rows.append(row)
 
+    converted = sum(1 for p in pairs if p.copy is not None)
+    if is_aip:
+        lead = t("資料 {count} 件（うち {converted} 件を保存用の形式に変換）。",
+                 count=len(pairs), converted=converted)
+    else:
+        lead = t("資料 {count} 件。", count=len(pairs))
     head = ft.Container(
         ft.Text(
-            t("{count} 件。中身を見るときは、右端のボタンでファイルの場所を開きます。",
-              count=len(report.files)),
+            lead + t("提出書類や METS も含めた全体は「パッケージの中身」で見られます。"),
             size=12, color=_LABEL_COLOR,
         ),
         padding=ft.Padding.only(left=16, top=12, bottom=4),
     )
-    return ft.Column(
-        [head, _table(
-            [(t("区分"), 70), (t("相対パス"), 260), (t("フォーマット"), 160), ("PRONOM", 90),
-             (t("サイズ"), 80), (t("ウイルス検査"), 90), (t("警告"), 120),
-             ("SHA-256", 120), ("", 40)],
-            rows,
-        )],
-        expand=True,
-        spacing=0,
-    )
+    columns = [(t("資料（預かったファイル）"), 260), (t("形式"), 170), (t("サイズ"), 80)]
+    if is_aip:
+        columns.append((t("保存用の写し"), 200))
+    columns += [(t("ウイルス検査"), 90), (t("警告"), 120), ("", 40)]
+    return ft.Column([head, _table(columns, rows)], expand=True, spacing=0)
 
 
 def _empty(title: str, note: str = "") -> ft.Control:
@@ -761,8 +825,8 @@ def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
                         ft.Tab(label=t("概要"), icon=ft.Icons.INVENTORY_2_OUTLINED),
                         ft.Tab(label=t("処理の記録"), icon=ft.Icons.HISTORY),
                         ft.Tab(label=t("ワークフロー"), icon=ft.Icons.ACCOUNT_TREE_OUTLINED),
-                        ft.Tab(label=t("ファイル"), icon=ft.Icons.LIST_ALT_OUTLINED),
-                        ft.Tab(label=t("生データ"), icon=ft.Icons.CODE),
+                        ft.Tab(label=t("資料"), icon=ft.Icons.LIST_ALT_OUTLINED),
+                        ft.Tab(label=t("パッケージの中身"), icon=ft.Icons.CODE),
                     ]
                 ),
                 ft.TabBarView(
