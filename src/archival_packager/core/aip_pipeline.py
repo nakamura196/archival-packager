@@ -86,7 +86,14 @@ def run(
 
     now = _now_iso()
     agents = _agents(options)
-    _record_ingestion_events(parsed.files, fixity_status, now, options)
+    # SIP 作成時の記録に出てくる道具（ClamAV など）も agent として載せる。
+    # 載せないと、event が指す agent が METS のどこにも無い。
+    known = {a.id for a in agents}
+    agents += [a for a in parsed.sip_agents if a.id not in known]
+    _record_ingestion_events(
+        parsed.files, fixity_status, now, options,
+        inherited=parsed.has_sip_provenance,
+    )
 
     # 規則表は、変換を始める前に 1 回だけ確定させる。**AIP に同梱するのは
     # 「実際に効いていた表」でなければならない**ので、参照するのは常にこの文字列。
@@ -196,9 +203,15 @@ def _submission_documents(parsed) -> list[mets.SubmissionDocument]:
 
 
 def _record_ingestion_events(
-    files: list[AIPFile], status: FixityStatus, now: str, options: AIPOptions
+    files: list[AIPFile], status: FixityStatus, now: str, options: AIPOptions,
+    *, inherited: bool = False,
 ) -> None:
-    """各原本に ingestion と fixity check の event を記録する。"""
+    """各原本に ingestion と fixity check の event を記録する。
+
+    `inherited` は、SIP が premis.xml を持っていたか。持っていれば、識別と
+    ウイルス検査の event は SIP を作ったときの日時で既に入っているので、
+    ここでは作り直さない（core/sip_premis.py の冒頭を参照）。
+    """
     agent_ids = [APP_AGENT_ID]
     if options.archivist_name:
         agent_ids.append(options.archivist_name)
@@ -223,8 +236,11 @@ def _record_ingestion_events(
                 outcome=outcome, agent_ids=agent_ids,
             )
         )
+        if inherited:
+            continue
         # **識別と検査も保存処理である。** 実行したのに記録していなかった。
         # PREMIS は、いつ・何を・どの道具で行ったかを残すためにある。
+        # premis.xml の無い古い SIP では、formats.csv から作る（日時は AIP 作成時）。
         _append_identification_event(f, now, agent_ids)
         _append_virus_event(f, now, agent_ids)
 

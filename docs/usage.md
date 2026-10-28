@@ -353,6 +353,7 @@ if [[ $VIRUS -gt 0 ]]; then print "要確認: ウイルス $VIRUS 件"; fi
       formats.csv               技術インベントリ（形式・PRONOM・サイズ・SHA-256・ウイルス検査）
       accession.csv             受入記録（元のファイル名・パス）
       dfxml.xml                 技術メタデータ（DFXML）
+      premis.xml                SIP を作るときの処理の記録（PREMIS。識別・チェックサム・ウイルス検査・ファイル名の変更）
       report.txt / report.html  人が読むまとめ
       checksum.sha256           SIP ルートからの相対パスで SHA-256
       pii-report.csv            個人情報の候補（--scan-pii のときだけ）
@@ -365,6 +366,10 @@ if [[ $VIRUS -gt 0 ]]; then print "要確認: ウイルス $VIRUS 件"; fi
 **人が書き込むのは `description.csv` と `metadata.csv` の 2 つ**です。
 `metadata.csv` に書いた内容は、AIP を作るときにファイル単位の記述として
 METS に入ります。
+
+`premis.xml` には、SIP を作るときに行った処理が、行った日時と道具とともに
+ファイルごとに残ります。行わなかった処理（ウイルス検査を OFF にした、など）は
+記録されません。AIP を作るときは、この記録を日時を変えずに METS へ移します。
 
 ### AIP
 

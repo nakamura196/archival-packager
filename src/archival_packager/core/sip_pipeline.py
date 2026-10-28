@@ -31,13 +31,15 @@ from . import (
     report,
     siegfried,
     sip_builder,
+    sip_premis,
     spreadsheets,
     zip_io,
 )
 from . import (
     scan as scan_mod,
 )
-from .aip_models import DerivativePurpose, Executor
+from .aip_models import AgentKind, DerivativePurpose, Executor, PremisAgent
+from .aip_pipeline import APP_AGENT_ID, APP_AGENT_NAME
 from .models import (
     ScannedFile,
     SIPMetadata,
@@ -100,17 +102,42 @@ def run(
             raise SIPPipelineError.no_input_files()
         progress(f"対象ファイル: {len(files)} 件")
 
+        # 各段を行った時刻を控え、premis.xml に書く（core/sip_premis.py の冒頭を参照）。
+        # **行えなかった段は控えない。** 道具が無くて識別しなかったのに
+        # 「識別できなかった」と記録すると、事実と違う。
+        provenance = sip_premis.SIPProvenance(
+            PremisAgent(APP_AGENT_ID, APP_AGENT_NAME, AgentKind.SOFTWARE)
+        )
+
+        if options.sanitize_filenames:
+            provenance.record("filename change")
         files = _maybe_sanitize(files, options, progress)
+
+        started = sip_premis.now_iso()
         files, format_status = _identify_formats(files, root, progress)
+        if format_status.startswith("実施"):
+            provenance.stages.append(
+                sip_premis.Stage("format identification", started, sip_premis.IDENTIFICATION_AGENT)
+            )
+
         _characterise_images(files, progress)
+
+        provenance.record("message digest calculation")
         _compute_checksums(files, progress)
+
+        started = sip_premis.now_iso()
         virus_status = _scan_virus(files, root, options, progress)
+        if any(f.scanned_for_virus for f in files):
+            provenance.stages.append(
+                sip_premis.Stage("virus check", started, sip_premis.VIRUS_AGENT)
+            )
         _scan_pii(files, options, progress)
 
         docs = _build_documents(
             files, root, scan_root, metadata, options, structured, virus_status,
             format_status, source_note, progress,
         )
+        docs.premis_xml = sip_premis.build(files, provenance)
 
         progress("BagIt bag を組み立てています…" if options.make_bag else "SIP を組み立てています…")
         result = sip_builder.build(

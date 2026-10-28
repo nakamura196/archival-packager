@@ -177,9 +177,10 @@ TEXTS: dict[str, str] = {
 
     # 処理の記録タブ（PREMIS）
     "処理の記録がありません": "No preservation events were recorded",
-    "SIP の段階では、処理の記録はまだありません。この SIP から AIP を作ると、行った処理がここに並びます。":
-        "A SIP does not have preservation events yet. Once you build an AIP from "
-        "this SIP, what was done appears here.",
+    "この SIP には処理の記録（premis.xml）がありません。古い版で作った SIP です。"
+    "この SIP から AIP を作ると、行った処理がここに並びます。":
+        "This SIP has no preservation events (premis.xml); it was made with an "
+        "older version. Once you build an AIP from this SIP, what was done appears here.",
     "{count} 件の記録。担当者が別に作業記録を書く必要はありません。":
         "{count} events recorded. There is no need to keep a separate log by hand.",
     "パッケージ全体": "the whole package",
@@ -192,6 +193,7 @@ TEXTS: dict[str, str] = {
 
     # ワークフロータブ（PREMIS を段階ごとに束ねた流れ図）
     "ワークフロー": "Workflow",
+    "ファイル名の変更": "Filename change",
     "取り込み": "Ingestion",
     "フォーマットの識別": "Format identification",
     "保存用形式への変換": "Normalization",
@@ -210,10 +212,14 @@ TEXTS: dict[str, str] = {
     "変換で作ったファイルを開き直せたかの確認です。原本の形式適合性の検査（JHOVE など）ではありません。":
         "Checks that each converted file could be opened again. This is not a "
         "format conformance check of the originals (such as JHOVE).",
-    "SHA-256 は各ファイルの記録（PREMIS object）に入っています。"
-    "算出そのものは処理の記録としては書いていません。":
-        "Each file's SHA-256 is stored in its PREMIS object. The calculation itself "
-        "is not written as a preservation event.",
+    "SIP を作るとき、ファイル名を安全な名前に変えた記録です。"
+    "元の名前は詳細と accession.csv に残っています。":
+        "Records of renaming files to safe names when the SIP was made. The "
+        "original names are in the details and in accession.csv.",
+    "SIP を作るときに SHA-256 を算出した記録です。"
+    "古い版で作った SIP では記録が無く、値だけが各ファイルに入っています。":
+        "Records of calculating SHA-256 when the SIP was made. SIPs made with an "
+        "older version have no such record; only the value is stored for each file.",
     "SIP の BagIt マニフェストとチェックサムを照合した記録です。":
         "Records of comparing checksums against the SIP's BagIt manifest.",
     "SHA-256 が記録されたファイル: {count} 件": "Files with a SHA-256 recorded: {count}",

@@ -397,6 +397,7 @@ is what watches the application itself for regressions).
       formats.csv               Technical inventory (format, PRONOM, size, SHA-256, virus scan)
       accession.csv             Accession record (original file names and paths)
       dfxml.xml                 Technical metadata (DFXML)
+      premis.xml                Processing record of the SIP (PREMIS: identification, checksums, virus scan, renaming)
       report.txt / report.html  Summary for people to read
       checksum.sha256           SHA-256, paths relative to the SIP root
       pii-report.csv            Personal information candidates (only with --scan-pii)
@@ -409,6 +410,11 @@ With `--bag`, all of the above goes under `data/`, and `bagit.txt` and
 **The two files a person fills in are `description.csv` and `metadata.csv`.**
 What is written in `metadata.csv` goes into the METS as file-level description
 when the AIP is built.
+
+`premis.xml` records, for each file, what was done while the SIP was being
+made, with the date and the tool. Steps that were not performed (for example,
+when the virus scan was turned off) are not recorded. When the AIP is built,
+these events are carried into the METS with their original dates.
 
 The column headings of these CSV files and the text of the reports are in
 Japanese, whatever the interface language (see

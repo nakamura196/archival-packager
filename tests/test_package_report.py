@@ -343,9 +343,15 @@ class TestWorkflow:
         assert stages[-1].event_type == "decompression"
         assert stages[-1].events == 1
 
-    def test_checksums_are_counted_even_without_an_event(self, aip: Path):
-        """チェックサムの算出は event を書いていない。段が空でも、
-        値そのものが記録されている件数は出すこと。"""
+    def test_checksums_are_counted_even_without_an_event(self, sip: Path, tmp_path: Path):
+        """premis.xml の無い古い SIP から作った AIP には、チェックサムの算出の
+        event が無い。段が空でも、値そのものが記録されている件数は出すこと。"""
+        (sip / "metadata" / "submissionDocumentation" / "premis.xml").unlink()
+        out = tmp_path / "legacy-aip"
+        out.mkdir()
+        aip = aip_pipeline.run(
+            sip_root=sip, output_parent=out, options=AIPOptions(), progress=lambda _m: None,
+        ).aip_path
         report = package_report.read(aip)
         stages = {s.event_type: s for s in package_report.workflow(report)}
         stage = stages["message digest calculation"]
