@@ -118,7 +118,7 @@ example v0.1.8). Please include it when you ask a question.
 
 ## 2. Create a SIP (submission package)
 
-<iframe src="https://www.youtube-nocookie.com/embed/2seRY7gT1Qg?playlist=2seRY7gT1Qg,mIwb2glsDyU&rel=0" title="Archival Packager guide 1: Create a SIP (submission package)" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
+<iframe src="https://www.youtube-nocookie.com/embed/dw11IIBQPbY?playlist=dw11IIBQPbY,kVMH09BoMg8&rel=0" title="Archival Packager guide 1: Create a SIP (submission package)" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
 
 *With sound. The red dot shows where the mouse clicks. The text below is what the video says.*
 
@@ -183,7 +183,7 @@ Nothing is selected at first. The defaults work as they are.
 
 ## 3. Create an AIP (preservation package) and check it
 
-<iframe src="https://www.youtube-nocookie.com/embed/mIwb2glsDyU?rel=0" title="Archival Packager guide 2: Create an AIP (preservation package) and check it" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
+<iframe src="https://www.youtube-nocookie.com/embed/kVMH09BoMg8?rel=0" title="Archival Packager guide 2: Create an AIP (preservation package) and check it" style="width:100%;aspect-ratio:16/9;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>
 
 *With sound. The text below is what the video says.*
 
