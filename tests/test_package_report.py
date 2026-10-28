@@ -15,6 +15,12 @@ from archival_packager.core import aip_pipeline, bundled, package_report, sip_pi
 from archival_packager.core.aip_models import AIPOptions
 from archival_packager.core.models import SIPMetadata, SIPOptions
 
+#: 同梱の siegfried が無い環境（Linux の CI）では、識別そのものが走らない。
+#: フォーマット名を確かめるテストは、そこでは意味を持たない。
+needs_siegfried = pytest.mark.skipif(
+    bundled.find("sf") is None, reason="同梱 sf が無い環境"
+)
+
 
 @pytest.fixture
 def sip(tmp_path: Path) -> Path:
@@ -74,11 +80,15 @@ class TestAIP:
         assert report.events, "処理の記録が 1 件も出ていない"
         labels = {e.type_label for e in report.events}
         assert "取り込み" in labels
-        assert "フォーマットの識別" in labels
+        # siegfried が無いと識別は走らず、記録も書かない（走っていない処理を
+        # 書くと「未検査」が「検査済み」に見えるため。#36）。
+        if bundled.find("sf") is not None:
+            assert "フォーマットの識別" in labels
         for e in report.events:
             assert e.date_time, f"{e.type_label} に日時が無い"
             assert e.outcome, f"{e.type_label} に結果が無い"
 
+    @needs_siegfried
     def test_events_name_the_tool(self, aip: Path):
         """どのツールで行ったかが分からないと、記録として使えない。"""
         report = package_report.read(aip)
@@ -168,13 +178,6 @@ class TestSubmissionDocuments:
         report = package_report.read(aip)
         assert report.overview.original_count < report.overview.file_count
         assert report.overview.original_count > 0
-
-
-#: 同梱の siegfried が無い環境（Linux の CI）では、識別そのものが走らない。
-#: フォーマット名を確かめるテストは、そこでは意味を持たない。
-needs_siegfried = pytest.mark.skipif(
-    bundled.find("sf") is None, reason="同梱 sf が無い環境"
-)
 
 
 @needs_siegfried
