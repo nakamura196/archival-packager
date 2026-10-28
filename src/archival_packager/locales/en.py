@@ -421,6 +421,8 @@ TEXTS: dict[str, str] = {
         "Nothing to normalize (already in a preservation format, or an unknown format)",
     "フォーマット変換: {count} 件": "Format conversions: {count}",
     "形式の適合性検査（JHOVE）: {count} 件": "Format validation (JHOVE): {count} files",
+    "原本の形式の適合性検査（JHOVE）: {count} 件":
+        "Format validation of originals (JHOVE): {count} files",
     "METS を生成しています…": "Writing the METS…",
     "AIP（BagIt bag）を組み立てています…": "Assembling the AIP (BagIt bag)…",
 
@@ -446,6 +448,16 @@ TEXTS: dict[str, str] = {
     "変換結果 {count} 件は開き直しの確認だけで保存しています":
         "Format validation (JHOVE) could not be run: {reason}. {count} converted "
         "files were kept after the reopen check only",
+    "原本の形式の適合性検査（JHOVE）を実施できませんでした: {reason}。"
+    "原本 {count} 件は検査せずに保存しています":
+        "Format validation of originals (JHOVE) could not be run: {reason}. "
+        "{count} originals were kept without being validated",
+    "形式の仕様に適合しない原本": "Original does not conform to its format",
+    "形式の仕様に適合しない原本: 原本はそのまま保存しています。"
+    "ふだんのソフトで開けるかを確かめ、開けなければ提出元に元のファイルを問い合わせてください。":
+        "Original does not conform to its format: the original is kept as it is. "
+        "Check whether it opens in the usual software; if it does not, ask the "
+        "depositor for the original file.",
     "変換規則表": "Conversion rules",
     # 種類ごとの、次にすること
     "ウイルス検出: 該当ファイルを開かず、担当の部署に相談してください。":

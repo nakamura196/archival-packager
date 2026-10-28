@@ -887,6 +887,152 @@ class TestDerivativeConformance:
         assert any(a.startswith("JHOVE ") and "TIFF-hul" in a for a in agents)
 
 
+class TestOriginalConformance:
+    """原本の TIFF・PDF も JHOVE で検査し、結果を記録すること。**原本は捨てない。**
+
+    2026-10、派生物の検査（TestDerivativeConformance）を入れたあと、Issue #7 の
+    残りとして足した。受け入れた資料がその時点で仕様に適合していたかは、
+    後から原本を扱う人にとって大事な事実だが、派生物と違って作り直せないので、
+    不適合でも保存し、記録と警告にだけ残す。
+    """
+
+    @pytest.fixture
+    def sip_with_tiff(self, tmp_path: Path) -> Path:
+        """TIFF の原本 1 枚と、検査部品の無い形式（テキスト）1 件を入れた SIP。"""
+        from PIL import Image
+
+        src = tmp_path / "tif-in"
+        src.mkdir()
+        Image.new("RGB", (16, 16), (10, 20, 30)).save(src / "原本.tif")
+        (src / "メモ.txt").write_text("メモ\n", encoding="utf-8")
+        out = tmp_path / "tif-sip-out"
+        out.mkdir()
+        return sip_pipeline.run(
+            input_path=src, output_parent=out,
+            metadata=SIPMetadata(identifier="2026-原本", title="原本の検査"),
+            options=SIPOptions(), progress=lambda _m: None,
+        ).sip_path
+
+    def _events(self, mets_path):
+        root = etree.fromstring(mets_path.read_bytes())
+        events = []
+        for e in root.xpath("//premis:event[premis:eventType='validation']", namespaces=NS):
+            note = e.xpath("string(.//premis:eventOutcomeDetailNote)", namespaces=NS)
+            if _is_conformance_note(note):
+                agents = e.xpath(".//premis:linkingAgentIdentifierValue/text()", namespaces=NS)
+                outcome = e.xpath("string(.//premis:eventOutcome)", namespaces=NS)
+                events.append((outcome, note, agents))
+        return events
+
+    def _fake_jhove(self, monkeypatch, status, messages=(), seen=None):
+        def fake(paths, scratch_parent, **_):
+            if seen is not None:
+                seen.extend(paths)
+            return {
+                p: jhove.JhoveResult(status, "TIFF-hul 1.9.5", "TIFF", "6.0", list(messages))
+                for p in paths
+            }, "JHOVE 1.34.0"
+
+        monkeypatch.setattr(aip_pipeline.jhove, "validate", fake)
+
+    def test_conforming_original_is_recorded(self, sip_with_tiff, tmp_path, monkeypatch):
+        """適合した原本にも、何で検査したか（道具・部品・版）を残す。
+
+        検査部品の無い形式（テキスト）には記録を書かない。原本ではそれが
+        普通なので、件数分の「未検査」を書くと記録が埋もれる。
+        """
+        self._fake_jhove(monkeypatch, jhove.VALID)
+        result, messages = run_aip(sip_with_tiff, tmp_path)
+
+        [(outcome, note, agents)] = self._events(result.mets_path)
+        assert outcome == "pass"
+        assert note.startswith("原本.tif: JHOVE:")
+        assert "JHOVE 1.34.0 (TIFF-hul 1.9.5)" in agents
+        assert not any("JHOVE" in w for w in result.warnings)
+        assert "原本の形式の適合性検査（JHOVE）: 1 件" in messages
+
+    def test_non_conforming_original_is_kept_and_reported(
+        self, sip_with_tiff, tmp_path, monkeypatch
+    ):
+        """**不適合でも原本は保存する。** ただし黙らず、記録と警告に残す。
+
+        派生物は不適合なら捨てて原本を残せるが、原本には代わりが無い。
+        捨てれば資料そのものを失う。
+        """
+        self._fake_jhove(
+            monkeypatch, jhove.NOT_VALID, ["error: Invalid strip offset (TIFF-HUL-29)"]
+        )
+        result, _ = run_aip(sip_with_tiff, tmp_path)
+
+        assert (result.aip_path / "data" / "objects" / "原本.tif").is_file(), "原本は残す"
+        aip_pipeline.validate_aip(result.aip_path)
+        [(outcome, note, _)] = self._events(result.mets_path)
+        assert outcome == "fail"
+        assert "TIFF-HUL-29" in note
+        [line] = [w for w in result.warnings if "適合しない原本" in w]
+        assert line.startswith("形式の仕様に適合しない原本: 原本.tif — ")
+        assert "TIFF-HUL-29" in line
+
+    def test_jhove_reads_the_copy_in_the_aip_not_the_input(
+        self, sip_with_tiff, tmp_path, monkeypatch
+    ):
+        """**入力側のファイルを JHOVE に渡さない。** AIP に複写した側を渡す。
+
+        jhove.validate は作業場所にハードリンクを張る。入力側に張ると
+        原本のリンク数と ctime が変わる（原本に一切触れないという約束に反する）。
+        """
+        seen: list[Path] = []
+        self._fake_jhove(monkeypatch, jhove.VALID, seen=seen)
+        result, _ = run_aip(sip_with_tiff, tmp_path)
+
+        [path] = seen
+        assert path.name == "原本.tif"
+        assert result.aip_path in path.parents
+        assert sip_with_tiff not in path.parents
+
+    def test_runs_without_normalization(self, sip_with_tiff, tmp_path, monkeypatch):
+        """変換を切っても原本の検査はする（変換とは別の検査なので）。"""
+        self._fake_jhove(monkeypatch, jhove.VALID)
+        result, _ = run_aip(sip_with_tiff, tmp_path, normalize=False)
+        assert [o for o, _, _ in self._events(result.mets_path)] == ["pass"]
+
+    def test_jhove_unavailable_is_said_once_and_keeps_the_original(
+        self, sip_with_tiff, tmp_path, monkeypatch
+    ):
+        """**JHOVE が動かなかったことを黙らない。** 対象の原本に skipped を書き、警告は 1 行。
+
+        「検査していない」を「問題なし」に見せない（個人情報スキャンで一度起きた取り違え）。
+        """
+        def unavailable(paths, scratch_parent, **_):
+            raise jhove.JhoveUnavailable("JHOVE が同梱されていません")
+
+        monkeypatch.setattr(aip_pipeline.jhove, "validate", unavailable)
+        result, _ = run_aip(sip_with_tiff, tmp_path)
+
+        assert (result.aip_path / "data" / "objects" / "原本.tif").is_file()
+        [line] = [w for w in result.warnings if "JHOVE" in w]
+        assert line.startswith("原本の形式の適合性検査（JHOVE）を実施できませんでした")
+        assert "原本 1 件は検査せずに保存しています" in line
+        [(outcome, note, _)] = self._events(result.mets_path)
+        assert outcome == "skipped"
+        assert "同梱されていません" in note
+
+    @pytest.mark.skipif(jhove.locate() is None, reason="JHOVE が同梱されていない")
+    def test_with_the_bundled_jhove(self, sip_with_tiff, tmp_path):
+        """同梱の JHOVE を実際に動かし、作業場所が bag に残らないこと。
+
+        作業場所は AIP の中に作るので、消し忘れると manifest に無い
+        ファイルが payload の外に残り、bag として不正になる。
+        """
+        result, _ = run_aip(sip_with_tiff, tmp_path)
+
+        [(outcome, note, agents)] = self._events(result.mets_path)
+        assert outcome == "pass", note
+        assert any(a.startswith("JHOVE ") and "TIFF-hul" in a for a in agents)
+        assert not list(result.aip_path.rglob(".jhove-*"))
+        aip_pipeline.validate_aip(result.aip_path)
+
+
 class TestReadmeHtml:
     """人向けの案内を AIP の一番上に置く（Archivematica の AIP に合わせる）。
 

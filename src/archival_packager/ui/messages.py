@@ -123,6 +123,8 @@ _PROGRESS: list[_Rule] = [
           lambda m: t("フォーマット変換: {count} 件", count=m[1])),
     _rule(raw(r"^形式の適合性検査（JHOVE）: (\d+) 件$"),
           lambda m: t("形式の適合性検査（JHOVE）: {count} 件", count=m[1])),
+    _rule(raw(r"^原本の形式の適合性検査（JHOVE）: (\d+) 件$"),
+          lambda m: t("原本の形式の適合性検査（JHOVE）: {count} 件", count=m[1])),
     _rule(raw(r"^METS を生成しています…$"), lambda m: t("METS を生成しています…")),
     _rule(raw(r"^AIP（BagIt bag）を組み立てています…$"),
           lambda m: t("AIP（BagIt bag）を組み立てています…")),
@@ -149,6 +151,7 @@ _WARNING_KINDS: dict[str, Callable[[], str]] = {
         lambda: t("変換結果が形式の仕様に適合しないため原本のまま保存"),
     raw("完全性確認をスキップ"): lambda: t("完全性確認をスキップ"),
     raw("変換規則表"): lambda: t("変換規則表"),
+    raw("形式の仕様に適合しない原本"): lambda: t("形式の仕様に適合しない原本"),
 }
 
 _MORE = re.compile(raw(r"^（他 (\d+) 件）$"))
@@ -165,6 +168,9 @@ _WARNING_ADVICE: dict[str, Callable[[], str]] = {
     raw("拡張子不一致"): lambda: t(
         "拡張子と中身が食い違う: 名前の末尾（.pdf など）と中身の形式が違います。"
         "開けるかどうかを確かめてください。"),
+    raw("形式の仕様に適合しない原本"): lambda: t(
+        "形式の仕様に適合しない原本: 原本はそのまま保存しています。"
+        "ふだんのソフトで開けるかを確かめ、開けなければ提出元に元のファイルを問い合わせてください。"),
 }
 
 
@@ -195,6 +201,10 @@ def _split_warning(line: str) -> tuple[str, str]:
 _JHOVE_UNAVAILABLE = re.compile(raw(
     r"^形式の適合性検査（JHOVE）を実施できませんでした: (.*)。"
     r"変換結果 (\d+) 件は開き直しの確認だけで保存しています$"))
+#: 同じく、原本の検査で JHOVE を動かせなかったとき（_check_originals）。
+_JHOVE_UNAVAILABLE_ORIGINALS = re.compile(raw(
+    r"^原本の形式の適合性検査（JHOVE）を実施できませんでした: (.*)。"
+    r"原本 (\d+) 件は検査せずに保存しています$"))
 
 
 def warning_line(line: str) -> str:
@@ -203,6 +213,11 @@ def warning_line(line: str) -> str:
     if m:
         return t("形式の適合性検査（JHOVE）を実施できませんでした: {reason}。"
                  "変換結果 {count} 件は開き直しの確認だけで保存しています",
+                 reason=jhove_reason(m[1]), count=m[2])
+    m = _JHOVE_UNAVAILABLE_ORIGINALS.match(line)
+    if m:
+        return t("原本の形式の適合性検査（JHOVE）を実施できませんでした: {reason}。"
+                 "原本 {count} 件は検査せずに保存しています",
                  reason=jhove_reason(m[1]), count=m[2])
     kind, rest = _split_warning(line)
     more = _MORE.match(rest)

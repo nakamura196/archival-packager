@@ -220,6 +220,23 @@ class TestJhoveUnavailable:
         assert line.startswith("Kept the original because the converted file does not conform")
 
 
+    def test_originals(self, english):
+        """原本の検査（_check_originals）の進捗と警告。"""
+        assert messages.progress_line("原本の形式の適合性検査（JHOVE）: 2 件") == \
+            "Format validation of originals (JHOVE): 2 files"
+        line = messages.warning_line(
+            "原本の形式の適合性検査（JHOVE）を実施できませんでした: JHOVE が同梱されていません。"
+            "原本 2 件は検査せずに保存しています"
+        )
+        assert line == ("Format validation of originals (JHOVE) could not be run: "
+                        "JHOVE is not bundled. 2 originals were kept without being validated")
+        line = messages.warning_line(
+            "形式の仕様に適合しない原本: 原本.tif — JHOVE: TIFF 6.0 Not well-formed"
+        )
+        assert line == "Original does not conform to its format: 原本.tif — JHOVE: TIFF 6.0 Not well-formed"
+        [advice] = messages.warning_advice(["形式の仕様に適合しない原本: 原本.tif — x"])
+        assert not JAPANESE.search(advice), advice
+
 def _texts(control) -> list[str]:
     """組み上がった画面の Text の中身を、入れ子をたどって全部集める。"""
     import flet as ft

@@ -137,6 +137,7 @@ def run(
             fixity_status=fixity_status,
             warnings=warnings,
             rules_document=rules_document,
+            now=now,
             progress=progress,
         )
 
@@ -455,26 +456,99 @@ def _check_conformance(
         return [note]
 
     for d in targets:
-        result = results.get(d.path)
-        if result is None:
-            d.conformance = DerivativeCheck(
-                CheckOutcome.SKIPPED,
-                "形式の適合性は未検査（JHOVE が結果を返しませんでした）", agent=release,
-            )
-            continue
-        agent = f"{release} ({result.module})" if result.module else release
-        described = " ".join(x for x in (result.format, result.version) if x)
-        note = f"JHOVE: {described + ' ' if described else ''}{result.status}"
-        if result.messages:
-            note += " — " + "; ".join(result.messages[:5])
-        outcome = {
-            True: CheckOutcome.PASSED, False: CheckOutcome.FAILED, None: CheckOutcome.SKIPPED,
-        }[result.conforms]
-        if outcome is CheckOutcome.SKIPPED:
-            # "Unknown" など。不適合とは言えないので捨てない。
-            note = f"形式の適合性を判定できませんでした（{note}）"
-        d.conformance = DerivativeCheck(outcome, note[:500], agent=agent)
+        d.conformance = _judge(results.get(d.path), release)
     return []
+
+
+def _judge(result: jhove.JhoveResult | None, release: str) -> DerivativeCheck:
+    """JHOVE の 1 件分の結果を、記録に書く形（DerivativeCheck）にする。"""
+    if result is None:
+        return DerivativeCheck(
+            CheckOutcome.SKIPPED,
+            "形式の適合性は未検査（JHOVE が結果を返しませんでした）", agent=release,
+        )
+    agent = f"{release} ({result.module})" if result.module else release
+    described = " ".join(x for x in (result.format, result.version) if x)
+    note = f"JHOVE: {described + ' ' if described else ''}{result.status}"
+    if result.messages:
+        note += " — " + "; ".join(result.messages[:5])
+    outcome = {
+        True: CheckOutcome.PASSED, False: CheckOutcome.FAILED, None: CheckOutcome.SKIPPED,
+    }[result.conforms]
+    if outcome is CheckOutcome.SKIPPED:
+        # "Unknown" など。不適合とは言えないので捨てない。
+        note = f"形式の適合性を判定できませんでした（{note}）"
+    return DerivativeCheck(outcome, note[:500], agent=agent)
+
+
+def _check_originals(
+    files: list[AIPFile], objects: Path, scratch_parent: Path, now: str, progress: Progress
+) -> list[str]:
+    """原本を JHOVE で検査し、結果を PREMIS の validation event として残す。
+
+    **不適合でも原本は捨てない。** 派生物は作り直せるが、原本は唯一の正本で
+    ある。ここでの検査は「受け入れた時点で仕様に適合していたか」を記録し、
+    担当者に知らせるためのもので、取捨には使わない。
+
+    **入力側のファイルを JHOVE に渡さない。** AIP に複写した objects/ の側を
+    検査する。jhove.validate は作業場所にハードリンクを張るが、入力側に
+    張るとリンク数と ctime が変わる（中身は変わらないが、原本に一切
+    触れないという約束に反する）。入力が別のボリュームにあると、
+    ハードリンクの代わりに一時領域へ全量を複写することにもなる。
+    AIP の側なら同じボリュームに作業場所を置ける。
+
+    **検査しなかったものは記録に書かない。** 派生物と違い、原本のうち
+    JHOVE の検査部品が無い形式はむしろ普通なので、件数分の「未検査」を
+    書くと記録が埋もれる。JHOVE そのものが動かなかったときは、対象だった
+    原本にだけ skipped を書き、report に 1 行出す（黙らない）。
+    """
+    targets = [
+        f for f in files
+        if Path(f.relative_path).suffix.lstrip(".").lower() in jhove.MODULE_FOR_EXTENSION
+    ]
+    if not targets:
+        return []
+
+    progress(f"原本の形式の適合性検査（JHOVE）: {len(targets)} 件")
+    copies = {f.relative_path: objects / f.relative_path for f in targets}
+    try:
+        results, release = jhove.validate(list(copies.values()), scratch_parent)
+    except jhove.JhoveUnavailable as exc:
+        for f in targets:
+            _append_original_validation_event(
+                f, DerivativeCheck(CheckOutcome.SKIPPED, f"形式の適合性は未検査（{exc}）"), now
+            )
+        note = (
+            f"原本の形式の適合性検査（JHOVE）を実施できませんでした: {exc}。"
+            f"原本 {len(targets)} 件は検査せずに保存しています"
+        )
+        progress(note)
+        return [note]
+
+    warnings: list[str] = []
+    for f in targets:
+        check = _judge(results.get(copies[f.relative_path]), release)
+        _append_original_validation_event(f, check, now)
+        if check.outcome is CheckOutcome.FAILED:
+            # 原本は保存する。ただし受け入れた資料に問題があることは知らせる。
+            note = f"形式の仕様に適合しない原本: {f.relative_path} — {check.note}"
+            warnings.append(note)
+            progress(note)
+    return warnings
+
+
+def _append_original_validation_event(f: AIPFile, check: DerivativeCheck, now: str) -> None:
+    """原本の検査結果を validation event にする（書き方は派生物と揃える）。"""
+    agent_ids = [APP_AGENT_ID]
+    if check.agent:
+        agent_ids.append(check.agent)
+    f.events.append(
+        PremisEvent(
+            type="validation", date_time=now,
+            detail_note=f"{f.relative_path}: {check.note}",
+            outcome=_CHECK_OUTCOMES[check.outcome], agent_ids=agent_ids,
+        )
+    )
 
 
 #: PREMIS の eventOutcome に書く値。CheckOutcome の綴りをそのまま出さないのは、
@@ -527,6 +601,7 @@ def _build(
     fixity_status: FixityStatus,
     warnings: list[str],
     rules_document: str,
+    now: str,
     progress: Progress,
 ) -> AIPResult:
     import bagit
@@ -537,19 +612,24 @@ def _build(
     objects.mkdir(parents=True)
     logs.mkdir(parents=True)
 
-    # 進捗の表示と実際の処理の順序を合わせる。METS の生成はここで起きるので、
-    # 呼び出し元で先に「生成しています」と出すと、実態より早く出てしまう。
-    progress("METS を生成しています…")
-    mets_name = f"METS.{aip_uuid}.xml"
-    with (aip_dir / mets_name).open("wb") as fh:
-        write_mets(fh)
-
     progress("AIP（BagIt bag）を組み立てています…")
 
     for f in parsed.files:
         _copy(f.absolute_path, objects / f.relative_path)
         for d in f.derivatives:
             _copy(d.path, objects / d.relative_path)
+
+    # 原本の検査は複写の後、METS の前に行う。検査するのは複写した側で
+    # （理由は _check_originals）、結果は METS の PREMIS に入れるため。
+    # 作業場所は AIP の中に作り、jhove.validate が bag 化の前に消す。
+    warnings = warnings + _check_originals(parsed.files, objects, aip_dir, now, progress)
+
+    # 進捗の表示と実際の処理の順序を合わせる。METS の生成はここで起きるので、
+    # 呼び出し元で先に「生成しています」と出すと、実態より早く出てしまう。
+    progress("METS を生成しています…")
+    mets_name = f"METS.{aip_uuid}.xml"
+    with (aip_dir / mets_name).open("wb") as fh:
+        write_mets(fh)
 
     # 提出書類の継承。SIP 段で作った記録を AIP に持ち込む。
     if parsed.submission_documentation and parsed.submission_documentation.is_dir():
