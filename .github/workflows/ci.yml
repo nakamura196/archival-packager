@@ -137,6 +137,13 @@ jobs:
       - name: pytest（この OS で）
         run: uv run pytest -q
 
+      # Xcode 27 は最小 macOS 12.0 未満を受け付けないので、雛形を直してから渡す。
+      # 理由は scripts/patch_flet_template.py の冒頭。Windows では空のまま。
+      - name: Patch Flet template (macOS)
+        id: template
+        if: matrix.target == 'macos'
+        run: echo "args=--template $(uv run python scripts/patch_flet_template.py)" >> "$GITHUB_OUTPUT"
+
       - name: Build
         env:
           PYTHONIOENCODING: utf-8
@@ -148,6 +155,7 @@ jobs:
           --product "Archival Packager"
           --bundle-id com.nakamura.archivalpackager.x
           --org com.nakamura
+          ${{ steps.template.outputs.args }}
 
       # 同梱バイナリは .exe と同じ階層の bin/ に置く（core/bundled.py の解決順）。
       # ビルド成果物に入れるのは flet ではなくこちらの責任。
