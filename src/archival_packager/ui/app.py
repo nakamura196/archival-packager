@@ -915,7 +915,52 @@ def main(page: ft.Page) -> None:
         state.input_path = sip_path
         input_label.value = str(sip_path)
         refresh_run_enabled()
-        log(t("AIP 作成に切り替え、作った SIP を入力にしました。出力先を確かめて「実行」を押してください。"))
+
+        # **右側を空にし、次は左側で操作することを大きく出す。** 以前は進捗の
+        # 末尾に 1 行足すだけで、SIP の結果も残ったままだった。押しても何も
+        # 起きていないように見え、AIP がもうできたのか、何を待てばよいのかが
+        # 分からなかった。AIP 作成は「実行」を押すまで始まらない。
+        progress_log.controls.clear()
+        result_panel.controls.clear()
+        steps = [
+            t("(1) 左の「入力」に、いま作った SIP が入っています。"),
+            t("(2) 左の「出力先」を確かめてください。"),
+            t("(3) 必要なら「オプション」で、保存用フォーマットへの変換を選びます。"),
+            t("(4) 左下の「実行」を押すと、AIP を作り始めます。"),
+        ]
+        progress_log.controls.append(
+            ft.Container(
+                ft.Row(
+                    [
+                        ft.Icon(ft.Icons.ARROW_BACK, size=32, color=ft.Colors.PRIMARY),
+                        ft.Column(
+                            [
+                                ft.Text(t("次は左側で操作してください"),
+                                        weight=ft.FontWeight.BOLD, size=15),
+                                ft.Text(t("「AIP 作成」に切り替えました。"
+                                          "AIP はまだ作っていません。"), size=12),
+                                *(ft.Text(s, size=12) for s in steps),
+                                ft.Text(t("進み具合は、ここに表示されます。"), size=11,
+                                        color=ft.Colors.ON_SURFACE_VARIANT),
+                            ],
+                            spacing=4,
+                            expand=True,
+                        ),
+                    ],
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
+                bgcolor=ft.Colors.PRIMARY_CONTAINER,
+                border=ft.Border.all(1, ft.Colors.PRIMARY),
+                border_radius=6,
+                padding=14,
+            )
+        )
+        # 実行ボタンの下にも同じことを書く。押せる状態だと説明欄は空になるので、
+        # 何も足りないときだけ書き込む（足りないものがあればそちらを優先する）。
+        if not run_hint.value:
+            run_hint.value = t("出力先を確かめてから「実行」を押すと、AIP を作ります")
+            run_hint.visible = True
         page.update()
 
     state.continue_to_aip = continue_to_aip
