@@ -42,7 +42,8 @@ fi
 print "[1/2] flet build ${TARGET}"
 # --yes: Flutter SDK 導入の対話確認を飛ばす（無いと CI で EOFError）
 # --no-rich-output: Windows のコンソールが進捗のスピナー文字を encode できない
-uv run flet build "${TARGET}" . \
+# uv.lock の版に固定して回す（flet build は uv.lock を読まない。理由は pinned_build.py の冒頭）。
+uv run python scripts/pinned_build.py build -- flet build "${TARGET}" . \
   --yes \
   --no-rich-output \
   --exclude "${EXCLUDES[@]}" \
@@ -50,6 +51,9 @@ uv run flet build "${TARGET}" . \
   --bundle-id "${BUNDLE_ID}" \
   --org com.nakamura \
   "${TEMPLATE_ARGS[@]}"
+
+# 同梱された版が uv.lock と一致するか。ずれていたらここで落とす。
+uv run python scripts/pinned_build.py verify
 
 print "[2/2] 成果物"
 if [[ "${TARGET}" == "macos" ]]; then

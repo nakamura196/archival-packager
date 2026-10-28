@@ -150,12 +150,17 @@ jobs:
           PYTHONUTF8: "1"
           FLET_CLI_SKIP_FLUTTER_DOCTOR: "true"
         run: >-
-          uv run flet build ${{ matrix.target }} . --yes --no-rich-output
+          uv run python scripts/pinned_build.py build -- flet build ${{ matrix.target }} . --yes --no-rich-output
           --exclude .venv binaries build tests scripts spike .git .github packaging store docs
           --product "Archival Packager"
           --bundle-id com.nakamura.archivalpackager.x
           --org com.nakamura
           ${{ steps.template.outputs.args }}
+
+      # flet build は uv.lock を読まないので、上で版を固定して回している（Issue #20）。
+      # 実際に同梱された版が uv.lock と一致したかをここで確かめる。
+      - name: Verify bundled packages match uv.lock
+        run: uv run python scripts/pinned_build.py verify
 
       # 同梱バイナリは .exe と同じ階層の bin/ に置く（core/bundled.py の解決順）。
       # ビルド成果物に入れるのは flet ではなくこちらの責任。
