@@ -214,7 +214,9 @@ jobs:
           }
           # JHOVE（変換した派生物の形式検査）。Java が起動しなければ、アプリは
           # 「形式の適合性は未検査」と記録して続けるので、ここで止めないと気づけない。
-          & (Join-Path $bin "jre\bin\java.exe") -Djava.awt.headless=true -version
+          # -D... は引用符で囲む。囲まないと PowerShell が最初の "." で 2 つに割り、
+          # Java は ".awt.headless=true" をクラス名と読んで落ちる（2026-10-27 に踏んだ）。
+          & (Join-Path $bin "jre\bin\java.exe") "-Djava.awt.headless=true" -version
           if ($LASTEXITCODE -ne 0) { throw "同梱の Java が起動しません" }
           if (-not (Get-ChildItem -Path (Join-Path $bin "jhove") -Filter "jhove-core-*.jar")) {
             throw "JHOVE が入っていません"
