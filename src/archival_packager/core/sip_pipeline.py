@@ -31,6 +31,7 @@ from . import (
     report,
     siegfried,
     sip_builder,
+    sip_mets,
     sip_premis,
     spreadsheets,
     zip_io,
@@ -142,7 +143,13 @@ def run(
             files, root, scan_root, metadata, options, structured, virus_status,
             format_status, source_note, progress,
         )
-        docs.premis_xml = sip_premis.build(files, provenance)
+        # 同じ記録を premis.xml と SIP の METS の 2 つの形で書く（core/sip_mets.py の冒頭）。
+        collected = sip_premis.collect(files, provenance)
+        docs.premis_xml = sip_premis.build(files, provenance, collected)
+        docs.sip_mets_xml = sip_mets.build(
+            *collected, sip_uuid=sip_mets.new_identifier(),
+            created=sip_premis.now_iso(), app_name=APP_AGENT_NAME,
+        )
 
         progress("BagIt bag を組み立てています…" if options.make_bag else "SIP を組み立てています…")
         result = sip_builder.build(

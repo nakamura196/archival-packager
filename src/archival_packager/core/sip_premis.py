@@ -120,35 +120,59 @@ def events_for(f: ScannedFile, stage: Stage, app_agent_id: str) -> PremisEvent |
     )
 
 
-def build(files: list[ScannedFile], provenance: SIPProvenance) -> bytes:
-    """premis.xml のバイト列。object・event・agent をこの順に並べる（PREMIS 3 の順序）。"""
+def collect(
+    files: list[ScannedFile], provenance: SIPProvenance
+) -> tuple[list[tuple[ScannedFile, list[PremisEvent]]], list[PremisAgent]]:
+    """ファイルごとの event と、そこで使われた agent（出てきた順）。
+
+    premis.xml と SIP の METS（core/sip_mets.py）の両方がこれを使う。
+    **同じ記録を 2 つの形で書くので、中身を作るのは 1 か所にする。**
+    event の識別子もここで 1 度だけ振るので、2 つのファイルで一致する。
+    """
+    app_id = provenance.app_agent.id
+    per_file: list[tuple[ScannedFile, list[PremisEvent]]] = []
+    used: list[str] = []
+    for f in files:
+        events = [
+            ev for stage in provenance.stages
+            if (ev := events_for(f, stage, app_id)) is not None
+        ]
+        per_file.append((f, events))
+        for ev in events:
+            for a in ev.agent_ids:
+                if a not in used:
+                    used.append(a)
+
+    known = {app_id: provenance.app_agent}
+    agents = [known.get(a) or PremisAgent(a, a, AgentKind.SOFTWARE) for a in used]
+    return per_file, agents
+
+
+def build(
+    files: list[ScannedFile],
+    provenance: SIPProvenance,
+    collected: tuple[list[tuple[ScannedFile, list[PremisEvent]]], list[PremisAgent]] | None = None,
+) -> bytes:
+    """premis.xml のバイト列。object・event・agent をこの順に並べる（PREMIS 3 の順序）。
+
+    `collected` に collect() の結果を渡すと、それを使う（METS と event の識別子を揃えるため）。
+    """
+    per_file, agents = collected or collect(files, provenance)
     root = etree.Element(_q("premis"), nsmap={"premis": PREMIS_NS, "xsi": XSI_NS})
     root.set("version", "3.0")
-    app_id = provenance.app_agent.id
 
-    for f in files:
-        _append_object(root, f)
-
-    used_agents: list[str] = []
-    for f in files:
-        for stage in provenance.stages:
-            ev = events_for(f, stage, app_id)
-            if ev is None:
-                continue
-            _append_event(root, ev, f.relative_path)
-            for a in ev.agent_ids:
-                if a not in used_agents:
-                    used_agents.append(a)
-
-    known = {provenance.app_agent.id: provenance.app_agent}
-    for a in used_agents:
-        agent = known.get(a) or PremisAgent(a, a, AgentKind.SOFTWARE)
-        _append_agent(root, agent)
+    for f, _events in per_file:
+        append_object(root, f)
+    for f, events in per_file:
+        for ev in events:
+            append_event(root, ev, f.relative_path)
+    for agent in agents:
+        append_agent(root, agent)
 
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True)
 
 
-def _append_object(parent: etree._Element, f: ScannedFile) -> None:
+def append_object(parent: etree._Element, f: ScannedFile) -> None:
     obj = etree.SubElement(parent, _q("object"))
     obj.set(f"{{{XSI_NS}}}type", "premis:file")
     _append_identifier(obj, "objectIdentifier", f.relative_path)
@@ -178,7 +202,7 @@ def _append_identifier(parent: etree._Element, tag: str, value: str) -> None:
     etree.SubElement(ident, _q(f"{tag}Value")).text = value
 
 
-def _append_event(parent: etree._Element, ev: PremisEvent, target: str) -> None:
+def append_event(parent: etree._Element, ev: PremisEvent, target: str) -> None:
     event = etree.SubElement(parent, _q("event"))
     ident = etree.SubElement(event, _q("eventIdentifier"))
     etree.SubElement(ident, _q("eventIdentifierType")).text = "UUID"
@@ -202,7 +226,7 @@ def _append_event(parent: etree._Element, ev: PremisEvent, target: str) -> None:
     etree.SubElement(linking, _q("linkingObjectIdentifierValue")).text = target
 
 
-def _append_agent(parent: etree._Element, a: PremisAgent) -> None:
+def append_agent(parent: etree._Element, a: PremisAgent) -> None:
     agent = etree.SubElement(parent, _q("agent"))
     ident = etree.SubElement(agent, _q("agentIdentifier"))
     etree.SubElement(ident, _q("agentIdentifierType")).text = "preservation-system"

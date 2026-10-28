@@ -90,6 +90,8 @@ class SubmissionDocs:
     #: SIP 作成中に行った処理の PREMIS 記録（core/sip_premis.py）。
     #: 空なら premis.xml 自体を作らない（既存の呼び出しをそのまま通すため）。
     premis_xml: bytes = b""
+    #: 同じ記録を METS に包んだもの（core/sip_mets.py）。空なら書かない。
+    sip_mets_xml: bytes = b""
 
 
 @dataclass(slots=True)
@@ -235,6 +237,8 @@ def _write_submission_docs(subdoc: Path, docs: SubmissionDocs) -> dict[str, Path
     _write_text(docs.report_html, subdoc / "report.html")
     if docs.premis_xml:
         _write_bytes(docs.premis_xml, subdoc / "premis.xml")
+    if docs.sip_mets_xml:
+        _write_bytes(docs.sip_mets_xml, subdoc / "sip-mets.xml")
 
     out: dict[str, Path] = {"description": description, "report": report}
     if arrangement := _write_optional_csv(docs.arrangement_map_csv, "arrangement-map.csv", subdoc):

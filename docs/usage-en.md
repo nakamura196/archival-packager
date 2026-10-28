@@ -439,6 +439,7 @@ is what watches the application itself for regressions).
       accession.csv             Accession record (original file names and paths, and the path in the SIP)
       dfxml.xml                 Technical metadata (DFXML)
       premis.xml                Processing record of the SIP (PREMIS: identification, checksums, virus scan, renaming)
+      sip-mets.xml              The same record wrapped in METS (with the SIP's UUID)
       report.txt / report.html  Summary for people to read
       checksum.sha256           SHA-256, paths relative to the SIP root
       pii-report.csv            Personal information candidates (only with --scan-pii)
@@ -457,6 +458,10 @@ made, with the date and the tool. Steps that were not performed (for example,
 when the virus scan was turned off) are not recorded. When the AIP is built,
 these events are carried into the METS with their original dates.
 
+`sip-mets.xml` holds the same record in METS form. It is there because an
+Archivematica AIP keeps the METS of its transfer. When the AIP is built, it is
+moved to `objects/submissionDocumentation/transfer-<SIP name>-<SIP UUID>/METS.xml`.
+
 The column headings of these CSV files and the text of the reports are in
 Japanese, whatever the interface language (see
 [Switching the interface to English](#switching-the-interface-to-english)).
@@ -471,6 +476,8 @@ Japanese, whatever the interface language (see
     objects/                    The originals, plus preservation derivatives if normalized
     objects/submissionDocumentation/
                                 The SIP's submission documents, and the normalization rules actually applied
+    objects/submissionDocumentation/transfer-<SIP name>-<uuid>/METS.xml
+                                The METS written when the SIP was made (Archivematica's transfer METS)
     logs/                       Logs of the preservation processing
 ```
 

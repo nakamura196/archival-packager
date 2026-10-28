@@ -65,6 +65,7 @@ from archival_packager.core.spreadsheets import (
 )
 
 NS = {"mets": METS_NS, "premis": PREMIS_NS}
+XLINK = "http://www.w3.org/1999/xlink"
 UTF8_BOM = b"\xef\xbb\xbf"
 
 
@@ -616,17 +617,36 @@ class TestArchivematicaAipShape:
         assert subdoc.is_dir()
         assert (subdoc / "description.csv").is_file()
 
-    def test_no_transfer_mets_in_submission_documentation_yet(self, aip):
-        """Gap 12 を固定する。Archivematica の AIP は受け入れ時の METS を
-        submissionDocumentation/transfer-*/METS.xml に残すが、こちらは premis.xml だけ。
+    def test_transfer_mets_sits_in_a_per_transfer_folder(self, aip):
+        """受け入れ時の METS を submissionDocumentation/transfer-<名前>-<uuid>/METS.xml に置く。
 
-        「提出書類の置き場所が一致」だけを見て、中に METS が無いことを見落としていた
-        （2026-10-27 の打ち合わせで指摘を受けた）。SIP の METS を書くようにしたら
-        ここが落ちる。そのときは KNOWN_GAPS と docs/interoperability.md を直す（#49）。
+        Gap 12 の是正（#49）。それまでは premis.xml だけで、「提出書類の置き場所が一致」
+        だけを見て、中に METS が無いことを見落としていた（2026-10-27 の打ち合わせで指摘）。
+        <uuid> は SIP の METS の OBJID と一致すること。SIP の中での名前（sip-mets.xml）は
+        AIP に残さない（同じものが 2 つあると、どちらが正か分からなくなる）。
         """
         subdoc = aip.aip_path / "data" / "objects" / "submissionDocumentation"
-        assert not list(subdoc.rglob("METS*.xml"))
+        found = list(subdoc.glob("transfer-*/METS.xml"))
+        assert len(found) == 1
+        folder = found[0].parent.name
+        doc = etree.parse(str(found[0])).getroot()
+        assert folder == f"transfer-2026-移管-総務課-{doc.get('OBJID')}"
+        assert not (subdoc / "sip-mets.xml").exists()
+        # 古い読み手のために premis.xml も残る。
         assert (subdoc / "premis.xml").is_file()
+
+    def test_transfer_mets_is_listed_in_the_aip_mets(self, aip):
+        """AIP の METS の fileSec からも、移した先の位置で辿れること。"""
+        doc = etree.parse(str(aip.mets_path)).getroot()
+        hrefs = [
+            el.get(f"{{{XLINK}}}href")
+            for el in doc.iterfind(
+                ".//mets:fileGrp[@USE='submissionDocumentation']/mets:file/mets:FLocat", NS
+            )
+        ]
+        assert any(h.startswith("objects/submissionDocumentation/transfer-")
+                   and h.endswith("/METS.xml") for h in hrefs)
+        assert not any(h.endswith("sip-mets.xml") for h in hrefs)
 
     def test_readme_html_sits_at_the_data_root(self, aip):
         """Archivematica の AIP と同じく data/README.html を置くこと。
@@ -754,10 +774,16 @@ KNOWN_GAPS: tuple[Gap, ...] = (
         impact="なし。BagIt 仕様上どちらも適法。直さない",
     ),
     Gap(
-        area="AIP: 受け入れ時の METS",
-        ours="SIP は METS を書かず premis.xml（PREMIS のみ）。AIP はそれを複写",
-        theirs="submissionDocumentation/transfer-<名前>-<uuid>/METS.xml を AIP に残す",
-        impact="小〜中。記録の中身は AIP の METS にもある。同じ形を前提に読む道具からは見つからない（#49）",
+        area="AIP: 受け入れ時の提出書類の置き場所",
+        ours=(
+            "METS.xml だけ transfer-<名前>-<uuid>/ に置き、"
+            "formats.csv など他の提出書類は submissionDocumentation/ 直下のまま"
+        ),
+        theirs="提出書類も transfer ごとのフォルダに分ける",
+        impact=(
+            "小。transfer は常に 1 つなので取り違えは起きない。"
+            "移すと確認画面と既存の AIP の読み手が辿れなくなる"
+        ),
     ),
     Gap(
         area="AtoM: culture 列",
@@ -777,6 +803,7 @@ def test_known_gap_count_is_frozen():
     2026-09-12: 10 件 → 7 件を是正 → 新たに 1 件（culture）を記録して 4 件。
     2026-09-12: data/README.html（Gap 9）を是正して 3 件。
     2026-10-27: 受け入れ時の METS（Gap 12）を記録して 4 件。
+    2026-10-28: Gap 12 を是正（#49）。残った置き場所の差を Gap 13 として記録して 4 件のまま。
     """
     assert len(KNOWN_GAPS) == 4
     assert len({g.area for g in KNOWN_GAPS}) == 4

@@ -24,6 +24,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO
 
+from lxml import etree
+
 from .. import __version__
 from . import (
     conversion_registry,
@@ -33,6 +35,7 @@ from . import (
     normalizer,
     rule_table,
     sip_builder,
+    sip_mets,
     sip_reader,
     zip_io,
 )
@@ -111,6 +114,8 @@ def run(
         else:
             progress("フォーマット変換は行いません（オプション OFF）")
 
+        transfer_mets = _place_transfer_mets(parsed, sip_root, warnings)
+
         aip_uuid = str(_uuid.uuid4())
         descriptive = DescriptiveMetadata.merge(options.descriptive, parsed.descriptive)
 
@@ -125,7 +130,7 @@ def run(
                 agents=agents,
                 descriptive=descriptive,
                 created_iso=now,
-                submission_documentation=_submission_documents(parsed),
+                submission_documentation=_submission_documents(parsed, transfer_mets),
             )
 
         result = _build(
@@ -137,6 +142,7 @@ def run(
             fixity_status=fixity_status,
             warnings=warnings,
             rules_document=rules_document,
+            transfer_mets=transfer_mets,
             now=now,
             progress=progress,
         )
@@ -180,7 +186,33 @@ def _agents(options: AIPOptions) -> list[PremisAgent]:
 RULES_DOCUMENT_HREF = f"objects/submissionDocumentation/{rule_table.DOCUMENT_NAME}"
 
 
-def _submission_documents(parsed) -> list[mets.SubmissionDocument]:
+def _place_transfer_mets(
+    parsed: sip_reader.ParsedSIP, sip_root: Path, warnings: list[str]
+) -> str | None:
+    """SIP の METS を AIP のどこに置くか（data/ からの相対パス）。無ければ None。
+
+    Archivematica と同じく submissionDocumentation/transfer-<名前>-<uuid>/METS.xml
+    に置く（core/sip_mets.py の冒頭を参照）。<uuid> は SIP の METS の OBJID。
+    **読めなかったときは黙らない。** 元の名前のまま提出書類として残し、警告を出す。
+    """
+    root = parsed.submission_documentation
+    if not root or not (root / sip_mets.FILE_NAME).is_file():
+        return None
+    try:
+        sip_uuid = sip_mets.read_identifier((root / sip_mets.FILE_NAME).read_bytes())
+    except (OSError, ValueError, etree.XMLSyntaxError) as exc:
+        warnings.append(
+            f"SIP の METS（{sip_mets.FILE_NAME}）を読めませんでした。"
+            f"transfer-*/ には置かず、提出書類のまま残します: {exc}"
+        )
+        return None
+    folder = sip_mets.transfer_dir_name(sip_root.name, sip_uuid)
+    return f"objects/submissionDocumentation/{folder}/{sip_mets.AIP_FILE_NAME}"
+
+
+def _submission_documents(
+    parsed, transfer_mets: str | None = None
+) -> list[mets.SubmissionDocument]:
     """AIP に継承する提出書類を、METS に載せる形で並べる。
 
     **AIP に入れているのに fileSec に無いと、METS だけを読む側からは
@@ -195,6 +227,8 @@ def _submission_documents(parsed) -> list[mets.SubmissionDocument]:
         for path in sorted(p for p in root.rglob("*") if p.is_file()):
             rel = path.relative_to(root).as_posix()
             href = f"objects/submissionDocumentation/{rel}"
+            if transfer_mets and rel == sip_mets.FILE_NAME:
+                href = transfer_mets  # 置き場所を移す（_build が実体を移す）
             if href == RULES_DOCUMENT_HREF:
                 # AIP を入力にして作り直した場合、継承元に同じ名前の表がある。
                 # 二重に載せず、今回の表（下で足す方）で置き換える。
@@ -603,6 +637,7 @@ def _build(
     rules_document: str,
     now: str,
     progress: Progress,
+    transfer_mets: str | None = None,
 ) -> AIPResult:
     import bagit
 
@@ -635,6 +670,10 @@ def _build(
     if parsed.submission_documentation and parsed.submission_documentation.is_dir():
         dest = objects / "submissionDocumentation"
         shutil.copytree(parsed.submission_documentation, dest, dirs_exist_ok=True)
+        if transfer_mets:
+            target = aip_dir / transfer_mets
+            target.parent.mkdir(parents=True, exist_ok=True)
+            (dest / sip_mets.FILE_NAME).replace(target)
 
     # **使った規則表そのものを同梱する。** Archivematica は PREMIS に FPR の
     # 識別子だけを書き、規則の中身は中央の登録簿にある。後年その登録簿が
@@ -729,7 +768,9 @@ OAIS 参照モデルにいう保存用のひとまとまりで、資料そのも
     <td>長期保存に向いた形式へ変換した複製（例: PNG から TIFF）。
         <strong>原本は変更していません。</strong>変換していない資料にはこれがありません。</td></tr>
 <tr><th><code>data/objects/submissionDocumentation/</code></th>
-    <td>受入時に作った記録（ファイル一覧、フォーマット識別の結果、変換規則の表など）。</td></tr>
+    <td>受入時に作った記録（ファイル一覧、フォーマット識別の結果、変換規則の表など）。
+        <code>transfer-*/METS.xml</code> があれば、
+        SIP を作ったときの処理の記録を METS にしたものです。</td></tr>
 <tr><th><code>data/logs/</code></th>
     <td>保存処理のログ。</td></tr>
 <tr><th><code>data/METS.{aip_uuid}.xml</code></th>
@@ -794,7 +835,8 @@ done to them, in one container. It was produced by
         converted have no such copy.</td></tr>
 <tr><th><code>data/objects/submissionDocumentation/</code></th>
     <td>Documentation created at accession: file inventory, format identification
-        results, and the normalisation rule table that was in force.</td></tr>
+        results, and the normalisation rule table that was in force.
+        <code>transfer-*/METS.xml</code>, if present, is the record of the SIP stage as METS.</td></tr>
 <tr><th><code>data/logs/</code></th>
     <td>Preservation processing logs.</td></tr>
 <tr><th><code>data/METS.{aip_uuid}.xml</code></th>
