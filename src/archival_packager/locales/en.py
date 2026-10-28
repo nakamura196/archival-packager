@@ -89,6 +89,9 @@ TEXTS: dict[str, str] = {
     "識別子": "Identifier",
     "例: 2026-移管-総務課": "e.g. 2026-transfer-general-affairs",
     "タイトル（必須）": "Title (required)",
+    "タイトルだけ必須です。ほかは空でもかまいません。":
+        "Only the title is required. The other fields may be left empty.",
+    "空のままでは作成できません": "Enter a title to create the package",
     "例: 総務課 一般文書": "e.g. General Affairs Division, general records",
     "内容・範囲": "Scope and content",
     "年代": "Dates",
