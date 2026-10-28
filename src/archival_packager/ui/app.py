@@ -178,7 +178,7 @@ def main(page: ft.Page) -> None:
                 ft.Radio(value=MODE_SIP,
                          label=t("SIP 作成（素材フォルダ／ZIP から受入パッケージ）")),
                 ft.Radio(value=MODE_AIP, label=t("AIP 作成（SIP から長期保存パッケージ）")),
-                ft.Radio(value=MODE_FULL, label=t("素材から AIP まで一気通貫")),
+                ft.Radio(value=MODE_FULL, label=t("素材から AIP まで続けて作る")),
             ],
             spacing=2,
         ),
@@ -195,7 +195,7 @@ def main(page: ft.Page) -> None:
         label=t("タイトル（必須）"), hint_text=t("例: 総務課 一般文書"), dense=True,
         helper_style=ft.TextStyle(color=ft.Colors.ERROR),
     )
-    identifier = ft.TextField(label=t("識別子"), hint_text=t("例: 2026-移管-総務課"), dense=True)
+    identifier = ft.TextField(label=t("ID（整理番号）"), hint_text=t("例: 2026-移管-総務課"), dense=True)
     metadata_note = ft.Text(
         t("タイトルだけ必須です。ほかは空でもかまいません。"),
         size=11, color=ft.Colors.ON_SURFACE_VARIANT,
@@ -206,7 +206,7 @@ def main(page: ft.Page) -> None:
     date_note = ft.TextField(label=t("年代"), hint_text=t("例: 2024–2025"), dense=True)
     archivist = ft.TextField(
         label=t("担当者名"),
-        hint_text=t("PREMIS に保存処理の実施者として記録されます"),
+        hint_text=t("処理の記録（PREMIS）に、作業した人として残ります"),
         dense=True,
     )
 
@@ -244,22 +244,22 @@ def main(page: ft.Page) -> None:
         return box
 
     make_bag = option_box(
-        t("BagIt bag として梱包する"), False,
-        t("SIP を BagIt の形にします。bagit.txt と manifest-sha256.txt が付き、"
+        t("BagIt 形式でまとめる"), False,
+        t("SIP を BagIt（受け渡しに広く使われる形式）にします。bagit.txt と manifest-sha256.txt が付き、"
           "受け取った側で中身が欠けていないか確かめられます。"),
     )
     scan_pii = option_box(
-        t("個人情報(PII)を走査する"), False,
+        t("個人情報が含まれていないか調べる"), False,
         t("メールアドレス・電話番号・マイナンバー・カード番号・郵便番号の候補を探し、"
           "pii-report.csv に出します。値は伏せ字で書きます。ファイルは変えません。"),
     )
     scan_virus = option_box(
-        t("ウイルス検査を行う（定義 DB が必要）"), False,
+        t("ウイルス検査をする（先にウイルス定義ファイルの取得が必要）"), False,
         t("同梱の ClamAV で全ファイルを検査します。"
-          "先に下の「ウイルス定義データベース」で定義を取得してください。"),
+          "先に下の「ウイルス定義ファイル」で定義を取得してください。"),
     )
     sanitize = option_box(
-        t("ファイル名を安全化する（元名は accession.csv に残ります）"), False,
+        t("ファイル名の使えない記号を置き換える（元の名前は accession.csv に残ります）"), False,
         t("Windows などで使えない記号（\\ : * ? \" < > | & ; [ ]）を _ に置き換えます。"
           "末尾のピリオド・空白を取り、CON などの予約名には先頭に _ を付けます。"
           "同じ名前になったら _2 を付けます。Mac で作った名前の濁点の分かれ"
@@ -270,12 +270,12 @@ def main(page: ft.Page) -> None:
           "ことがあります。名前そのものを資料として残したいときは、オフにしてください。"),
     )
     serialize_zip = option_box(
-        t("成果物を ZIP（無圧縮）に固める"), False,
+        t("できたものを 1 つの ZIP にまとめる（圧縮なし）"), False,
         t("できたパッケージを 1 つの ZIP にまとめます（受け渡し用）。"
           "圧縮しないので、中のファイルのバイト列は変わりません。"),
     )
     normalize = option_box(
-        t("保存用フォーマットへ変換する（AIP）"), True,
+        t("保存に向いた形式の写しも作る（AIP）"), True,
         t("AIP を作るとき、画像を TIFF に、PostScript / EPS を PDF に変換した"
           "保存用の複製を加えます。元のファイルもそのまま残ります。"),
     )
@@ -390,7 +390,7 @@ def main(page: ft.Page) -> None:
             else:
                 input_problem = t(
                     "選んだフォルダは SIP ではありません。素材のフォルダから作るときは、"
-                    "「何を作るか」で「SIP 作成」か「素材から AIP まで一気通貫」を選んでください。")
+                    "「何を作るか」で「SIP 作成」か「素材から AIP まで続けて作る」を選んでください。")
             # 入力が SIP でないうちは、出力先について「SIP の中」と言うのは誤り。
             # 先に入力を直してもらう。
             output_problem = ""
@@ -447,16 +447,16 @@ def main(page: ft.Page) -> None:
                 count=result.file_count, size=f"{result.total_bytes:,}",
             )
             extras = [
-                (t("記述スプレッドシート"), result.spreadsheet_path),
+                (t("資料の説明の表"), result.spreadsheet_path),
                 (t("レポート"), result.report_path),
                 (t("PII レポート"), result.pii_report_path),
-                (t("配列前後の対応表"), result.arrangement_map_path),
+                (t("並べ替え前後の対応表"), result.arrangement_map_path),
                 ("ZIP", result.zip_path),
             ]
         else:
             path = result.aip_path
             headline = t(
-                "AIP を作成しました（原本 {originals} 件 / 派生物 {derivatives} 件）",
+                "AIP を作成しました（原本 {originals} 件 / 保存用の写し {derivatives} 件）",
                 originals=result.original_count, derivatives=result.derivative_count,
             )
             extras = [("METS", result.mets_path), ("ZIP", result.zip_path)]
@@ -597,7 +597,7 @@ def main(page: ft.Page) -> None:
                     show_result(sip_result)
 
             if selected in (MODE_AIP, MODE_FULL):
-                # 一気通貫では、いま作った SIP をそのまま入力にする。
+                # 「続けて作る」では、いま作った SIP をそのまま入力にする。
                 aip_input = sip_result.sip_path if sip_result else state.input_path
                 log(t("――― AIP 作成 ―――"))
                 aip_result = aip_pipeline.run(
@@ -776,9 +776,9 @@ def main(page: ft.Page) -> None:
     )
 
     metadata_section = section(
-        t("記述メタデータ"), metadata_note, title, identifier, date_note, scope_note, archivist
+        t("資料の説明"), metadata_note, title, identifier, date_note, scope_note, archivist
     )
-    virus_section = section(t("ウイルス定義データベース"), virus_db_status, virus_db_button)
+    virus_section = section(t("ウイルス定義ファイル"), virus_db_status, virus_db_button)
 
     # モードの説明。ラジオのラベルは短くせざるを得ないので、選んだものが
     # 何をするのかを 1 行添える。
@@ -822,7 +822,7 @@ def main(page: ft.Page) -> None:
             ft.Divider(height=1),
             metadata_section,
             prior_section := section(
-                t("前回の受入記録（配列前後の突合）"),
+                t("前回の受け入れ記録（並べ替えの前後を照らし合わせる）"),
                 ft.OutlinedButton(
                     t("accession.csv を選ぶ"),
                     icon=ft.Icons.UPLOAD_FILE,
@@ -981,7 +981,7 @@ def main(page: ft.Page) -> None:
         steps = [
             t("(1) 左の「入力」に、いま作った SIP が入っています。"),
             t("(2) 左の「出力先」を確かめてください。"),
-            t("(3) 必要なら「オプション」で、保存用フォーマットへの変換を選びます。"),
+            t("(3) 必要なら「オプション」で、保存に向いた形式の写しを作るかを選びます。"),
             t("(4) 左下の「実行」を押すと、AIP を作り始めます。"),
         ]
         progress_log.controls.append(

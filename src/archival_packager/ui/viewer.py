@@ -504,11 +504,11 @@ def _breakdown(report: package_report.PackageReport) -> ft.Control:
     ]
     if summary.unidentified:
         stats.append(
-            _stat(t("未識別"), t("{count} 件", count=summary.unidentified), warn=True)
+            _stat(t("形式不明"), t("{count} 件", count=summary.unidentified), warn=True)
         )
     if summary.extension_warnings:
         stats.append(
-            _stat(t("拡張子が不一致"),
+            _stat(t("拡張子と中身が違う"),
                   t("{count} 件", count=summary.extension_warnings), warn=True)
         )
 
@@ -543,7 +543,7 @@ def _overview_tab(
             size=12, color=_LABEL_COLOR,
         ),
         ft.Divider(height=16),
-        _pair(t("識別子"), o.identifier),
+        _pair(t("ID（整理番号）"), o.identifier),
         _pair(t("作成日時"), o.created),
         _pair(
             t("ファイル数"),
@@ -654,11 +654,11 @@ def _stage_label(event_type: str) -> str:
         "filename change": t("ファイル名の変更"),
         "ingestion": t("取り込み"),
         "virus check": t("ウイルス検査"),
-        "format identification": t("フォーマットの識別"),
+        "format identification": t("ファイル形式の判定"),
         "normalization": t("保存用形式への変換"),
-        "validation": t("変換結果の検証"),
-        "message digest calculation": t("チェックサムの算出"),
-        "fixity check": t("完全性の確認"),
+        "validation": t("変換結果の確認"),
+        "message digest calculation": t("チェックサムの計算"),
+        "fixity check": t("欠け・変化の確認"),
     }.get(event_type, event_type)
 
 
@@ -668,17 +668,20 @@ def _stage_hint(event_type: str) -> str:
         "ingestion": t("SIP の原本を AIP に取り込んだ記録です。"),
         "virus check": t("ClamAV で検査した記録です。"
                          "検査しなかったときは記録を書きません。"),
-        "format identification": t("Siegfried で PRONOM の形式を特定した記録です。"),
+        "format identification": t("Siegfried で、ファイルの形式を PRONOM（ファイル形式の国際的な登録簿）の"
+                            "番号で特定した記録です。"),
         "normalization": t("長期保存に向く形式へ変換した記録です。"
                            "対象の形式だけが変換されます。"),
-        "validation": t("変換で作ったファイルを開き直せたか、JHOVE で形式の仕様に"
-                        "適合しているかの確認です。原本は検査していません。"),
+        "validation": t("変換で作ったファイルを開き直せたか、JHOVE で形式の仕様どおりに"
+                        "なっているかの確認です。原本は検査していません。"),
         "filename change": t("SIP を作るとき、ファイル名を安全な名前に変えた記録です。"
                              "元の名前は詳細と accession.csv に残っています。"),
         "message digest calculation": t(
-            "SIP を作るときに SHA-256 を算出した記録です。"
+            "SIP を作るときに SHA-256（中身から計算する値。1 バイトでも変わると値が変わります）を"
+            "計算した記録です。"
             "古い版で作った SIP では記録が無く、値だけが各ファイルに入っています。"),
-        "fixity check": t("SIP の BagIt マニフェストとチェックサムを照合した記録です。"),
+        "fixity check": t("SIP のファイル一覧（BagIt のマニフェスト）にあるチェックサムと照らし合わせ、"
+                          "ファイルが欠けたり変わったりしていないかを確かめた記録です。"),
     }.get(event_type, "")
 
 

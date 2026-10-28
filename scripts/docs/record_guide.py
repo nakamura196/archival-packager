@@ -188,7 +188,7 @@ SCENES: dict[str, list[Step]] = {
         ("output", lambda d: d.click("button", "フォルダを選ぶ", nth=1)),
         # 記述メタデータはオプションを開く前に入れる。開くと欄が画面の下へ
         # 押し出され、読み上げ用の層から消えて探せなくなる。
-        ("identifier", lambda d: d.type("識別子", "2026-transfer-01")),
+        ("identifier", lambda d: d.type("ID（整理番号）", "2026-transfer-01")),
         ("title", lambda d: d.type(
             "タイトル（必須）",
             "総務課 移管文書" if d.lang == "ja" else "Records transfer, General Affairs")),
@@ -211,7 +211,7 @@ SCENES: dict[str, list[Step]] = {
         ("workflow", lambda d: d.click("tab", "ワークフロー", exact=True)),
         ("stage", lambda d: d.click("button", "ウイルス検査")),
         ("normalization", lambda d: d.click("button", "保存用形式への変換")),
-        ("fixity", lambda d: d.click("button", "完全性の確認")),
+        ("fixity", lambda d: d.click("button", "欠け・変化の確認")),
         ("events", lambda d: d.click("tab", "処理の記録", exact=True)),
     ],
 }

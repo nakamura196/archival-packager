@@ -28,7 +28,7 @@
     },
     {
       "id": "identifier",
-      "ja": {"text": "「識別子」には、この受け入れを区別する名前を入れます。これがパッケージのフォルダ名になります。", "say": "しきべつしには、この受け入れを区別する名前を入れます。これが、パッケージのフォルダ名になります。"},
+      "ja": {"text": "「ID（整理番号）」には、この受け入れを区別する名前を入れます。これがパッケージのフォルダ名になります。", "say": "アイディー、整理番号には、この受け入れを区別する名前を入れます。これが、パッケージのフォルダ名になります。"},
       "en": {"text": "The identifier is a name for this transfer. It becomes the name of the package folder."}
     },
     {
@@ -80,8 +80,8 @@
     },
     {
       "id": "output",
-      "ja": {"text": "「出力先」を選びます。記述メタデータは SIP から引き継がれるので、入れ直す必要はありません。", "say": "出力先を選びます。記述メタデータは、エスアイピーから引き継がれるので、入れなおす必要はありません。"},
-      "en": {"text": "Choose a destination. The descriptive metadata comes from the SIP, so there is nothing to type again."}
+      "ja": {"text": "「出力先」を選びます。資料の説明は SIP から引き継がれるので、入れ直す必要はありません。", "say": "出力先を選びます。資料の説明は、エスアイピーから引き継がれるので、入れなおす必要はありません。"},
+      "en": {"text": "Choose a destination. The description of the materials comes from the SIP, so there is nothing to type again."}
     },
     {
       "id": "run",
@@ -110,7 +110,7 @@
     },
     {
       "id": "fixity",
-      "ja": {"text": "「完全性の確認」は、SIP を作ったときの記録と照らし合わせて、ファイルが変わっていないかを確かめた記録です。", "say": "完全性の確認は、エスアイピーを作ったときの記録とてらしあわせて、ファイルが変わっていないかを、たしかめた記録です。"},
+      "ja": {"text": "「欠け・変化の確認」は、SIP を作ったときの記録と照らし合わせて、ファイルが変わっていないかを確かめた記録です。", "say": "かけ、へんかの確認は、エスアイピーを作ったときの記録とてらしあわせて、ファイルが変わっていないかを、たしかめた記録です。"},
       "en": {"text": "\"Fixity check\" records that each file was compared with the record made when the SIP was created, to confirm nothing had changed."}
     },
     {
