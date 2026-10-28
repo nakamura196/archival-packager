@@ -125,13 +125,22 @@ TEXTS: dict[str, str] = {
         "Download the definitions first under \"Virus definition database\" below.",
     "Windows などで使えない記号（\\ : * ? \" < > | & ; [ ]）を _ に置き換えます。"
     "末尾のピリオド・空白を取り、CON などの予約名には先頭に _ を付けます。"
-    "同じ名前になったら _2 を付けます。日本語はそのまま残します。"
-    "accession.csv に元の名前と SIP 内の名前が並びます。":
+    "同じ名前になったら _2 を付けます。Mac で作った名前の濁点の分かれ"
+    "（「か」と「゛」の 2 文字）も 1 文字にそろえます。日本語はそのまま残します。"
+    "accession.csv に元の名前と SIP 内の名前が並びます。\n\n"
+    "ほかの機関や Windows の機械に渡すなら、オンをおすすめします。"
+    "オフのままだと、記号を含む名前のファイルが、渡した先で展開・コピーできない"
+    "ことがあります。名前そのものを資料として残したいときは、オフにしてください。":
         "Replaces characters that Windows and other systems cannot use "
         "(\\ : * ? \" < > | & ; [ ]) with _. Trailing dots and spaces are removed, "
         "and reserved names such as CON get a leading _. If two names collide, "
-        "_2 is added. Japanese text is kept as is. "
-        "accession.csv lists the original name next to the name in the SIP.",
+        "_2 is added. Accented characters that macOS stores in decomposed form "
+        "are composed (Unicode NFC). Japanese text is kept as is. "
+        "accession.csv lists the original name next to the name in the SIP.\n\n"
+        "Recommended if the package goes to another institution or to a Windows "
+        "machine. Left off, files whose names contain these characters may fail "
+        "to extract or copy there. Leave it off if the names themselves must be "
+        "kept as part of the record.",
     "できたパッケージを 1 つの ZIP にまとめます（受け渡し用）。"
     "圧縮しないので、中のファイルのバイト列は変わりません。":
         "Puts the finished package into a single ZIP for handing over. "
@@ -524,7 +533,18 @@ TEXTS: dict[str, str] = {
     "中身を確かめてから進んでください。日を改めるときは「AIP 作成」でこのフォルダを選びます。":
         "Look inside before going on. To do it another day, choose \"Create an AIP\" "
         "and pick this folder.",
-    "AIP 作成に切り替え、作った SIP を入力にしました。出力先を確かめて「実行」を押してください。":
-        "Switched to \"Create an AIP\" with the new SIP as the input. Check the "
-        "destination, then press \"Run\".",
+    "次は左側で操作してください": "Next, continue on the left",
+    "「AIP 作成」に切り替えました。AIP はまだ作っていません。":
+        "Switched to \"Create an AIP\". The AIP has not been built yet.",
+    "(1) 左の「入力」に、いま作った SIP が入っています。":
+        "(1) \"Input\" on the left now holds the SIP you just made.",
+    "(2) 左の「出力先」を確かめてください。":
+        "(2) Check \"Destination\" on the left.",
+    "(3) 必要なら「オプション」で、保存用フォーマットへの変換を選びます。":
+        "(3) If needed, choose conversion to preservation formats under \"Options\".",
+    "(4) 左下の「実行」を押すと、AIP を作り始めます。":
+        "(4) Press \"Run\" at the bottom left to start building the AIP.",
+    "進み具合は、ここに表示されます。": "Progress will appear here.",
+    "出力先を確かめてから「実行」を押すと、AIP を作ります":
+        "Check the destination, then press \"Run\" to build the AIP",
 }

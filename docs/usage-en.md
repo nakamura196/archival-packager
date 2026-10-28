@@ -130,6 +130,36 @@ options are on ("Defaults" when none are).
 | Serialize the output as a ZIP | Packs the finished package into an uncompressed ZIP, for handing over |
 | Normalize to preservation formats (AIP) | Converts images to TIFF and PostScript/EPS to PDF while building the AIP |
 
+#### Should file names be sanitized?
+
+**Turn it on if the package goes to another institution or to a Windows
+machine.** It is off by default.
+
+Left off, files whose names contain `\` `:` `*` `?` and similar characters
+cannot be extracted or copied on Windows. Names created on macOS may also store
+accented and Japanese voiced characters in decomposed form (two code points
+that look like one). They look the same, but the receiving system may not treat
+them as the same name. Sanitizing fixes both.
+
+Some files will then be renamed. `accession.csv` keeps the original name under
+"原パス（受入時）" and the new name under "SIP 内のパス". Leave the option off
+if the names themselves must be kept as part of the record.
+
+#### Japanese file names
+
+**Japanese file names are handled as they are.** Sanitizing does not replace
+Japanese text.
+
+Archivematica has failed on Japanese file names. The cause is the Java tools it
+runs (JHOVE, FITS and others): when the environment's locale is ASCII, they
+cannot read non-ASCII names and report "file not found" (tested in July 2026;
+a configuration problem, not a bug in the tools).
+
+The tools this application uses for identification and scanning (Siegfried,
+ClamAV) treat file names as bytes, regardless of locale. Where JHOVE is used to
+validate converted files, Japanese names are not passed to it: it checks copies
+linked under short ASCII names.
+
 The PII scan recognises **five categories, all defined around Japanese
 conventions** — Japanese individual numbers (マイナンバー) and Japanese postal
 codes in particular. Email addresses and card numbers are not
@@ -484,7 +514,7 @@ nothing.
 
 Read these before relying on the output:
 
-- [Known limits](../README.md#known-limits) — the range of normalization, the absence of format validation, and the rest
+- [Known limits](../README.md#known-limits) — the range of normalization, what format validation covers, and the rest
 - [docs/pii-accuracy.md](pii-accuracy.md) — the personal information scan covers five categories; measured misses and false positives
 - [docs/interoperability.md](interoperability.md) — the comparison with AtoM and Archivematica is **against their specifications**, not yet against running instances
 - [docs/rules.md](rules.md) — how to add your own normalization rules
