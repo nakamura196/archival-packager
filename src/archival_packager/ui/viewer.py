@@ -508,8 +508,8 @@ def _stage_hint(event_type: str) -> str:
         "format identification": t("Siegfried で PRONOM の形式を特定した記録です。"),
         "normalization": t("長期保存に向く形式へ変換した記録です。"
                            "対象の形式だけが変換されます。"),
-        "validation": t("変換で作ったファイルを開き直せたかの確認です。"
-                        "原本の形式適合性の検査（JHOVE など）ではありません。"),
+        "validation": t("変換で作ったファイルを開き直せたか、JHOVE で形式の仕様に"
+                        "適合しているかの確認です。原本は検査していません。"),
         "filename change": t("SIP を作るとき、ファイル名を安全な名前に変えた記録です。"
                              "元の名前は詳細と accession.csv に残っています。"),
         "message digest calculation": t(

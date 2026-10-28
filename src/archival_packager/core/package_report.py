@@ -38,7 +38,7 @@ EVENT_LABELS = {
     "format identification": "フォーマットの識別",
     "virus check": "ウイルス検査",
     "normalization": "保存用形式への変換",
-    # 派生物を開き直せたかの確認（aip_pipeline._append_validation_event）。
+    # 派生物の検証（開き直し・JHOVE。aip_pipeline._append_validation_event）。
     # 2026-09-22 まで抜けていて、処理の記録に英語の "validation" がそのまま出ていた。
     "validation": "変換結果の検証",
     "message digest calculation": "チェックサムの算出",
@@ -49,8 +49,8 @@ EVENT_LABELS = {
 #: キムさんが iPRES 2026 の CloudViPER ワークショップで示した流れ
 #: （取り込み→ウイルス検査→識別→検証→変換→チェックサム→完全性確認）に倣う。
 #: **ただし検証は変換の後ろに置く。** このアプリの validation は
-#: 「作った派生物を開き直せたか」であり、変換より前には起こりえない。
-#: 原本の形式適合性（JHOVE / veraPDF の類）はまだ行っていない。
+#: 「作った派生物を開き直せたか・JHOVE で仕様に適合するか」であり、
+#: 変換より前には起こりえない。原本の形式適合性はまだ検査していない。
 #:
 #: これは時刻順ではなく処理の意味の上での順である。2026-10-27 から、識別・
 #: チェックサム・ウイルス検査は SIP を作った時刻、取り込み以降は AIP を作った

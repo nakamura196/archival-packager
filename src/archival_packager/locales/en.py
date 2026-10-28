@@ -248,9 +248,10 @@ TEXTS: dict[str, str] = {
     "長期保存に向く形式へ変換した記録です。対象の形式だけが変換されます。":
         "Records of converting files to formats suited to long-term preservation. "
         "Only formats with a conversion rule are converted.",
-    "変換で作ったファイルを開き直せたかの確認です。原本の形式適合性の検査（JHOVE など）ではありません。":
-        "Checks that each converted file could be opened again. This is not a "
-        "format conformance check of the originals (such as JHOVE).",
+    "変換で作ったファイルを開き直せたか、JHOVE で形式の仕様に"
+    "適合しているかの確認です。原本は検査していません。":
+        "Checks that each converted file could be opened again and conforms to its "
+        "format specification (JHOVE). The originals are not validated.",
     "SIP を作るとき、ファイル名を安全な名前に変えた記録です。"
     "元の名前は詳細と accession.csv に残っています。":
         "Records of renaming files to safe names when the SIP was made. The "
@@ -406,6 +407,7 @@ TEXTS: dict[str, str] = {
     "正規化の対象はありません（既に保存に適した形式、または未知の形式）":
         "Nothing to normalize (already in a preservation format, or an unknown format)",
     "フォーマット変換: {count} 件": "Format conversions: {count}",
+    "形式の適合性検査（JHOVE）: {count} 件": "Format validation (JHOVE): {count} files",
     "METS を生成しています…": "Writing the METS…",
     "AIP（BagIt bag）を組み立てています…": "Assembling the AIP (BagIt bag)…",
 
@@ -425,6 +427,12 @@ TEXTS: dict[str, str] = {
     "変換結果を読み戻せないため原本のまま保存":
         "Kept as the original because the converted file could not be read back",
     "完全性確認をスキップ": "Fixity check skipped",
+    "変換結果が形式の仕様に適合しないため原本のまま保存":
+        "Kept the original because the converted file does not conform to its format",
+    "形式の適合性検査（JHOVE）を実施できませんでした: {reason}。"
+    "変換結果 {count} 件は開き直しの確認だけで保存しています":
+        "Format validation (JHOVE) could not be run: {reason}. {count} converted "
+        "files were kept after the reopen check only",
     "変換規則表": "Conversion rules",
     # 種類ごとの、次にすること
     "ウイルス検出: 該当ファイルを開かず、担当の部署に相談してください。":
@@ -476,10 +484,26 @@ TEXTS: dict[str, str] = {
         "Not checked: no tool to reopen this format ({ext})",
     "生成した派生物を開き直せませんでした: {detail}":
         "Could not reopen the converted file: {detail}",
+    "形式の適合性は未検査（JHOVE の検査部品が無い形式: {ext}）":
+        "Format conformance not checked (JHOVE has no module for {ext})",
+    "形式の適合性は未検査（{reason}）": "Format conformance not checked ({reason})",
+    "形式の適合性を判定できませんでした（{detail}）":
+        "Format conformance could not be determined ({detail})",
+    "JHOVE が同梱されていません": "JHOVE is not bundled",
+    "JHOVE が結果を返しませんでした": "JHOVE returned no result",
+    "同梱の Java を実行できません: {detail}": "Cannot run the bundled Java: {detail}",
+    "検査用の作業場所を作れません: {detail}":
+        "Cannot create a working folder for validation: {detail}",
+    "検査用の写しを作れません: {detail}": "Cannot make a copy for validation: {detail}",
+    "JHOVE を起動できません: {detail}": "Cannot start JHOVE: {detail}",
+    "JHOVE が異常終了しました {detail}": "JHOVE exited abnormally {detail}",
+    "JHOVE の出力を読めません: {detail}": "Cannot read JHOVE's output: {detail}",
     "TIFF (非圧縮)": "TIFF (uncompressed)",
     "{count} フレームを多ページ TIFF として保持": "kept {count} frames as a multi-page TIFF",
     "ICC プロファイルを保持": "kept the ICC profile",
     "; 読み戻せなかったため破棄しました": "; discarded because it could not be reopened",
+    "; 形式の仕様に適合しなかったため破棄しました":
+        "; discarded because it does not conform to its format",
 
     # ------------------------------------------------------------------
     # 入力の取り違え・次の手順

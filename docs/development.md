@@ -111,7 +111,27 @@ Swift 版はこれを行っていない。
 | siegfried | フォーマット識別 | ✅ | 公式ビルドあり。`default.sig` も必須なので一緒に入れる |
 | ClamAV | ウイルス検査 | ✅ | 公式ビルドあり。定義 DB はアプリから `freshclam` で取得 |
 | Pillow | 画像 → TIFF | ✅（pip） | 外部プロセス不要。両OSで同一 wheel＝同一 libtiff |
+| JHOVE | 変換した派生物の形式検査 | ✅（jar） | LGPL-2.1。Maven Central の jar をハッシュ固定で取得 |
+| Java（Temurin 21） | JHOVE の実行 | ✅ | GPL-2.0 + Classpath Exception。jlink で 3 モジュールに絞り約 50MB |
+| veraPDF | PDF/A の検査 | ❌ | 変換で作る PDF が PDF/A ではないため、入れても意味が無い |
 | Ghostscript | PostScript/EPS → PDF | ❌ | **AGPL-3.0**。macOS 向け公式ビルドも無い |
+
+### Java を同梱する理由（JHOVE）
+
+当初は「JHOVE も veraPDF も Java 製なので同梱できない」として、変換した派生物を
+開き直すだけにしていた（[#7](https://github.com/nakamura196/archival-packager/issues/7)）。2026-10 に、変換後のファイルを検証できないのは
+大きな課題だという指摘を受け、同梱する形に改めた。
+
+- Java の実行環境は、Temurin の JDK から jlink で要るモジュール
+  （java.base / java.desktop / java.logging）だけを取り出して作る。
+  JRE をそのまま入れると約 150MB、絞ると約 50MB
+- ライセンスは GPL-2.0 に Classpath Exception が付いたもので、
+  上で動くプログラム（JHOVE、本アプリ）には及ばない。JHOVE は LGPL-2.1
+- macOS では、同梱の java だけに JIT の許可（`scripts/entitlements-java.plist`）を
+  付けて署名する。hardened runtime の下では、これが無いと Java は起動しない
+- Java の起動に 0.15〜0.6 秒かかるので、派生物はまとめて 1 回の起動で検査する
+- 同梱の Java は Apple Silicon 用（siegfried と同じ）。Intel Mac では
+  「未検査」と記録して続ける
 
 ### Ghostscript を同梱しない理由
 

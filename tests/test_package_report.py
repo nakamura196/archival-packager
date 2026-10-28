@@ -15,6 +15,12 @@ from archival_packager.core import aip_pipeline, bundled, package_report, sip_pi
 from archival_packager.core.aip_models import AIPOptions
 from archival_packager.core.models import SIPMetadata, SIPOptions
 
+#: 同梱の siegfried が無い環境（Linux の CI）では、識別そのものが走らない。
+#: フォーマット名を確かめるテストは、そこでは意味を持たない。
+needs_siegfried = pytest.mark.skipif(
+    bundled.find("sf") is None, reason="同梱 sf が無い環境"
+)
+
 
 @pytest.fixture
 def sip(tmp_path: Path) -> Path:
