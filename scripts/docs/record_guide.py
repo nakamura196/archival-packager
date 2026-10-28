@@ -6,13 +6,13 @@
 
 ## 使い方
 
-    op run --env-file=<ELEVENLABS_API_KEY の op:// 参照を書いたファイル> -- \\
-      uv run --with flet-web==0.86.2 --with playwright==1.63.0 \\
-        python scripts/docs/record_guide.py              # 日英両方
+    uv run --with flet-web==0.86.2 --with playwright==1.63.0 --with fastapi==0.115.12 \\
+      python scripts/docs/record_guide.py              # 日英両方
     ... python scripts/docs/record_guide.py --lang en    # 片方だけ
     ... python scripts/docs/record_guide.py --text-only  # ページの本文だけ書き直す
 
-英語の声は macOS の say（Samantha）なので、`--lang en` だけなら op run は要らない。
+声は Kokoro で作る。API キーは要らない。Kokoro の環境は ~/git/blog の動画の道具と
+共用で、場所は KOKORO_PYTHON・KOKORO_COMMON で変えられる（kokoro_say.py を参照）。
 
 初回だけ `uv run --with playwright==1.63.0 playwright install chromium` が要る。
 ffmpeg も要る。
@@ -49,7 +49,7 @@ ffmpeg も要る。
 日本語の原文で書き、英語版では `locales/en.py` の訳を引く。
 
 合成した声は `~/.cache/archival-packager-guide/` に置き、原稿が同じなら
-使い回す（ElevenLabs の文字数枠を撮り直しのたびに使わない）。
+使い回す（撮り直しのたびに合成し直さない）。
 
 見えるカーソルは録画に映らないので、赤い丸を DOM で重ねて動かしている。
 
@@ -85,15 +85,15 @@ NARRATION = GUIDE / "narration.json"
 PAGES = {"ja": GUIDE / "index.md", "en": GUIDE / "en.md"}
 SIZE = {"width": 1280, "height": 880}
 
-#: 中村 覚の声（ElevenLabs の Professional Voice Clone）。日本語だけに使う。
-VOICE_ID = "z52ElTqoKCvL4B34S5wD"
-MODEL_ID = "eleven_v3"
-#: 英語は macOS 標準の女性の声で読む（2026-09-23 のユーザー指定）。
-#: API キーが要らないので、英語だけなら op run 無しで撮れる。
-MAC_VOICE_EN = "Samantha"
-#: Samantha が単語として読んでしまう略語。AIP は「エイプ」になる（whisper で確認）。
-#: 声だけの読み替えなので、ページの本文には影響しない。
-MAC_READINGS_EN = {"AIP": "A I P"}
+#: 声は日英とも Kokoro（Apache-2.0、手元で動く）。日本語 jf_alpha・英語 af_heart。
+#: 2026-10-28 に ElevenLabs（日本語）と macOS の say（英語）から切り替えた。
+#: say の声は Apple の規約で個人の非商用に限られ、ElevenLabs はクレジットが切れると撮れないため。
+#: 合成は ~/git/blog の動画の道具（common/kokoro）の環境と部品を借りる。
+KOKORO_PYTHON = Path(os.environ.get(
+    "KOKORO_PYTHON", Path.home() / "git/zenn/scripts/media/kokoro-ja/.venv/bin/python"))
+#: Kokoro が単語として読んでしまう略語。声だけの読み替えなので、ページの本文には影響しない。
+#: 「A I P」と空けると、先頭の A を冠詞と読む（"or AIP" が「オア・ア・アイピー」になった）。
+READINGS_EN = {"AIP": "A-I-P"}
 CACHE = Path.home() / ".cache" / "archival-packager-guide"
 
 #: 読み終わってから次の操作までの間（秒）。
@@ -241,43 +241,30 @@ def speech(entry: dict, lang: str) -> str:
     return line.get("say") or line["text"]
 
 
-def synthesize(text: str, lang: str) -> Path:
-    """1 行を合成して音声ファイルを返す。同じ原稿なら前の結果を使う。"""
+def synthesize_all(texts: list[str], lang: str) -> list[Path]:
+    """各行を Kokoro で読み、音声ファイルを返す。同じ原稿なら前の結果を使う。"""
     if lang == "en":
-        return synthesize_mac(text)
-    key = hashlib.sha256(f"{VOICE_ID}|{MODEL_ID}|{text}".encode()).hexdigest()[:24]
-    path = CACHE / f"{key}.mp3"
-    if path.exists():
-        return path
-    api_key = os.environ.get("ELEVENLABS_API_KEY")
-    if not api_key:
-        raise SystemExit("ELEVENLABS_API_KEY がない（op run 経由で起動する。使い方を参照）")
-    req = urllib.request.Request(
-        f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}?output_format=mp3_44100_128",
-        data=json.dumps({
-            "text": text,
-            "model_id": MODEL_ID,
-            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
-        }).encode(),
-        headers={"xi-api-key": api_key, "Content-Type": "application/json"},
-    )
-    with urllib.request.urlopen(req, timeout=120) as res:
-        body = res.read()
-    CACHE.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(body)
-    return path
-
-
-def synthesize_mac(text: str) -> Path:
-    """macOS の say で読む。"""
-    for word, reading in MAC_READINGS_EN.items():
-        text = re.sub(rf"\b{word}\b", reading, text)
-    key = hashlib.sha256(f"say|{MAC_VOICE_EN}|{text}".encode()).hexdigest()[:24]
-    path = CACHE / f"{key}.aiff"
-    if not path.exists():
+        for word, reading in READINGS_EN.items():
+            texts = [re.sub(rf"\b{word}\b", reading, t) for t in texts]
+    paths = [
+        CACHE / (hashlib.sha256(f"kokoro|{lang}|{t}".encode()).hexdigest()[:24] + ".wav")
+        for t in texts
+    ]
+    jobs = [{"text": t, "out": str(p)} for t, p in zip(texts, paths, strict=True) if not p.exists()]
+    if jobs:
+        if not KOKORO_PYTHON.exists():
+            raise SystemExit(f"Kokoro の python が無い: {KOKORO_PYTHON}（KOKORO_PYTHON で指定できる）")
         CACHE.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["say", "-v", MAC_VOICE_EN, "-o", str(path), text], check=True)
-    return path
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False,
+                                         encoding="utf-8") as f:
+            json.dump(jobs, f, ensure_ascii=False)
+        subprocess.run([str(KOKORO_PYTHON), str(Path(__file__).with_name("kokoro_say.py")),
+                        lang, f.name], check=True)
+        # 読みの点検用に、Kokoro が実際に読んだ文と音素を残す
+        (CACHE / f"last-{lang}.json").write_text(Path(f.name).read_text(encoding="utf-8"),
+                                                 encoding="utf-8")
+        Path(f.name).unlink()
+    return paths
 
 
 def duration(path: Path) -> float:
@@ -360,7 +347,7 @@ def start_app(lang: str, picks: list[Path], port: int) -> subprocess.Popen:
 
 def record(lang: str, scene: str, entries: list[dict], picks: list[Path],
            port: int = 8561) -> None:
-    clips = [synthesize(speech(e, lang), lang) for e in entries]
+    clips = synthesize_all([speech(e, lang) for e in entries], lang)
     lengths = [duration(c) for c in clips]
 
     proc = start_app(lang, picks, port)
@@ -416,9 +403,12 @@ def mux(webm: Path, lead: float, clips: list[Path], starts: list[float], out: Pa
         for i, s in enumerate(starts)
     ]
     mix = "".join(f"[a{i}]" for i in range(len(clips)))
-    graph = ";".join(chains) + f";{mix}amix=inputs={len(clips)}:normalize=0[aout]"
+    # 画面が動かないと録画のコマが出ず、動画が声より先に終わる（最後の一文が切れた）。
+    # 最後のコマを伸ばし、-shortest で声の終わりに揃える。
+    graph = (";".join(chains) + f";{mix}amix=inputs={len(clips)}:normalize=0[aout]"
+             + ";[0:v]tpad=stop_mode=clone:stop_duration=30[vout]")
     args += [
-        "-filter_complex", graph, "-map", "0:v", "-map", "[aout]",
+        "-filter_complex", graph, "-map", "[vout]", "-map", "[aout]",
         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "24", "-preset", "slow",
         "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart", str(out),
     ]
