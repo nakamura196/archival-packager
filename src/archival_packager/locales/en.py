@@ -198,6 +198,12 @@ TEXTS: dict[str, str] = {
     "処理の記録": "Preservation events",
     "資料": "Items",
     "パッケージの中身": "Package contents",
+    "受け入れ時（SIP）の記録を見る": "View the records from ingest (SIP)",
+    "AIP に入っている提出書類から、SIP を作ったときの画面を組み立てます":
+        "Rebuilds the SIP view from the submission documents kept in this AIP",
+    "受け入れ時（SIP）の記録です。AIP の提出書類から組み立てた、読むだけの画面です。":
+        "Records from ingest (SIP), rebuilt read-only from this AIP's submission documents.",
+    "AIP に戻る": "Back to the AIP",
     "保存用情報パッケージ（AIP）": "Archival Information Package (AIP)",
     "提出用情報パッケージ（SIP）": "Submission Information Package (SIP)",
     "作成日時": "Created",

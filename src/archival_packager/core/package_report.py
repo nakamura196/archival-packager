@@ -437,8 +437,44 @@ def _find_metadata_dir(root: Path) -> Path | None:
     return None
 
 
-def _read_sip(root: Path) -> PackageReport:
-    metadata = _find_metadata_dir(root) or root / "metadata"
+#: AIP の中で、SIP から引き継いだ提出書類が置かれる場所（aip_pipeline が写す）。
+_AIP_SUBMISSION_DIRS = (
+    Path("data") / "objects" / "submissionDocumentation",
+    Path("objects") / "submissionDocumentation",
+)
+
+
+def submission_dir(root: Path) -> Path | None:
+    """AIP に入っている、受け入れ時（SIP）の記録のフォルダ。無ければ None。
+
+    formats.csv が無ければ SIP の画面は組めないので、それを目印にする。
+    """
+    for rel in _AIP_SUBMISSION_DIRS:
+        if (root / rel / "formats.csv").is_file():
+            return root / rel
+    return None
+
+
+def read_submission(root: Path) -> PackageReport | None:
+    """AIP の提出書類だけから、受け入れ時（SIP）の画面と同じまとめを作る。
+
+    AIP を作ったあとで SIP の記録を見返したい、という要望（2026-10-27 の
+    打ち合わせ）への答え。元の SIP フォルダを開き直す形は採らなかった。
+    SIP フォルダは動かされたり消されたりするし、開き直すと SIP の画面から
+    もう一度 AIP を作れてしまい、どちらを操作しているのか分からなくなる。
+    提出書類（formats.csv・premis.xml・report.txt など）は AIP に写して
+    あるので、AIP だけで足りる。読むだけで、何も書かない。
+
+    root は AIP のまま返す（ファイルの置き場所は AIP の objects/ の下）。
+    """
+    metadata = submission_dir(root)
+    if metadata is None:
+        return None
+    return _read_sip(root, metadata)
+
+
+def _read_sip(root: Path, metadata: Path | None = None) -> PackageReport:
+    metadata = metadata or _find_metadata_dir(root) or root / "metadata"
     formats = _rows(metadata / "formats.csv")
 
     files: list[FileRow] = []
