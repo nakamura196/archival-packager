@@ -268,6 +268,18 @@ For an AIP, the Preservation events and Workflow tabs have content.
 
 As for the SIP, plus the number of files that were normalized.
 
+### Viewing the records from ingest (SIP)
+
+![The records from ingest (SIP), with "Back to the AIP" in the band at the top](media/en/sip-record.png)
+
+Press **View the records from ingest (SIP)** under the AIP's overview to switch to the view you saw when the SIP was made:
+the SIP's overview, its preservation events (file name changes, format identification, virus scan and so on), and its list of items.
+
+This view is rebuilt from the submission documents stored inside the AIP.
+It does not use the original SIP folder, so it still works after the SIP has been moved or deleted.
+It is read-only; nothing can be rebuilt from here.
+Press **Back to the AIP** in the band at the top to return.
+
 ### Preservation events
 
 ![The AIP's Preservation events tab](media/en/events.png)

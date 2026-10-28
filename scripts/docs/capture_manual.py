@@ -65,7 +65,8 @@ SHOTS = [
     "home", "header", "mode", "input-output", "output-inside", "metadata",
     "options", "virus", "run-hint", "sip-result", "overview", "events-empty",
     "files", "raw", "continue-aip", "aip-options", "aip-result",
-    "overview-aip", "events", "workflow-aip", "stage-virus", "stage-normalization", "stage-fixity",
+    "overview-aip", "sip-record", "events", "workflow-aip",
+    "stage-virus", "stage-normalization", "stage-fixity",
     "files-aip", "full", "about", "about-license",
 ]
 
@@ -329,6 +330,11 @@ def story(d: Driver, cam: Camera, out: Path) -> None:
     d.click("button", "中身を見る")
     page.wait_for_timeout(800)
     cam.shot("overview-aip")
+    d.click("button", "受け入れ時（SIP）の記録を見る")
+    page.wait_for_timeout(800)
+    cam.shot("sip-record")
+    d.click("button", "AIP に戻る")
+    page.wait_for_timeout(600)
     d.click("tab", "処理の記録", exact=True)
     page.wait_for_timeout(700)
     cam.shot("events")

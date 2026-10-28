@@ -401,6 +401,84 @@ class TestWorkflow:
         assert viewer.build(sip, on_close=lambda: None) is not None
 
 
+class TestSubmissionRecordInsideTheAIP:
+    """AIP に入っている提出書類だけから、受け入れ時（SIP）の画面を組み直す。
+
+    2026-10-27 の打ち合わせで、AIP を作ったあとに SIP の記録を見返したい、
+    と言われた。元の SIP フォルダは動かされたり消されたりするので頼らない。
+    """
+
+    def test_matches_the_sip_it_came_from(self, sip: Path, aip: Path):
+        """SIP を直接開いたときと同じ概要・処理の記録・ファイルになること。"""
+        direct = package_report.read(sip)
+        rebuilt = package_report.read_submission(aip)
+        assert rebuilt is not None
+        assert rebuilt.overview.kind == "SIP"
+        assert rebuilt.overview.identifier == direct.overview.identifier == "2026-移管"
+        assert rebuilt.overview.title == direct.overview.title
+        assert rebuilt.overview.created == direct.overview.created != ""
+        assert [f.path for f in rebuilt.files] == [f.path for f in direct.files]
+        assert [(e.event_type, e.outcome) for e in rebuilt.events] == \
+            [(e.event_type, e.outcome) for e in direct.events]
+        assert rebuilt.events, "SIP の premis.xml の記録が読めていない"
+
+    def test_works_after_the_sip_is_gone(self, sip: Path, aip: Path):
+        """元の SIP フォルダを消しても読めること（AIP だけで足りる）。"""
+        import shutil
+
+        shutil.rmtree(sip)
+        rebuilt = package_report.read_submission(aip)
+        assert rebuilt is not None
+        assert len(rebuilt.files) == 2
+
+    def test_original_files_are_found_inside_the_aip(self, aip: Path):
+        """資料タブのファイルは、AIP の objects/ の下に実物があること。"""
+        rebuilt = package_report.read_submission(aip)
+        assert rebuilt is not None
+        for f in rebuilt.files:
+            assert (aip / "data" / "objects" / f.path).is_file(), f.path
+
+    def test_sip_and_empty_folders_have_none(self, sip: Path, tmp_path: Path):
+        """SIP そのものや空のフォルダでは None を返し、ボタンを出さない。"""
+        assert package_report.read_submission(sip) is None
+        assert package_report.read_submission(tmp_path) is None
+
+    def test_viewer_switches_between_aip_and_sip(self, aip: Path, sip: Path):
+        """概要のボタンで SIP の記録に切り替わり、戻るボタンで AIP に戻ること。
+        SIP を開いたときにはボタンを出さないこと。"""
+        import flet as ft
+
+        from archival_packager.ui import viewer
+
+        def buttons(control) -> dict[str, ft.Control]:
+            found: dict[str, ft.Control] = {}
+            stack = [control]
+            while stack:
+                c = stack.pop()
+                if isinstance(c, (ft.OutlinedButton, ft.FilledTonalButton)):
+                    found[str(c.content)] = c
+                for attr in ("controls", "content"):
+                    child = getattr(c, attr, None)
+                    if isinstance(child, list):
+                        stack.extend(child)
+                    elif isinstance(child, ft.Control):
+                        stack.append(child)
+            return found
+
+        view = viewer.build(aip, on_close=lambda: None)
+        body = view.controls[-1]
+        body.update = lambda: None  # 画面に載せずに試す
+        show = buttons(view)["受け入れ時（SIP）の記録を見る"]
+        show.on_click(None)
+        assert "AIP に戻る" in buttons(view)
+        assert "受け入れ時（SIP）の記録を見る" not in buttons(view)
+        buttons(view)["AIP に戻る"].on_click(None)
+        assert "受け入れ時（SIP）の記録を見る" in buttons(view)
+
+        assert "受け入れ時（SIP）の記録を見る" not in buttons(
+            viewer.build(sip, on_close=lambda: None))
+
+
 class TestMaliciousMetsCannotReadLocalFiles:
     """細工された METS に手元のファイルを読み出させない（XXE）。
 

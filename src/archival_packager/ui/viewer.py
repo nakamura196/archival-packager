@@ -390,7 +390,10 @@ def _breakdown(report: package_report.PackageReport) -> ft.Control:
     )
 
 
-def _overview_tab(report: package_report.PackageReport) -> ft.Control:
+def _overview_tab(
+    report: package_report.PackageReport,
+    on_show_sip: Callable[[], None] | None = None,
+) -> ft.Control:
     o = report.overview
     items: list[ft.Control] = [
         ft.Text(o.title or report.root.name, size=16, weight=ft.FontWeight.BOLD),
@@ -430,6 +433,12 @@ def _overview_tab(report: package_report.PackageReport) -> ft.Control:
                         icon=ft.Icons.FOLDER_OPEN,
                         on_click=lambda _e: plat.reveal_in_file_manager(report.root),
                     ),
+                    *([ft.OutlinedButton(
+                        t("受け入れ時（SIP）の記録を見る"),
+                        icon=ft.Icons.HISTORY_EDU_OUTLINED,
+                        tooltip=t("AIP に入っている提出書類から、SIP を作ったときの画面を組み立てます"),
+                        on_click=lambda _e: on_show_sip(),
+                    )] if on_show_sip is not None else []),
                 ],
                 spacing=8,
             ),
@@ -699,9 +708,12 @@ def _files_tab(report: package_report.PackageReport) -> ft.Control:
 
     def open_row(path: str):
         def handler(_e: ft.ControlEvent) -> None:
-            target = report.root / path
-            if not target.exists():
-                target = report.root / "data" / path
+            # 受け入れ時（SIP）の記録を AIP から開いたときは、パスは原本からの
+            # 相対で、実物は AIP の objects/ の下にある。
+            for target in (report.root / path, report.root / "data" / path,
+                           report.root / "data" / "objects" / path):
+                if target.exists():
+                    break
             if target.exists():
                 plat.reveal_in_file_manager(target)
         return handler
@@ -812,11 +824,12 @@ def _empty(title: str, note: str = "") -> ft.Control:
     )
 
 
-def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
-    """ビューアを組み立てて返す。"""
-    report = package_report.read(root)
-
-    tabs = ft.Tabs(
+def _tabs(
+    report: package_report.PackageReport,
+    raw_root: Path,
+    on_show_sip: Callable[[], None] | None = None,
+) -> ft.Control:
+    return ft.Tabs(
         length=5,
         selected_index=0,
         expand=True,
@@ -835,16 +848,71 @@ def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
                 ft.TabBarView(
                     expand=True,
                     controls=[
-                        _overview_tab(report),
+                        _overview_tab(report, on_show_sip),
                         _events_tab(report),
                         _workflow_tab(report),
                         _files_tab(report),
-                        _raw_browser(root),
+                        _raw_browser(raw_root),
                     ],
                 ),
             ],
         ),
     )
+
+
+def _sip_banner(on_back: Callable[[], None]) -> ft.Control:
+    """受け入れ時の記録を見ていることを、画面の上で常に示す。
+
+    タブの並びは AIP と同じなので、帯が無いとどちらを見ているのか分からない。
+    """
+    return ft.Container(
+        ft.Row(
+            [
+                ft.Icon(ft.Icons.HISTORY_EDU_OUTLINED, size=18),
+                ft.Text(
+                    t("受け入れ時（SIP）の記録です。AIP の提出書類から組み立てた、読むだけの画面です。"),
+                    size=12, expand=True,
+                ),
+                ft.FilledTonalButton(t("AIP に戻る"), icon=ft.Icons.ARROW_BACK,
+                                     on_click=lambda _e: on_back()),
+            ],
+            spacing=8,
+        ),
+        padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+        bgcolor=ft.Colors.SECONDARY_CONTAINER,
+        border_radius=6,
+    )
+
+
+def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
+    """ビューアを組み立てて返す。
+
+    AIP に受け入れ時（SIP）の提出書類が入っていれば、概要から SIP の画面に
+    切り替えられる（package_report.read_submission）。元の SIP フォルダは開かない。
+    """
+    report = package_report.read(root)
+    submission_dir = (package_report.submission_dir(root)
+                      if report.overview.kind == "AIP" else None)
+
+    body = ft.Column(expand=True, spacing=8)
+
+    # 切り替えはボタンから（＝画面に載った後で）しか起きない。Flet 0.86 の
+    # Control.page は載る前に読むと例外になるので、判定には使わない。
+    def aip_view() -> list[ft.Control]:
+        return [_tabs(report, root, show_sip if submission_dir else None)]
+
+    def show_aip() -> None:
+        body.controls = aip_view()
+        body.update()
+
+    def show_sip() -> None:
+        sip_report = package_report.read_submission(root)
+        if sip_report is None or submission_dir is None:
+            return
+        body.controls = [_sip_banner(show_aip), _tabs(sip_report, submission_dir)]
+        body.update()
+
+    body.controls = aip_view()
 
     return ft.Column(
         [
@@ -860,7 +928,7 @@ def build(root: Path, *, on_close: Callable[[], None]) -> ft.Control:
                 spacing=8,
             ),
             ft.Divider(height=1),
-            tabs,
+            body,
         ],
         expand=True,
         spacing=8,
