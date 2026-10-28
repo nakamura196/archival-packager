@@ -48,6 +48,13 @@ def aip(sip: Path, tmp_path: Path) -> Path:
     return result.aip_path
 
 
+# 識別の event は、SIP を作るときに siegfried が実際に走ったときだけ書かれる
+# （行わなかった段は記録しない。core/sip_premis.py）。CI には sf が無い。
+needs_siegfried = pytest.mark.skipif(
+    bundled.find("sf") is None, reason="同梱 sf が無い環境"
+)
+
+
 class TestAIP:
     def test_reads_the_overview(self, aip: Path):
         report = package_report.read(aip)
@@ -74,11 +81,16 @@ class TestAIP:
         assert report.events, "処理の記録が 1 件も出ていない"
         labels = {e.type_label for e in report.events}
         assert "取り込み" in labels
-        assert "フォーマットの識別" in labels
         for e in report.events:
             assert e.date_time, f"{e.type_label} に日時が無い"
             assert e.outcome, f"{e.type_label} に結果が無い"
 
+    @needs_siegfried
+    def test_identification_is_recorded(self, aip: Path):
+        report = package_report.read(aip)
+        assert "フォーマットの識別" in {e.type_label for e in report.events}
+
+    @needs_siegfried
     def test_events_name_the_tool(self, aip: Path):
         """どのツールで行ったかが分からないと、記録として使えない。"""
         report = package_report.read(aip)
@@ -172,11 +184,6 @@ class TestSubmissionDocuments:
 
 #: 同梱の siegfried が無い環境（Linux の CI）では、識別そのものが走らない。
 #: フォーマット名を確かめるテストは、そこでは意味を持たない。
-needs_siegfried = pytest.mark.skipif(
-    bundled.find("sf") is None, reason="同梱 sf が無い環境"
-)
-
-
 @needs_siegfried
 class TestNormalizedCopiesAreNamed:
     """変換して作ったファイルにも、フォーマット名を付けること。
