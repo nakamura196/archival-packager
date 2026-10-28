@@ -2,14 +2,16 @@
 
 **ファイルを開くのは Finder / エクスプローラーに任せる。**
 ここが見せるのは、それらでは見えないもの＝ METS と PREMIS の中身。
-原本は PDF や Word や画像なので、どのみちアプリの中では開けない。
 ファイルを並べるだけなら OS の方が便利で、それと張り合っても意味がない。
+ただし「パッケージの中身」では、CSV は表、画像は絵、テキストと XML は文字で
+その場で見られるようにした。
+PDF・動画・Word は OS のアプリに任せる。
 
   概要     何がいくつ入っているか
   処理の記録  いつ・何を・どのツールで行い、結果はどうだったか（PREMIS）
   ワークフロー 同じ記録を段階ごとに束ねた流れ図。段階を押すと中身が出る
   資料     変換の対象（原本）だけ。形式・サイズ・保存用の写し・ウイルス検査
-  パッケージの中身  記録用のファイルも含めてすべて。XML や CSV をそのまま読みたいとき
+  パッケージの中身  記録用のファイルも含めてすべて。CSV は表、画像は絵、XML は色分けで見る
 
 読み取りは core/package_report.py、色分けは core/preview.py にある。
 ここは並べ方だけを持つ。
@@ -21,6 +23,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Callable
 from pathlib import Path
 
@@ -53,6 +56,8 @@ _ICONS = {
     ".tiff": ft.Icons.IMAGE_OUTLINED,
     ".png": ft.Icons.IMAGE_OUTLINED,
     ".jpg": ft.Icons.IMAGE_OUTLINED,
+    ".jpeg": ft.Icons.IMAGE_OUTLINED,
+    ".tsv": ft.Icons.TABLE_CHART_OUTLINED,
 }
 
 _MONO = "Menlo, Consolas, monospace"
@@ -72,64 +77,199 @@ def _human_size(n: int) -> str:
     return f"{n} {small}"
 
 
+def _file_header(path: Path) -> ft.Control:
+    """名前と大きさ。中身を見たあと、実物の場所へすぐ行けるようにする。
+
+    「既定のアプリで開く」は置かない。開いた先で保存されると、
+    パッケージのファイルが書き換わってチェックサムが合わなくなる。
+    """
+    try:
+        size = _human_size(path.stat().st_size)
+    except OSError:
+        size = ""
+    return ft.Row(
+        [
+            ft.Text(path.name, weight=ft.FontWeight.BOLD, selectable=True),
+            ft.Text(size, size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+            ft.Container(expand=True),
+            ft.TextButton(
+                t("フォルダで表示"), icon=ft.Icons.FOLDER_OPEN,
+                on_click=lambda _e: plat.reveal_in_file_manager(path),
+            ),
+        ],
+        spacing=10,
+    )
+
+
+def _note(text: str) -> ft.Control:
+    return ft.Text(text, size=11, color=ft.Colors.ON_SURFACE_VARIANT)
+
+
+def _binary_view(content: preview.BinaryPreview) -> ft.Control:
+    return ft.Column(
+        [
+            ft.Text(t("テキストとして表示できない形式です"), size=12,
+                    color=ft.Colors.ON_SURFACE_VARIANT),
+            ft.Text(t("先頭バイト: {head}", head=content.head_hex), size=11,
+                    font_family=_MONO, color=ft.Colors.ON_SURFACE_VARIANT),
+            _note(t("PDF や動画などは「フォルダで表示」から、ほかのアプリでご覧ください。")),
+        ],
+        spacing=6,
+    )
+
+
+def _text_view(path: Path) -> ft.Control:
+    """テキストと XML。XML は色分けする。"""
+    try:
+        content = preview.read(path)
+    except OSError as exc:
+        return ft.Text(t("読み取れませんでした: {error}", error=exc), size=12)
+    if isinstance(content, preview.BinaryPreview):
+        return _binary_view(content)
+    if path.suffix.lower() == ".xml":
+        spans = [
+            ft.TextSpan(text, ft.TextStyle(color=_COLORS.get(role)))
+            for text, role in preview.highlight_xml(content.text)
+        ]
+        shown: ft.Control = ft.Text(
+            spans=spans, size=11, font_family=_MONO, selectable=True
+        )
+    else:
+        shown = ft.Text(content.text, size=11, font_family=_MONO, selectable=True)
+    items: list[ft.Control] = [shown]
+    if content.truncated:
+        items.append(_note(
+            t("※ 先頭 {size} のみ表示しています。"
+              "全体はファイルを直接お開きください。",
+              size=_human_size(preview.MAX_BYTES))))
+    return ft.Column(items, spacing=8)
+
+
+#: 表の列幅の上限（px）。長い「内容・範囲」で列が画面の何倍にも広がらないように。
+#: はみ出した分は「…」で切り、マウスを載せると全文が出る。
+_CELL_MAX_WIDTH = 320
+_CELL_SIZE = 11
+
+
+def _text_width(value: str, size: float = _CELL_SIZE) -> float:
+    """文字列の幅の見積もり。全角は 1 字 = 文字の大きさ、半角はその 6 割。"""
+    return sum(size if unicodedata.east_asian_width(c) in "WF" else size * 0.62
+               for c in value)
+
+
+def _column_widths(rows: list[list[str]]) -> list[float]:
+    """列の幅を中身から決める。
+
+    **表の部品に任せない。** 任せたところ、日本語の入った列が 1 字ぶん狭く測られ、
+    「昭和2年」が「昭和2」で切れた（折り返しを許すと「昭和 / 2年」に割れた）。
+    """
+    widths = []
+    for col in zip(*rows, strict=True):
+        head, *cells = col
+        w = max([_text_width(head, 12) * 1.1, *(_text_width(c) for c in cells)])
+        widths.append(min(max(w + 8, 32), _CELL_MAX_WIDTH))
+    return widths
+
+
+def _cell(value: str, width: float) -> ft.Control:
+    return ft.Container(
+        ft.Text(value, size=_CELL_SIZE, no_wrap=True,
+                overflow=ft.TextOverflow.ELLIPSIS,
+                tooltip=value if _text_width(value) + 8 > width else None),
+        width=width,
+    )
+
+
+def _table_view(path: Path, *, on_text: Callable[[], None]) -> ft.Control:
+    """CSV / TSV を表で。区切りが崩れていて表にできなければテキストで見せる。"""
+    try:
+        table = preview.read_table(path)
+    except OSError as exc:
+        return ft.Text(t("読み取れませんでした: {error}", error=exc), size=12)
+    if table is None:
+        return _text_view(path)
+    head, *rest = table.rows
+    widths = _column_widths(table.rows)
+    data = ft.DataTable(
+        columns=[ft.DataColumn(ft.Container(
+                     ft.Text(c, size=12, weight=ft.FontWeight.BOLD, no_wrap=True,
+                             overflow=ft.TextOverflow.ELLIPSIS), width=w))
+                 for c, w in zip(head, widths, strict=True)],
+        rows=[ft.DataRow(cells=[ft.DataCell(_cell(c, w))
+                                for c, w in zip(r, widths, strict=True)])
+              for r in rest],
+        heading_row_height=32,
+        data_row_min_height=26,
+        data_row_max_height=32,
+        column_spacing=16,
+    )
+    notes: list[ft.Control] = [
+        ft.Row(
+            [
+                _note(t("{rows} 行 × {cols} 列（1 行目を見出しとしています）",
+                        rows=len(rest), cols=len(head))),
+                ft.TextButton(t("テキストで見る"), on_click=lambda _e: on_text()),
+            ],
+            spacing=8,
+        )
+    ]
+    if table.truncated:
+        notes.append(_note(t("※ 先頭の {rows} 行だけを表にしています。"
+                             "全体はファイルを直接お開きください。",
+                             rows=len(rest))))
+    return ft.Column([*notes, ft.Row([data], scroll=ft.ScrollMode.AUTO)], spacing=6)
+
+
+def _image_view(path: Path) -> ft.Control:
+    """画像を画面用に縮めて見せる。TIFF もここで PNG に描き直す。"""
+    try:
+        img = preview.read_image(path)
+    except Exception as exc:
+        # **種類を問わず捕まえる。** Pillow は入力次第で違う例外を投げる
+        # （core/scan.py と同じ事情）。読めなかったことは画面に出す。
+        # 例外の文面には絶対パスが入る。見出しに名前があるので、長いパスは省く。
+        error = str(exc).replace(str(path), path.name)
+        return ft.Column(
+            [
+                ft.Text(t("画像として表示できませんでした: {error}", error=error), size=12),
+                _note(t("「フォルダで表示」から、ほかのアプリでご覧ください。")),
+            ],
+            spacing=6,
+        )
+    info = t("{width} × {height} ピクセル・{mode}",
+             width=f"{img.width:,}", height=f"{img.height:,}", mode=img.mode)
+    if img.frames > 1:
+        info += t("・{frames} ページ中の 1 ページ目", frames=img.frames)
+    items: list[ft.Control] = [_note(info)]
+    if max(img.width, img.height) > preview.MAX_IMAGE_SIDE:
+        items.append(_note(t("※ 縮小して表示しています。")))
+    items.append(ft.Image(src=img.png, fit=ft.BoxFit.CONTAIN,
+                          filter_quality=ft.FilterQuality.HIGH))
+    return ft.Column(items, spacing=6)
+
+
 def _raw_browser(root: Path) -> ft.Control:
     """従来の表示（左にツリー、右に中身）。XML や CSV を直接読みたいとき用。"""
     body = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=0)
     tree = ft.ListView(expand=True, spacing=0, padding=6)
     selected: dict[str, Path | None] = {"path": None}
 
-    def show(path: Path) -> None:
+    def show(path: Path, *, as_text: bool = False) -> None:
         selected["path"] = path
         body.controls.clear()
-        try:
-            content = preview.read(path)
-        except OSError as exc:
-            body.controls.append(
-                ft.Text(t("読み取れませんでした: {error}", error=exc), size=12)
-            )
+        body.controls.append(_file_header(path))
+        suffix = path.suffix.lower()
+        if suffix in preview.IMAGE_SUFFIXES:
+            # 大きな TIFF は描き直しに数秒かかる。止まったように見せない。
+            body.controls.append(ft.ProgressRing(width=24, height=24))
             body.update()
-            return
-
-        if isinstance(content, preview.BinaryPreview):
+            body.controls.pop()
+            body.controls.append(_image_view(path))
+        elif suffix in preview.TABLE_SUFFIXES and not as_text:
             body.controls.append(
-                ft.Column(
-                    [
-                        ft.Text(path.name, weight=ft.FontWeight.BOLD),
-                        ft.Text(t("テキストとして表示できない形式です"), size=12,
-                                color=ft.Colors.ON_SURFACE_VARIANT),
-                        ft.Text(t("サイズ: {size}",
-                                  size=_human_size(content.size_bytes)), size=12),
-                        ft.Text(t("先頭バイト: {head}", head=content.head_hex), size=11,
-                                font_family=_MONO,
-                                color=ft.Colors.ON_SURFACE_VARIANT),
-                    ],
-                    spacing=6,
-                )
-            )
+                _table_view(path, on_text=lambda: show(path, as_text=True)))
         else:
-            if path.suffix.lower() == ".xml":
-                spans = [
-                    ft.TextSpan(text, ft.TextStyle(color=_COLORS.get(role)))
-                    for text, role in preview.highlight_xml(content.text)
-                ]
-                shown: ft.Control = ft.Text(
-                    spans=spans, size=11, font_family=_MONO, selectable=True
-                )
-            else:
-                shown = ft.Text(
-                    content.text, size=11, font_family=_MONO, selectable=True
-                )
-            items: list[ft.Control] = [shown]
-            if content.truncated:
-                items.append(
-                    ft.Text(
-                        t("※ 先頭 {size} のみ表示しています。"
-                          "全体はファイルを直接お開きください。",
-                          size=_human_size(preview.MAX_BYTES)),
-                        size=11, color=ft.Colors.ON_SURFACE_VARIANT,
-                    )
-                )
-            body.controls.append(ft.Column(items, spacing=8))
+            body.controls.append(_text_view(path))
         body.update()
 
     for entry in preview.walk(root):

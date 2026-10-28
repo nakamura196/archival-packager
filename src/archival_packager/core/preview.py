@@ -5,12 +5,16 @@
 「どこまで読むか」「何をバイナリとみなすか」「どこで色を変えるか」は
 規則が決まっており、機械で確かめられる。
 
-外部ライブラリは使わない。配布物を太らせたくないのと、同梱している
-ものと揃えるため（Swift 版も自前で書いていた）。
+テキスト・XML・CSV は標準ライブラリだけで読む。画像だけは Pillow を使う。
+Pillow は画像の正規化（core/image_normalize.py）のために既に同梱しているので、
+配布物は太らない。TIFF は画面の部品（Flutter）が描けないので、どのみち
+PNG に描き直す必要がある。
 """
 
 from __future__ import annotations
 
+import csv
+import io
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,6 +60,109 @@ def read(path: Path) -> TextPreview | BinaryPreview:
                 size_bytes=size, head_hex=" ".join(f"{b:02x}" for b in data[:8])
             )
     return TextPreview(text=text, truncated=size > len(data))
+
+
+# --------------------------------------------------------------------------
+# CSV を表として読む
+# --------------------------------------------------------------------------
+
+#: 表にする行数の上限（見出しを含む）。画面の表は行ごとに部品を作るので、
+#: 数千行を並べると固まる。それ以上はテキストで見るか、ファイルを開いてもらう。
+MAX_TABLE_ROWS = 500
+
+TABLE_SUFFIXES = {".csv": ",", ".tsv": "\t"}
+
+
+@dataclass(frozen=True)
+class TablePreview:
+    """表として読めたもの。先頭の行が見出し。行の長さは揃えてある。"""
+
+    rows: list[list[str]]
+    truncated: bool
+
+
+def read_table(path: Path) -> TablePreview | None:
+    """CSV / TSV を行と列に分ける。表にできなければ None（テキストで見せる）。
+
+    文字コードの扱いは read() と同じ（UTF-8 か Shift_JIS）。先頭だけ読んだ
+    ときは、最後の行が途中で切れているので捨てる。
+    """
+    delimiter = TABLE_SUFFIXES.get(path.suffix.lower())
+    if delimiter is None:
+        return None
+    content = read(path)
+    if not isinstance(content, TextPreview):
+        return None
+    text = content.text.removeprefix("\ufeff")  # Excel が付ける BOM
+    try:
+        rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+    except csv.Error:
+        return None
+    truncated = content.truncated
+    if truncated and rows:
+        rows.pop()
+    if len(rows) > MAX_TABLE_ROWS:
+        rows = rows[:MAX_TABLE_ROWS]
+        truncated = True
+    rows = [r for r in rows if r]  # 空行は csv.reader が [] で返す
+    if not rows:
+        return None
+    width = max(len(r) for r in rows)
+    return TablePreview(rows=[r + [""] * (width - len(r)) for r in rows],
+                        truncated=truncated)
+
+
+# --------------------------------------------------------------------------
+# 画像を画面用に描き直す
+# --------------------------------------------------------------------------
+
+IMAGE_SUFFIXES = frozenset({
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".jp2",
+})
+
+#: 画面に送る画像の長辺。保存用の TIFF は 1 億画素を超えることがあり、
+#: そのまま送ると画面が固まる。見て確かめるにはこれで足りる。
+MAX_IMAGE_SIDE = 1600
+
+
+@dataclass(frozen=True)
+class ImagePreview:
+    """画面用に縮めた PNG と、元の画像の素性。"""
+
+    png: bytes
+    width: int
+    height: int
+    mode: str
+    frames: int
+
+
+def read_image(path: Path) -> ImagePreview:
+    """画像を開き、長辺 MAX_IMAGE_SIDE 以下の PNG にする。
+
+    複数ページの TIFF は 1 ページ目だけ描き、ページ数を返す。
+    読めない画像は例外がそのまま上がる（呼ぶ側が「表示できません」と出す）。
+    元のファイルには書き込まない。
+    """
+    from PIL import Image
+
+    with Image.open(path) as im:
+        width, height, mode = im.width, im.height, im.mode
+        frames = getattr(im, "n_frames", 1)
+        im.draft("RGB", (MAX_IMAGE_SIDE, MAX_IMAGE_SIDE))  # JPEG は縮めて読める
+        if mode in ("I;16", "I;16B", "I;16L", "I"):
+            # 16 bit のグレーをそのまま 8 bit にすると、上位が切れて真っ白になる。
+            shown = im.convert("I").point(lambda v: v / 256).convert("L")
+        elif mode in ("RGB", "RGBA", "L", "LA"):
+            shown = im.copy()
+        elif mode in ("P", "PA") or "transparency" in im.info:
+            shown = im.convert("RGBA")
+        else:
+            shown = im.convert("RGB")  # CMYK・YCbCr・1 bit など
+    shown.thumbnail((MAX_IMAGE_SIDE, MAX_IMAGE_SIDE))
+    buf = io.BytesIO()
+    shown.save(buf, format="PNG")
+    return ImagePreview(png=buf.getvalue(), width=width, height=height,
+                        mode=mode, frames=frames)
 
 
 # --------------------------------------------------------------------------

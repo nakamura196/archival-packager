@@ -245,3 +245,40 @@ class TestRunButtonBecomesPressable:
             if isinstance(c, ft.Text) and c.value and "押せます" in c.value
         ]
         assert not remaining, f"すべて埋めたのに案内が残っている: {remaining}"
+
+
+class TestPackageContentsViews:
+    """「パッケージの中身」の表・画像・テキストの表示を組み立てられること。
+
+    表示は人が目で見て確かめた（2026-10-27）。ここでは 0.1.4 のように
+    Flet に無い引数を渡して落ちることがないか、組み立てだけを見る。
+    """
+
+    def test_each_kind_builds(self, tmp_path):
+        from PIL import Image
+
+        from archival_packager.ui import viewer
+
+        csv_path = tmp_path / "a.csv"
+        csv_path.write_text("識別子,タイトル\nD-001,大仙市 文書\n", encoding="utf-8")
+        img_path = tmp_path / "a.tif"
+        Image.new("RGB", (20, 10), "red").save(img_path)
+        broken = tmp_path / "b.png"
+        broken.write_bytes(b"\x89PNG\r\n\x1a\nxx")
+        xml_path = tmp_path / "a.xml"
+        xml_path.write_text("<a b='c'/>", encoding="utf-8")
+
+        assert viewer._table_view(csv_path, on_text=lambda: None) is not None
+        assert viewer._image_view(img_path) is not None
+        assert viewer._image_view(broken) is not None  # 落ちずに「表示できません」を返す
+        assert viewer._text_view(xml_path) is not None
+        assert viewer._file_header(csv_path) is not None
+
+    def test_column_width_counts_japanese_as_wide(self):
+        """表の部品に列幅を任せたら、日本語の列が 1 字ぶん狭く測られて「昭和2年」が切れた。"""
+        from archival_packager.ui import viewer
+
+        narrow, wide = viewer._column_widths([["h", "h"], ["1234", "昭和2年"]])
+        assert wide > narrow
+        (capped,) = viewer._column_widths([["h"], ["長" * 200]])
+        assert capped == viewer._CELL_MAX_WIDTH
