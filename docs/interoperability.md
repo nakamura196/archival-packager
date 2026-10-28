@@ -285,12 +285,20 @@ Archivematica の AIP は bag で、`data/` の下に `METS.<uuid>.xml`、`READM
 | 原本 | `data/objects/` | 同じ | 一致 |
 | 保存処理ログ | `data/logs/` | 同じ | 一致 |
 | 提出書類 | `data/objects/submissionDocumentation/` | 同じ | 一致 |
+| **受け入れ時の METS** | `submissionDocumentation/transfer-<名前>-<uuid>/METS.xml`。AIP の METS はこれを合わせて作る | SIP では METS を書かず、PREMIS だけの `premis.xml` を書く。AIP はそれを複写し、event を AIP の METS に移す | **不一致** |
 | METS のセクション | dmdSec / amdSec / fileSec / structMap | 4 つとも出力 | 一致 |
 | PREMIS | object / event / agent で来歴を表す | 3 つとも出力（PREMIS v3 名前空間）。SIP 作成時の event（識別・チェックサム・ウイルス検査）は SIP の `premis.xml` から日時を変えずに移す（2026-10-27〜）。agent には道具の版と、シグネチャ・定義 DB の版を書く（2026-10-28〜） | 一致 |
 | structMap | 物理構造 | `TYPE="physical"` | 一致 |
 | **`data/README.html`** | AIP の構造を説明する HTML | **書いている**（2026-09-12〜） | 一致 |
 | **tagmanifest** | 公式例は `tagmanifest-md5.txt` | `tagmanifest-sha256.txt` | **不一致（実害なし）** |
 | **PREMIS rights** | `metadata/rights.csv` から生成 | `rights.csv` を作らず `rightsMD` も出さない | **不一致** |
+
+受け入れ時の METS の行は、2026-10-27 の打ち合わせで「Archivematica の AIP には
+SIP の METS が入っていて、ウイルス検査などの記録もそこにある」と指摘を受けて足した。
+それまで「提出書類」の行は**置き場所だけ**を比べていて、中に METS があるかは見ていなかった。
+公式文書が述べるのは「transfer METS がそこにある」ことまでで、その METS に
+どの PREMIS event が入るかは書かれていない（ウイルス検査が入る点は、実際に
+Archivematica を使った経験による）。
 
 tagmanifest のアルゴリズム差は BagIt 仕様上どちらも適法で、Archivematica が
 MD5 を要求しているわけではない。SHA-256 に揃えているのは意図した選択
@@ -344,6 +352,7 @@ MD5 を要求しているわけではない。SHA-256 に揃えているのは�
 | 8 | AM: PREMIS rights | `rights.csv` を作らず `rightsMD` も出さない | `metadata/rights.csv` から生成 | 中。利用条件が機械的に読めない | **機能追加が要る。** 権利情報（利用条件・根拠・期間）を入力する画面が無く、入力元が無いまま空の `rights.csv` を出しても意味がない |
 | 10 | AIP: tagmanifest | `tagmanifest-sha256.txt` | 公式例は `tagmanifest-md5.txt` | なし | **直さない。** BagIt 仕様上どちらも適法で、Archivematica が MD5 を要求しているわけではない。SHA-256 に揃えているのは意図した選択 |
 | 11 | AtoM: `culture` 列 | 出していない | 記述そのものの言語（`ja` / `en` …） | 小。AtoM の既定の言語で取り込まれる | **機能追加が要る。** 記述の言語を入力する欄が無い。`ja` を決め打ちすると英語で記述する利用者の記録に誤った言語が付く。9月12日の是正作業中に、1〜3 を直しても残ることが分かったので新たに記録した |
+| 12 | AIP: 受け入れ時の METS | SIP は METS を書かず `premis.xml`（PREMIS のみ）。AIP はそれを複写 | `submissionDocumentation/transfer-<名前>-<uuid>/METS.xml` を AIP に残す | 小〜中。記録の中身（event と日時）は AIP の METS にも `premis.xml` にもある。ただ、Archivematica の AIP と同じ形を前提に読む道具からは見つからない | **機能追加が要る。** SIP と AIP を作る処理の両方に手が入る（Issue #49） |
 
 ---
 

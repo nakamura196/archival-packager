@@ -265,7 +265,7 @@ def story(d: Driver, cam: Camera, out: Path) -> None:
            "総務課 移管文書" if d.lang == "ja" else "Records transfer, General Affairs")
     d.type("年代", "2024–2025")
     blur()
-    cam.shot("metadata", band(d.find(None, "識別子"), d.find(None, "内容・範囲"), top=26),
+    cam.shot("metadata", band(d.find(None, "タイトル（必須）"), d.find(None, "内容・範囲"), top=46),
              clip=left_col)
 
     # ---- オプション ---------------------------------------------------

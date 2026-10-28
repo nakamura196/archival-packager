@@ -616,6 +616,18 @@ class TestArchivematicaAipShape:
         assert subdoc.is_dir()
         assert (subdoc / "description.csv").is_file()
 
+    def test_no_transfer_mets_in_submission_documentation_yet(self, aip):
+        """Gap 12 を固定する。Archivematica の AIP は受け入れ時の METS を
+        submissionDocumentation/transfer-*/METS.xml に残すが、こちらは premis.xml だけ。
+
+        「提出書類の置き場所が一致」だけを見て、中に METS が無いことを見落としていた
+        （2026-10-27 の打ち合わせで指摘を受けた）。SIP の METS を書くようにしたら
+        ここが落ちる。そのときは KNOWN_GAPS と docs/interoperability.md を直す（#49）。
+        """
+        subdoc = aip.aip_path / "data" / "objects" / "submissionDocumentation"
+        assert not list(subdoc.rglob("METS*.xml"))
+        assert (subdoc / "premis.xml").is_file()
+
     def test_readme_html_sits_at_the_data_root(self, aip):
         """Archivematica の AIP と同じく data/README.html を置くこと。
 
@@ -742,6 +754,12 @@ KNOWN_GAPS: tuple[Gap, ...] = (
         impact="なし。BagIt 仕様上どちらも適法。直さない",
     ),
     Gap(
+        area="AIP: 受け入れ時の METS",
+        ours="SIP は METS を書かず premis.xml（PREMIS のみ）。AIP はそれを複写",
+        theirs="submissionDocumentation/transfer-<名前>-<uuid>/METS.xml を AIP に残す",
+        impact="小〜中。記録の中身は AIP の METS にもある。同じ形を前提に読む道具からは見つからない（#49）",
+    ),
+    Gap(
         area="AtoM: culture 列",
         ours="出していない",
         theirs="記述そのものの言語（ja / en …）",
@@ -758,9 +776,10 @@ def test_known_gap_count_is_frozen():
 
     2026-09-12: 10 件 → 7 件を是正 → 新たに 1 件（culture）を記録して 4 件。
     2026-09-12: data/README.html（Gap 9）を是正して 3 件。
+    2026-10-27: 受け入れ時の METS（Gap 12）を記録して 4 件。
     """
-    assert len(KNOWN_GAPS) == 3
-    assert len({g.area for g in KNOWN_GAPS}) == 3
+    assert len(KNOWN_GAPS) == 4
+    assert len({g.area for g in KNOWN_GAPS}) == 4
 
 
 def test_gap_report_is_printable(capsys):

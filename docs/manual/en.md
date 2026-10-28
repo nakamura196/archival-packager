@@ -106,8 +106,8 @@ Enter information about the material. It is kept in the package as the accession
 
 | Field | What to enter |
 | --- | --- |
-| Identifier | A name that tells this accession apart (for example `2026-transfer-01`). **It becomes the package's folder name** |
 | Title (required) | A name for the body of material. **This is the only field you must fill in** |
+| Identifier | A name that tells this accession apart (for example `2026-transfer-01`). **It becomes the package's folder name** |
 | Dates | The period the material covers (for example `2024–2025`) |
 | Scope and content | What the material is, and what it covers |
 | Archivist | Who did the work. It is recorded in the AIP's preservation events as the person responsible |

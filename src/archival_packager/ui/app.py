@@ -188,9 +188,17 @@ def main(page: ft.Page) -> None:
     # 記述メタデータ
     # ------------------------------------------------------------------
 
-    identifier = ft.TextField(label=t("識別子"), hint_text=t("例: 2026-移管-総務課"), dense=True)
+    # **必須のタイトルを先頭に置く。** 2 番目にあると、ラベルの「（必須）」を
+    # 読み落として識別子から埋め始め、押せない理由を探すことになる（2026-10-27 の指摘）。
+    # 空のあいだは欄の下に赤字で理由を出す（refresh_run_enabled）。
     title = ft.TextField(
-        label=t("タイトル（必須）"), hint_text=t("例: 総務課 一般文書"), dense=True
+        label=t("タイトル（必須）"), hint_text=t("例: 総務課 一般文書"), dense=True,
+        helper_style=ft.TextStyle(color=ft.Colors.ERROR),
+    )
+    identifier = ft.TextField(label=t("識別子"), hint_text=t("例: 2026-移管-総務課"), dense=True)
+    metadata_note = ft.Text(
+        t("タイトルだけ必須です。ほかは空でもかまいません。"),
+        size=11, color=ft.Colors.ON_SURFACE_VARIANT,
     )
     scope_note = ft.TextField(
         label=t("内容・範囲"), multiline=True, min_lines=2, max_lines=4, dense=True
@@ -326,8 +334,10 @@ def main(page: ft.Page) -> None:
             missing.append(t("素材フォルダ") if mode.value != MODE_AIP else t("SIP フォルダ"))
         if state.output_parent is None:
             missing.append(t("出力先"))
-        if needs_title and not (title.value or "").strip():
+        title_missing = needs_title and not (title.value or "").strip()
+        if title_missing:
             missing.append(t("タイトル"))
+        title.helper = t("空のままでは作成できません") if title_missing else None
 
         input_problem, output_problem = selection_problems()
         input_note.value = input_problem
@@ -766,7 +776,7 @@ def main(page: ft.Page) -> None:
     )
 
     metadata_section = section(
-        t("記述メタデータ"), identifier, title, date_note, scope_note, archivist
+        t("記述メタデータ"), metadata_note, title, identifier, date_note, scope_note, archivist
     )
     virus_section = section(t("ウイルス定義データベース"), virus_db_status, virus_db_button)
 

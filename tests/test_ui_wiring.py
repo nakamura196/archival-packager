@@ -379,6 +379,14 @@ class TestFormFollowsTheSelectedMode:
         body = source.split("def apply_mode(")[1].split("mode.on_change")[0]
         assert "metadata_section.visible = makes_sip" in body
 
+    def test_required_title_comes_first(self):
+        """必須のタイトルが 2 番目にあると、識別子から埋め始めて（必須）を読み落とす。
+        先頭に置き、空のあいだは欄の下に理由を出す。"""
+        source = inspect.getsource(ui_app.main)
+        body = source.split("metadata_section = section(")[1].split("virus_section")[0]
+        assert "metadata_note, title, identifier," in body
+        assert "title.helper = " in source
+
     def test_update_is_guarded_before_mount(self):
         """初回は page.add より前に呼ばれる。載る前に update すると落ちる。
 
