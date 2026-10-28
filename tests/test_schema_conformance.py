@@ -191,7 +191,9 @@ class TestGeneratedMETSValidates:
             check=DerivativeCheck(outcome, "Pillow で再読込: RGB 8x8", agent="Pillow 12.3.0"),
         )
         f.derivatives.append(derivative)
-        aip_pipeline._append_validation_event(f, derivative, "2026-09-11T00:00:00Z")
+        aip_pipeline._append_validation_event(
+            f, derivative, derivative.check, "2026-09-11T00:00:00Z"
+        )
 
         doc = build([f], descriptive=DescriptiveMetadata(title="読み戻し確認"))
         assert mets_schema.validate(doc), (

@@ -174,10 +174,14 @@ def atom_import(files: list[ScannedFile], metadata: SIPMetadata) -> str:
     whole_id = whole[1] or metadata.title
 
     rows: list[list[str]] = [list(ATOM_IMPORT_HEADERS), [whole_id, *whole]]
-    for f in files:
+    # identifier はファイル順の連番（001, 002, …）。相対パスは長く、AtoM が親の
+    # 識別子とつないで作る参照コードに入ると読めなくなる。桁は件数に合わせて増やし、
+    # 並べ替えても順が崩れないようにする。files は scan で相対パス順に並んでいる。
+    width = max(3, len(str(len(files))))
+    for n, f in enumerate(files, start=1):
         values = [""] * len(ATOM_HEADERS)
         values[0] = whole_id  # parentId — 全体行の legacyId を指す
-        values[1] = f.relative_path
+        values[1] = str(n).zfill(width)
         values[2] = f.relative_path.rsplit("/", 1)[-1]
         date = f.modified.strftime("%Y-%m-%d")
         values[4] = date
@@ -189,6 +193,7 @@ def atom_import(files: list[ScannedFile], metadata: SIPMetadata) -> str:
         # legacyId は「この SIP の中でこのファイル」を一意に指せばよい。
         # 相対パスを使うと、同じ資料を作り直したときも同じ値になり、
         # 再インポートで既存レコードを更新できる（重複しない）。
+        # 連番の identifier はファイルを足すとずれるので、legacyId には使わない。
         rows.append([f"{whole_id}/{f.relative_path}", *values])
 
     return _to_csv(rows, terminator=LF)
@@ -213,17 +218,24 @@ def accession(files: list[ScannedFile]) -> str:
     同一性アンカーは内容ハッシュのみ。原本は一切変更しない。
     内容が完全に同一のファイルは原パスの対応が一意に定まらないが、
     内容が等価なため保存・完全性の観点で実害は小さい。
+
+    「SIP 内のパス」は sanitize 後の名前。**これが無いと、名前が変わったことも、
+    何に変わったかも表から読めない**（元名しか載らず、SHA-256 を自分で
+    照らし合わせるしかなかった）。読み手の列番号を崩さないよう末尾に足す。
+    前回の accession.csv の読み込みは列見出しで引くので、旧形式も読める。
     """
-    rows: list[list[str]] = [["原パス（受入時）", "SHA-256", "サイズ(バイト)", "更新日時"]]
+    rows: list[list[str]] = [
+        ["原パス（受入時）", "SHA-256", "サイズ(バイト)", "更新日時", "SIP 内のパス"]
+    ]
     for f in files:
         rows.append(
             [
-                # sanitize した場合は受入時の元パスを記録する
-                # （SIP 内の sanitize 後名とは SHA-256 で突合できる）。
+                # sanitize した場合は受入時の元パスを記録する。
                 f.original_relative_path or f.relative_path,
                 f.sha256 or "",
                 str(f.size_bytes),
                 _iso(f.modified),
+                f.relative_path,
             ]
         )
     return _to_csv(rows)

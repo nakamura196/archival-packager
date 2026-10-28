@@ -32,11 +32,14 @@ set -euo pipefail
 APP="${1:-$(find build/macos -maxdepth 1 -name "*.app" 2>/dev/null | head -1)}"
 IDENTITY="Developer ID Application: Satoru Nakamura (Q6S8JS6GWV)"
 ENTITLEMENTS="scripts/entitlements.plist"
+# 同梱の Java だけに付ける entitlements（JIT の許可）。理由はファイルの中に書いてある。
+JAVA_ENTITLEMENTS="scripts/entitlements-java.plist"
 BINARIES="binaries/macos"
 
 [[ -d "$APP" ]] || { print -u2 "アプリが見つかりません: $APP"; exit 1 }
 [[ -f "$ENTITLEMENTS" ]] || { print -u2 "entitlements が見つかりません: $ENTITLEMENTS"; exit 1 }
-for required in sf default.sig clamscan freshclam; do
+[[ -f "$JAVA_ENTITLEMENTS" ]] || { print -u2 "entitlements が見つかりません: $JAVA_ENTITLEMENTS"; exit 1 }
+for required in sf default.sig clamscan freshclam jre/bin/java jhove; do
   [[ -e "$BINARIES/$required" ]] || {
     print -u2 "同梱バイナリがありません: $BINARIES/$required（./scripts/fetch-binaries.zsh を先に）"
     exit 1
@@ -67,9 +70,10 @@ mkdir -p "$DEST"
 #                            Homebrew 版を拾ってしまい、この欠陥に気づけない）
 #   clamscan, freshclam      ウイルス検査と定義 DB の取得/更新
 #   lib*.dylib               上記が @executable_path / @loader_path で引く実体
+#   jre/, jhove/             変換した派生物の形式検査（JHOVE と、それを動かす Java）
 cp -R "$BINARIES"/. "$DEST"/
 find "$DEST" -type f -name '*.dylib' -exec chmod 755 {} +
-chmod 755 "$DEST/sf" "$DEST/clamscan" "$DEST/freshclam"
+chmod 755 "$DEST/sf" "$DEST/clamscan" "$DEST/freshclam" "$DEST/jre/bin/java" "$DEST/jre/lib/jspawnhelper"
 print "  $DEST ($(ls "$DEST" | wc -l | tr -d ' ') 件)"
 
 # ライセンス表示を配布物に入れる。同梱している ClamAV は GPL-2.0 なので、
@@ -125,6 +129,13 @@ done < <(find "$APP" -type d -name "*.framework" 2>/dev/null \
          | awk -F/ '{print NF"\t"$0}' | sort -rn | cut -f2-)
 print "  完了"
 
+# 上の一括署名では java にも entitlements が付かない。JIT を許さないと
+# Java は起動時点で落ちるので、java だけ entitlements 付きで署名し直す。
+# アプリ本体の再シールより前に行うこと（後で触ると封が破れる）。
+print "  同梱の Java を entitlements 付きで再署名"
+retry codesign --force --options runtime --timestamp \
+  --entitlements "$JAVA_ENTITLEMENTS" -s "$IDENTITY" "$DEST/jre/bin/java"
+
 print "[3/4] アプリ本体を再シール（entitlements 付き）"
 retry codesign --force --options runtime --timestamp \
   --entitlements "$ENTITLEMENTS" -s "$IDENTITY" "$APP"
@@ -133,6 +144,9 @@ print "[4/4] 検証"
 codesign --verify --strict "$APP" && print "  codesign --verify --strict: OK"
 print "  --- 同梱 sf の署名 ---"
 codesign -dv --verbose=2 "$DEST/sf" 2>&1 | grep -E "Authority=Developer ID|TeamIdentifier|flags|Timestamp" | sed 's/^/    /'
+print "  --- 同梱 java の entitlements ---"
+codesign -d --entitlements - --xml "$DEST/jre/bin/java" 2>/dev/null | grep -q allow-jit \
+  && print "    allow-jit: あり" || { print -u2 "    allow-jit がありません（Java が起動しません）"; exit 1 }
 print "  --- アプリ本体 ---"
 codesign -dv --verbose=2 "$APP" 2>&1 | grep -E "Authority=Developer ID|TeamIdentifier|flags|Timestamp" | sed 's/^/    /'
 print "  --- 未署名 Mach-O が残っていないか ---"

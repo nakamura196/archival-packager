@@ -61,6 +61,44 @@ Archival Packager（中村 覚・金 甫榮）自身は MIT ライセンス（LI
     https://www.nationalarchives.gov.uk/PRONOM/
 
 
+### JHOVE 1.34.0 — LGPL-2.1-or-later
+
+  含まれるファイル（jhove/）:
+    jhove-apps-1.34.0.jar, jhove-core-1.34.0.jar,
+    tiff-hul-1.9.5.jar, pdf-hul-1.12.8.jar
+
+  Copyright 2003-2015 by JSTOR and the President and Fellows of Harvard College
+  Copyright 2015-2023 by Open Preservation Foundation
+  https://jhove.openpreservation.org/
+
+  Maven Central で公開されている jar を、改変せずにそのまま同梱しています
+  （取得元とハッシュは scripts/fetch-binaries.* に固定してあります）。
+  jhove-apps には Jakarta JSON Processing API（EPL-2.0 / GPL-2.0 with
+  Classpath Exception）と Eclipse Parsson（同）が含まれています。
+
+  対応するソースコード:
+    https://github.com/openpreserve/jhove/releases/tag/v1.34.0
+  ライセンス全文:
+    https://github.com/openpreserve/jhove/blob/integration/LICENSE
+
+### Eclipse Temurin 21.0.12+8（Java 実行環境）— GPL-2.0 with Classpath Exception
+
+  含まれるファイル: jre/（JHOVE を動かすための Java 実行環境）
+
+  Eclipse Adoptium が配布する OpenJDK のビルド（Temurin）から、jlink で
+  java.base / java.desktop / java.logging のモジュールだけを取り出したものです。
+  中身のコードは改変していません（デバッグ情報を除き、keytool を外しています）。
+  **Classpath Exception により、この実行環境の上で動くプログラム
+  （JHOVE、および本アプリ）に GPL は及びません。**
+
+  同梱物の各ライセンス文書は jre/legal/ に入っています。
+
+  対応するソースコード:
+    https://github.com/adoptium/jdk21u/tree/jdk-21.0.12+8
+  取得元:
+    https://github.com/adoptium/temurin21-binaries/releases/tag/jdk-21.0.12+8
+
+
 Python 実行環境とライブラリ
 ---------------------------
 
@@ -109,6 +147,12 @@ dist-info ディレクトリを見てください。** ライセンス全文も�
 
 同梱していないもの
 ------------------
+
+### veraPDF — GPL-3.0 / MPL-2.0
+
+  PDF/A への適合を検査する道具です。**同梱していません。** 変換で作る PDF が
+  PDF/A ではないため、入れても判定が必ず「不適合」になるだけだからです。
+  PDF の形式検査は JHOVE（PDF-hul）で行っています。
 
 ### Ghostscript — AGPL-3.0
 

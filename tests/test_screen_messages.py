@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from archival_packager import i18n
-from archival_packager.core import aip_pipeline, clamav, package_report, sip_pipeline
+from archival_packager.core import aip_pipeline, bundled, clamav, package_report, sip_pipeline
 from archival_packager.core.aip_models import AIPOptions
 from archival_packager.core.models import SIPMetadata, SIPOptions
 from archival_packager.ui import messages
@@ -136,6 +136,88 @@ class TestEventDetails:
     def test_japanese_screen_is_unchanged(self, aip_events):
         for e in aip_events:
             assert messages.event_detail(e.detail) == e.detail
+
+
+class TestJhoveUnavailable:
+    """JHOVE を動かせなかったときの記録と警告も、英語の画面で訳せること。
+
+    2026-10-27、JHOVE の無い CI（Linux）で「形式の適合性は未検査（JHOVE が
+    同梱されていません）」が英語の画面に日本語のまま残った。手元の Mac は
+    JHOVE が同梱されていて、この文が出ないので気づかなかった。
+    同梱の有無に関わらず、JHOVE が無い状態を作って core に書かせる。
+    PNG を変換させるには識別が要るので、AIP を作るテストは siegfried が無いと飛ばす
+    （CI は siegfried を入れて 2 回目を走らせる）。
+    """
+
+    needs_siegfried = pytest.mark.skipif(
+        bundled.find("sf") is None, reason="同梱 sf が無い環境"
+    )
+
+    @pytest.fixture
+    def result(self, tmp_path: Path, monkeypatch):
+        import base64
+
+        from archival_packager.core import jhove
+
+        monkeypatch.setattr(jhove, "locate", lambda: None)
+        src = tmp_path / "in"
+        src.mkdir()
+        (src / "写真.png").write_bytes(base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+            "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        ))
+        out = tmp_path / "sip-out"
+        out.mkdir()
+        sip = sip_pipeline.run(
+            input_path=src, output_parent=out,
+            metadata=SIPMetadata(identifier="x", title="y"),
+            options=SIPOptions(), progress=lambda _m: None,
+        ).sip_path
+        aout = tmp_path / "aip-out"
+        aout.mkdir()
+        return aip_pipeline.run(
+            sip_root=sip, output_parent=aout, options=AIPOptions(),
+            progress=lambda _m: None,
+        )
+
+    @needs_siegfried
+    def test_event_details(self, result, english):
+        details = [
+            messages.event_detail(e.detail)
+            for e in package_report.read(result.aip_path).events
+            if e.event_type == "validation"
+        ]
+        assert any("JHOVE is not bundled" in d for d in details), details
+        leftover = [d for d in details if JAPANESE.search(re.sub(r"\S*写真\S*", "", d))]
+        assert not leftover, leftover
+
+    @needs_siegfried
+    def test_warning(self, result, english):
+        lines = [w for w in result.warnings if "JHOVE" in w]
+        assert len(lines) == 1, result.warnings
+        line = messages.warning_line(lines[0])
+        assert not JAPANESE.search(line), line
+        assert line.startswith("Format validation (JHOVE) could not be run: JHOVE is not bundled.")
+
+    def test_progress(self, english):
+        assert messages.progress_line("形式の適合性検査（JHOVE）: 3 件") == \
+            "Format validation (JHOVE): 3 files"
+
+    def test_reasons_keep_the_os_message(self, english):
+        assert messages.jhove_reason("JHOVE を起動できません: [Errno 8] Exec format error") == \
+            "Cannot start JHOVE: [Errno 8] Exec format error"
+        assert messages.jhove_reason("未知の理由") == "未知の理由"
+
+    def test_discarded_derivative(self, english):
+        """不適合で捨てた派生物の、変換の記録と警告。"""
+        detail = messages.event_detail(
+            'rule="image-to-tiff"; program="pillow"; 形式の仕様に適合しなかったため破棄しました'
+        )
+        assert detail.endswith("; discarded because it does not conform to its format"), detail
+        line = messages.warning_line(
+            "変換結果が形式の仕様に適合しないため原本のまま保存: a.png — JHOVE: TIFF Not well-formed"
+        )
+        assert line.startswith("Kept the original because the converted file does not conform")
 
 
 def _texts(control) -> list[str]:

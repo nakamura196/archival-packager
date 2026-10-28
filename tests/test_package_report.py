@@ -15,6 +15,12 @@ from archival_packager.core import aip_pipeline, bundled, package_report, sip_pi
 from archival_packager.core.aip_models import AIPOptions
 from archival_packager.core.models import SIPMetadata, SIPOptions
 
+#: 同梱の siegfried が無い環境（Linux の CI）では、識別そのものが走らない。
+#: フォーマット名を確かめるテストは、そこでは意味を持たない。
+needs_siegfried = pytest.mark.skipif(
+    bundled.find("sf") is None, reason="同梱 sf が無い環境"
+)
+
 
 @pytest.fixture
 def sip(tmp_path: Path) -> Path:
@@ -48,6 +54,13 @@ def aip(sip: Path, tmp_path: Path) -> Path:
     return result.aip_path
 
 
+# 識別の event は、SIP を作るときに siegfried が実際に走ったときだけ書かれる
+# （行わなかった段は記録しない。core/sip_premis.py）。CI には sf が無い。
+needs_siegfried = pytest.mark.skipif(
+    bundled.find("sf") is None, reason="同梱 sf が無い環境"
+)
+
+
 class TestAIP:
     def test_reads_the_overview(self, aip: Path):
         report = package_report.read(aip)
@@ -74,11 +87,16 @@ class TestAIP:
         assert report.events, "処理の記録が 1 件も出ていない"
         labels = {e.type_label for e in report.events}
         assert "取り込み" in labels
-        assert "フォーマットの識別" in labels
         for e in report.events:
             assert e.date_time, f"{e.type_label} に日時が無い"
             assert e.outcome, f"{e.type_label} に結果が無い"
 
+    @needs_siegfried
+    def test_identification_is_recorded(self, aip: Path):
+        report = package_report.read(aip)
+        assert "フォーマットの識別" in {e.type_label for e in report.events}
+
+    @needs_siegfried
     def test_events_name_the_tool(self, aip: Path):
         """どのツールで行ったかが分からないと、記録として使えない。"""
         report = package_report.read(aip)
@@ -180,11 +198,6 @@ class TestSubmissionDocuments:
 
 #: 同梱の siegfried が無い環境（Linux の CI）では、識別そのものが走らない。
 #: フォーマット名を確かめるテストは、そこでは意味を持たない。
-needs_siegfried = pytest.mark.skipif(
-    bundled.find("sf") is None, reason="同梱 sf が無い環境"
-)
-
-
 @needs_siegfried
 class TestNormalizedCopiesAreNamed:
     """変換して作ったファイルにも、フォーマット名を付けること。
@@ -365,9 +378,15 @@ class TestWorkflow:
         assert stages[-1].event_type == "decompression"
         assert stages[-1].events == 1
 
-    def test_checksums_are_counted_even_without_an_event(self, aip: Path):
-        """チェックサムの算出は event を書いていない。段が空でも、
-        値そのものが記録されている件数は出すこと。"""
+    def test_checksums_are_counted_even_without_an_event(self, sip: Path, tmp_path: Path):
+        """premis.xml の無い古い SIP から作った AIP には、チェックサムの算出の
+        event が無い。段が空でも、値そのものが記録されている件数は出すこと。"""
+        (sip / "metadata" / "submissionDocumentation" / "premis.xml").unlink()
+        out = tmp_path / "legacy-aip"
+        out.mkdir()
+        aip = aip_pipeline.run(
+            sip_root=sip, output_parent=out, options=AIPOptions(), progress=lambda _m: None,
+        ).aip_path
         report = package_report.read(aip)
         stages = {s.event_type: s for s in package_report.workflow(report)}
         stage = stages["message digest calculation"]

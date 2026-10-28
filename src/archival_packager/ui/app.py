@@ -206,25 +206,71 @@ def main(page: ft.Page) -> None:
     # オプション
     # ------------------------------------------------------------------
 
-    def option_box(label: str, value: bool) -> ft.Checkbox:
+    def option_box(label: str, value: bool, help_text: str) -> ft.Checkbox:
         """オプションのチェックボックス。
 
         **ラベルは Text で渡す。** 文字列のままだと 1 行に固定され、左の列
         （幅 420）に収まらない分が切れていた（「元名は accession.csv に残」で
         途切れ、英語ではさらに短い所で切れる）。Text なら折り返す。
         見出しの要約に使うため、文字列は data に持たせる。
+
+        **ラベルだけでは何が起きるか分からない**（「ファイル名を安全化する」で
+        どう変わるのか読めない）ので、隣に ⓘ を置き、重ねると説明が出るようにする。
+        ⓘ はラベルの中に入れる。外に並べると、表示・非表示の切り替えを
+        チェックボックスと別に持つことになる。
         """
-        # 幅は左の列（420）から余白とチェックの枠を引いたもの。幅を決めないと折り返さない。
-        box = ft.Checkbox(label=ft.Text(label, width=300), value=value)
+        # 幅は左の列（420）から余白・チェックの枠・ⓘ を引いたもの。幅を決めないと折り返さない。
+        box = ft.Checkbox(
+            label=ft.Row(
+                [
+                    ft.Text(label, width=276),
+                    ft.Icon(ft.Icons.INFO_OUTLINE, size=16,
+                            color=ft.Colors.ON_SURFACE_VARIANT, tooltip=help_text),
+                ],
+                spacing=4,
+                tight=True,
+            ),
+            value=value,
+        )
         box.data = label
         return box
 
-    make_bag = option_box(t("BagIt bag として梱包する"), False)
-    scan_pii = option_box(t("個人情報(PII)を走査する"), False)
-    scan_virus = option_box(t("ウイルス検査を行う（定義 DB が必要）"), False)
-    sanitize = option_box(t("ファイル名を安全化する（元名は accession.csv に残ります）"), False)
-    serialize_zip = option_box(t("成果物を ZIP（無圧縮）に固める"), False)
-    normalize = option_box(t("保存用フォーマットへ変換する（AIP）"), True)
+    make_bag = option_box(
+        t("BagIt bag として梱包する"), False,
+        t("SIP を BagIt の形にします。bagit.txt と manifest-sha256.txt が付き、"
+          "受け取った側で中身が欠けていないか確かめられます。"),
+    )
+    scan_pii = option_box(
+        t("個人情報(PII)を走査する"), False,
+        t("メールアドレス・電話番号・マイナンバー・カード番号・郵便番号の候補を探し、"
+          "pii-report.csv に出します。値は伏せ字で書きます。ファイルは変えません。"),
+    )
+    scan_virus = option_box(
+        t("ウイルス検査を行う（定義 DB が必要）"), False,
+        t("同梱の ClamAV で全ファイルを検査します。"
+          "先に下の「ウイルス定義データベース」で定義を取得してください。"),
+    )
+    sanitize = option_box(
+        t("ファイル名を安全化する（元名は accession.csv に残ります）"), False,
+        t("Windows などで使えない記号（\\ : * ? \" < > | & ; [ ]）を _ に置き換えます。"
+          "末尾のピリオド・空白を取り、CON などの予約名には先頭に _ を付けます。"
+          "同じ名前になったら _2 を付けます。Mac で作った名前の濁点の分かれ"
+          "（「か」と「゛」の 2 文字）も 1 文字にそろえます。日本語はそのまま残します。"
+          "accession.csv に元の名前と SIP 内の名前が並びます。\n\n"
+          "ほかの機関や Windows の機械に渡すなら、オンをおすすめします。"
+          "オフのままだと、記号を含む名前のファイルが、渡した先で展開・コピーできない"
+          "ことがあります。名前そのものを資料として残したいときは、オフにしてください。"),
+    )
+    serialize_zip = option_box(
+        t("成果物を ZIP（無圧縮）に固める"), False,
+        t("できたパッケージを 1 つの ZIP にまとめます（受け渡し用）。"
+          "圧縮しないので、中のファイルのバイト列は変わりません。"),
+    )
+    normalize = option_box(
+        t("保存用フォーマットへ変換する（AIP）"), True,
+        t("AIP を作るとき、画像を TIFF に、PostScript / EPS を PDF に変換した"
+          "保存用の複製を加えます。元のファイルもそのまま残ります。"),
+    )
 
     # ------------------------------------------------------------------
     # ウイルス定義データベース
@@ -915,7 +961,52 @@ def main(page: ft.Page) -> None:
         state.input_path = sip_path
         input_label.value = str(sip_path)
         refresh_run_enabled()
-        log(t("AIP 作成に切り替え、作った SIP を入力にしました。出力先を確かめて「実行」を押してください。"))
+
+        # **右側を空にし、次は左側で操作することを大きく出す。** 以前は進捗の
+        # 末尾に 1 行足すだけで、SIP の結果も残ったままだった。押しても何も
+        # 起きていないように見え、AIP がもうできたのか、何を待てばよいのかが
+        # 分からなかった。AIP 作成は「実行」を押すまで始まらない。
+        progress_log.controls.clear()
+        result_panel.controls.clear()
+        steps = [
+            t("(1) 左の「入力」に、いま作った SIP が入っています。"),
+            t("(2) 左の「出力先」を確かめてください。"),
+            t("(3) 必要なら「オプション」で、保存用フォーマットへの変換を選びます。"),
+            t("(4) 左下の「実行」を押すと、AIP を作り始めます。"),
+        ]
+        progress_log.controls.append(
+            ft.Container(
+                ft.Row(
+                    [
+                        ft.Icon(ft.Icons.ARROW_BACK, size=32, color=ft.Colors.PRIMARY),
+                        ft.Column(
+                            [
+                                ft.Text(t("次は左側で操作してください"),
+                                        weight=ft.FontWeight.BOLD, size=15),
+                                ft.Text(t("「AIP 作成」に切り替えました。"
+                                          "AIP はまだ作っていません。"), size=12),
+                                *(ft.Text(s, size=12) for s in steps),
+                                ft.Text(t("進み具合は、ここに表示されます。"), size=11,
+                                        color=ft.Colors.ON_SURFACE_VARIANT),
+                            ],
+                            spacing=4,
+                            expand=True,
+                        ),
+                    ],
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
+                bgcolor=ft.Colors.PRIMARY_CONTAINER,
+                border=ft.Border.all(1, ft.Colors.PRIMARY),
+                border_radius=6,
+                padding=14,
+            )
+        )
+        # 実行ボタンの下にも同じことを書く。押せる状態だと説明欄は空になるので、
+        # 何も足りないときだけ書き込む（足りないものがあればそちらを優先する）。
+        if not run_hint.value:
+            run_hint.value = t("出力先を確かめてから「実行」を押すと、AIP を作ります")
+            run_hint.visible = True
         page.update()
 
     state.continue_to_aip = continue_to_aip

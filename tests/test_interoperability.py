@@ -389,9 +389,11 @@ class TestAtomImportCsv:
     def test_item_rows_point_at_real_payload_files(self, plain_sip: Path):
         """目録の各行が、実際に転送に入っているファイルを指していること。"""
         header, rows = _read_csv(self._path(plain_sip))
-        i_identifier = header.index("identifier")
+        whole_id = rows[0][0]
         for row in rows[1:]:
-            assert (plain_sip / "objects" / row[i_identifier]).is_file(), row[i_identifier]
+            # identifier は連番なので、ファイルの場所は legacyId（<識別子>/<相対パス>）から引く
+            rel = row[0].removeprefix(f"{whole_id}/")
+            assert (plain_sip / "objects" / rel).is_file(), row[0]
 
     def test_unix_line_breaks_and_no_bom(self, plain_sip: Path):
         """**AtoM 向けだけは BOM 無し・LF。** description.csv（Excel 向け）と逆。
@@ -647,7 +649,7 @@ class TestArchivematicaAipShape:
         assert "About this package" in text
         # METS の実ファイル名を案内すること（UUID が埋まっていないと迷子になる）。
         assert f"METS.{aip.aip_uuid}.xml" in text
-        # 読み戻し確認を形式適合性検査と読み違えられては困る。
+        # 検査の範囲（JHOVE で何を見たか・veraPDF は使っていない）を書いておく。
         assert "veraPDF" in text and "JHOVE" in text
 
     def test_readme_html_references_nothing_outside_the_package(self, aip):

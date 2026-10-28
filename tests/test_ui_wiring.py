@@ -467,3 +467,17 @@ class TestAppearance:
         fields = {f.name for f in dataclasses.fields(ft.Theme)}
         assert "color_scheme_seed" in fields
 
+
+
+class TestContinueToAIPPointsLeft:
+    def test_right_pane_is_cleared_and_points_to_the_left(self):
+        """「この SIP から AIP を作る」を押したあと、右側に SIP の結果が残り、
+        進捗の末尾に 1 行足すだけだった。押しても何も起きていないように見え、
+        AIP がもうできたのか、左で「実行」を押す必要があるのかが伝わらなかった。
+        右側を空にし、左で操作することを案内として出す。"""
+        source = inspect.getsource(ui_app.main)
+        body = source.split("def continue_to_aip(")[1].split("state.continue_to_aip")[0]
+        assert "progress_log.controls.clear()" in body
+        assert "result_panel.controls.clear()" in body
+        assert "次は左側で操作してください" in body
+        assert "AIP はまだ作っていません" in body

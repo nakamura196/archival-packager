@@ -110,6 +110,45 @@ TEXTS: dict[str, str] = {
         "Sanitize file names (the original names are kept in accession.csv)",
     "成果物を ZIP（無圧縮）に固める": "Serialize the output as a ZIP (stored, uncompressed)",
     "保存用フォーマットへ変換する（AIP）": "Normalize to preservation formats (AIP)",
+    "SIP を BagIt の形にします。bagit.txt と manifest-sha256.txt が付き、"
+    "受け取った側で中身が欠けていないか確かめられます。":
+        "Packages the SIP as a BagIt bag. It gets bagit.txt and manifest-sha256.txt, "
+        "so the receiver can check that nothing is missing or altered.",
+    "メールアドレス・電話番号・マイナンバー・カード番号・郵便番号の候補を探し、"
+    "pii-report.csv に出します。値は伏せ字で書きます。ファイルは変えません。":
+        "Looks for likely e-mail addresses, phone numbers, My Number IDs, card numbers "
+        "and postal codes, and lists them in pii-report.csv. Values are masked. "
+        "The files themselves are not changed.",
+    "同梱の ClamAV で全ファイルを検査します。"
+    "先に下の「ウイルス定義データベース」で定義を取得してください。":
+        "Scans every file with the bundled ClamAV. "
+        "Download the definitions first under \"Virus definition database\" below.",
+    "Windows などで使えない記号（\\ : * ? \" < > | & ; [ ]）を _ に置き換えます。"
+    "末尾のピリオド・空白を取り、CON などの予約名には先頭に _ を付けます。"
+    "同じ名前になったら _2 を付けます。Mac で作った名前の濁点の分かれ"
+    "（「か」と「゛」の 2 文字）も 1 文字にそろえます。日本語はそのまま残します。"
+    "accession.csv に元の名前と SIP 内の名前が並びます。\n\n"
+    "ほかの機関や Windows の機械に渡すなら、オンをおすすめします。"
+    "オフのままだと、記号を含む名前のファイルが、渡した先で展開・コピーできない"
+    "ことがあります。名前そのものを資料として残したいときは、オフにしてください。":
+        "Replaces characters that Windows and other systems cannot use "
+        "(\\ : * ? \" < > | & ; [ ]) with _. Trailing dots and spaces are removed, "
+        "and reserved names such as CON get a leading _. If two names collide, "
+        "_2 is added. Accented characters that macOS stores in decomposed form "
+        "are composed (Unicode NFC). Japanese text is kept as is. "
+        "accession.csv lists the original name next to the name in the SIP.\n\n"
+        "Recommended if the package goes to another institution or to a Windows "
+        "machine. Left off, files whose names contain these characters may fail "
+        "to extract or copy there. Leave it off if the names themselves must be "
+        "kept as part of the record.",
+    "できたパッケージを 1 つの ZIP にまとめます（受け渡し用）。"
+    "圧縮しないので、中のファイルのバイト列は変わりません。":
+        "Puts the finished package into a single ZIP for handing over. "
+        "It is stored without compression, so the files inside stay byte-for-byte the same.",
+    "AIP を作るとき、画像を TIFF に、PostScript / EPS を PDF に変換した"
+    "保存用の複製を加えます。元のファイルもそのまま残ります。":
+        "When building the AIP, adds preservation copies: images converted to TIFF, "
+        "PostScript / EPS converted to PDF. The original files are kept as well.",
 
     # ------------------------------------------------------------------
     # ウイルス定義データベース
@@ -177,9 +216,10 @@ TEXTS: dict[str, str] = {
 
     # 処理の記録タブ（PREMIS）
     "処理の記録がありません": "No preservation events were recorded",
-    "SIP の段階では、処理の記録はまだありません。この SIP から AIP を作ると、行った処理がここに並びます。":
-        "A SIP does not have preservation events yet. Once you build an AIP from "
-        "this SIP, what was done appears here.",
+    "この SIP には処理の記録（premis.xml）がありません。古い版で作った SIP です。"
+    "この SIP から AIP を作ると、行った処理がここに並びます。":
+        "This SIP has no preservation events (premis.xml); it was made with an "
+        "older version. Once you build an AIP from this SIP, what was done appears here.",
     "{count} 件の記録。担当者が別に作業記録を書く必要はありません。":
         "{count} events recorded. There is no need to keep a separate log by hand.",
     "パッケージ全体": "the whole package",
@@ -192,6 +232,7 @@ TEXTS: dict[str, str] = {
 
     # ワークフロータブ（PREMIS を段階ごとに束ねた流れ図）
     "ワークフロー": "Workflow",
+    "ファイル名の変更": "Filename change",
     "取り込み": "Ingestion",
     "フォーマットの識別": "Format identification",
     "保存用形式への変換": "Normalization",
@@ -207,13 +248,18 @@ TEXTS: dict[str, str] = {
     "長期保存に向く形式へ変換した記録です。対象の形式だけが変換されます。":
         "Records of converting files to formats suited to long-term preservation. "
         "Only formats with a conversion rule are converted.",
-    "変換で作ったファイルを開き直せたかの確認です。原本の形式適合性の検査（JHOVE など）ではありません。":
-        "Checks that each converted file could be opened again. This is not a "
-        "format conformance check of the originals (such as JHOVE).",
-    "SHA-256 は各ファイルの記録（PREMIS object）に入っています。"
-    "算出そのものは処理の記録としては書いていません。":
-        "Each file's SHA-256 is stored in its PREMIS object. The calculation itself "
-        "is not written as a preservation event.",
+    "変換で作ったファイルを開き直せたか、JHOVE で形式の仕様に"
+    "適合しているかの確認です。原本は検査していません。":
+        "Checks that each converted file could be opened again and conforms to its "
+        "format specification (JHOVE). The originals are not validated.",
+    "SIP を作るとき、ファイル名を安全な名前に変えた記録です。"
+    "元の名前は詳細と accession.csv に残っています。":
+        "Records of renaming files to safe names when the SIP was made. The "
+        "original names are in the details and in accession.csv.",
+    "SIP を作るときに SHA-256 を算出した記録です。"
+    "古い版で作った SIP では記録が無く、値だけが各ファイルに入っています。":
+        "Records of calculating SHA-256 when the SIP was made. SIPs made with an "
+        "older version have no such record; only the value is stored for each file.",
     "SIP の BagIt マニフェストとチェックサムを照合した記録です。":
         "Records of comparing checksums against the SIP's BagIt manifest.",
     "SHA-256 が記録されたファイル: {count} 件": "Files with a SHA-256 recorded: {count}",
@@ -368,6 +414,7 @@ TEXTS: dict[str, str] = {
     "正規化の対象はありません（既に保存に適した形式、または未知の形式）":
         "Nothing to normalize (already in a preservation format, or an unknown format)",
     "フォーマット変換: {count} 件": "Format conversions: {count}",
+    "形式の適合性検査（JHOVE）: {count} 件": "Format validation (JHOVE): {count} files",
     "METS を生成しています…": "Writing the METS…",
     "AIP（BagIt bag）を組み立てています…": "Assembling the AIP (BagIt bag)…",
 
@@ -387,6 +434,12 @@ TEXTS: dict[str, str] = {
     "変換結果を読み戻せないため原本のまま保存":
         "Kept as the original because the converted file could not be read back",
     "完全性確認をスキップ": "Fixity check skipped",
+    "変換結果が形式の仕様に適合しないため原本のまま保存":
+        "Kept the original because the converted file does not conform to its format",
+    "形式の適合性検査（JHOVE）を実施できませんでした: {reason}。"
+    "変換結果 {count} 件は開き直しの確認だけで保存しています":
+        "Format validation (JHOVE) could not be run: {reason}. {count} converted "
+        "files were kept after the reopen check only",
     "変換規則表": "Conversion rules",
     # 種類ごとの、次にすること
     "ウイルス検出: 該当ファイルを開かず、担当の部署に相談してください。":
@@ -438,10 +491,26 @@ TEXTS: dict[str, str] = {
         "Not checked: no tool to reopen this format ({ext})",
     "生成した派生物を開き直せませんでした: {detail}":
         "Could not reopen the converted file: {detail}",
+    "形式の適合性は未検査（JHOVE の検査部品が無い形式: {ext}）":
+        "Format conformance not checked (JHOVE has no module for {ext})",
+    "形式の適合性は未検査（{reason}）": "Format conformance not checked ({reason})",
+    "形式の適合性を判定できませんでした（{detail}）":
+        "Format conformance could not be determined ({detail})",
+    "JHOVE が同梱されていません": "JHOVE is not bundled",
+    "JHOVE が結果を返しませんでした": "JHOVE returned no result",
+    "同梱の Java を実行できません: {detail}": "Cannot run the bundled Java: {detail}",
+    "検査用の作業場所を作れません: {detail}":
+        "Cannot create a working folder for validation: {detail}",
+    "検査用の写しを作れません: {detail}": "Cannot make a copy for validation: {detail}",
+    "JHOVE を起動できません: {detail}": "Cannot start JHOVE: {detail}",
+    "JHOVE が異常終了しました {detail}": "JHOVE exited abnormally {detail}",
+    "JHOVE の出力を読めません: {detail}": "Cannot read JHOVE's output: {detail}",
     "TIFF (非圧縮)": "TIFF (uncompressed)",
     "{count} フレームを多ページ TIFF として保持": "kept {count} frames as a multi-page TIFF",
     "ICC プロファイルを保持": "kept the ICC profile",
     "; 読み戻せなかったため破棄しました": "; discarded because it could not be reopened",
+    "; 形式の仕様に適合しなかったため破棄しました":
+        "; discarded because it does not conform to its format",
 
     # ------------------------------------------------------------------
     # 入力の取り違え・次の手順
@@ -471,7 +540,18 @@ TEXTS: dict[str, str] = {
     "中身を確かめてから進んでください。日を改めるときは「AIP 作成」でこのフォルダを選びます。":
         "Look inside before going on. To do it another day, choose \"Create an AIP\" "
         "and pick this folder.",
-    "AIP 作成に切り替え、作った SIP を入力にしました。出力先を確かめて「実行」を押してください。":
-        "Switched to \"Create an AIP\" with the new SIP as the input. Check the "
-        "destination, then press \"Run\".",
+    "次は左側で操作してください": "Next, continue on the left",
+    "「AIP 作成」に切り替えました。AIP はまだ作っていません。":
+        "Switched to \"Create an AIP\". The AIP has not been built yet.",
+    "(1) 左の「入力」に、いま作った SIP が入っています。":
+        "(1) \"Input\" on the left now holds the SIP you just made.",
+    "(2) 左の「出力先」を確かめてください。":
+        "(2) Check \"Destination\" on the left.",
+    "(3) 必要なら「オプション」で、保存用フォーマットへの変換を選びます。":
+        "(3) If needed, choose conversion to preservation formats under \"Options\".",
+    "(4) 左下の「実行」を押すと、AIP を作り始めます。":
+        "(4) Press \"Run\" at the bottom left to start building the AIP.",
+    "進み具合は、ここに表示されます。": "Progress will appear here.",
+    "出力先を確かめてから「実行」を押すと、AIP を作ります":
+        "Check the destination, then press \"Run\" to build the AIP",
 }

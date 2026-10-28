@@ -28,6 +28,7 @@ from .. import __version__
 from . import (
     conversion_registry,
     fixity,
+    jhove,
     mets,
     normalizer,
     rule_table,
@@ -44,6 +45,7 @@ from .aip_models import (
     AIPResult,
     CheckOutcome,
     Derivative,
+    DerivativeCheck,
     DerivativePurpose,
     DescriptiveMetadata,
     FixityOutcome,
@@ -86,7 +88,14 @@ def run(
 
     now = _now_iso()
     agents = _agents(options)
-    _record_ingestion_events(parsed.files, fixity_status, now, options)
+    # SIP 作成時の記録に出てくる道具（ClamAV など）も agent として載せる。
+    # 載せないと、event が指す agent が METS のどこにも無い。
+    known = {a.id for a in agents}
+    agents += [a for a in parsed.sip_agents if a.id not in known]
+    _record_ingestion_events(
+        parsed.files, fixity_status, now, options,
+        inherited=parsed.has_sip_provenance,
+    )
 
     # 規則表は、変換を始める前に 1 回だけ確定させる。**AIP に同梱するのは
     # 「実際に効いていた表」でなければならない**ので、参照するのは常にこの文字列。
@@ -196,9 +205,15 @@ def _submission_documents(parsed) -> list[mets.SubmissionDocument]:
 
 
 def _record_ingestion_events(
-    files: list[AIPFile], status: FixityStatus, now: str, options: AIPOptions
+    files: list[AIPFile], status: FixityStatus, now: str, options: AIPOptions,
+    *, inherited: bool = False,
 ) -> None:
-    """各原本に ingestion と fixity check の event を記録する。"""
+    """各原本に ingestion と fixity check の event を記録する。
+
+    `inherited` は、SIP が premis.xml を持っていたか。持っていれば、識別と
+    ウイルス検査の event は SIP を作ったときの日時で既に入っているので、
+    ここでは作り直さない（core/sip_premis.py の冒頭を参照）。
+    """
     agent_ids = [APP_AGENT_ID]
     if options.archivist_name:
         agent_ids.append(options.archivist_name)
@@ -223,8 +238,11 @@ def _record_ingestion_events(
                 outcome=outcome, agent_ids=agent_ids,
             )
         )
+        if inherited:
+            continue
         # **識別と検査も保存処理である。** 実行したのに記録していなかった。
         # PREMIS は、いつ・何を・どの道具で行ったかを残すためにある。
+        # premis.xml の無い古い SIP では、formats.csv から作る（日時は AIP 作成時）。
         _append_identification_event(f, now, agent_ids)
         _append_virus_event(f, now, agent_ids)
 
@@ -308,6 +326,7 @@ def _normalize_all(
         return warnings
 
     progress(f"フォーマット変換: {len(targets)} 件")
+    made: list[tuple[AIPFile, Derivative]] = []
     for f, rule in targets:
         try:
             derivative = normalizer.normalize(f, rule, work_dir)
@@ -338,23 +357,41 @@ def _normalize_all(
                 )
             )
             continue
+        made.append((f, derivative))
 
-        # 作ったものを開き直せたか。**開けなければ成果物に入れない。**
+    # 形式の適合性はまとめて検査する（Java の起動を 1 回で済ませるため）。
+    # 開き直せなかったものは既に捨てると決まっているので、検査に回さない。
+    warnings += _check_conformance(
+        [d for _, d in made if not _failed(d.check)], work_dir, progress
+    )
+
+    for f, derivative in made:
+        # **開けない派生物も、仕様に適合しない派生物も、成果物に入れない。**
         # 中途半端な派生物を保存用として記録するほうが、変換できなかったと
         # 記録するより悪い（後から見た人が「保存用がある」と信じてしまう）。
-        kept = derivative.check is None or derivative.check.outcome is not CheckOutcome.FAILED
+        # 原本はどちらの場合もそのまま保存される。
         detail = normalizer.event_detail(derivative)
-
-        if kept:
-            f.derivatives.append(derivative)
-        else:
+        if _failed(derivative.check):
             note = (
                 f"変換結果を読み戻せないため原本のまま保存: {f.relative_path} "
                 f"— {derivative.check.note}"
             )
+            detail += "; 読み戻せなかったため破棄しました"
+        elif _failed(derivative.conformance):
+            note = (
+                f"変換結果が形式の仕様に適合しないため原本のまま保存: {f.relative_path} "
+                f"— {derivative.conformance.note}"
+            )
+            detail += "; 形式の仕様に適合しなかったため破棄しました"
+        else:
+            note = ""
+
+        kept = not note
+        if kept:
+            f.derivatives.append(derivative)
+        else:
             warnings.append(note)
             progress(note)
-            detail += "; 読み戻せなかったため破棄しました"
 
         f.events.append(
             PremisEvent(
@@ -365,9 +402,79 @@ def _normalize_all(
                 agent_ids=[APP_AGENT_ID],
             )
         )
-        _append_validation_event(f, derivative, now)
+        _append_validation_event(f, derivative, derivative.check, now)
+        _append_validation_event(f, derivative, derivative.conformance, now)
 
     return warnings
+
+
+def _failed(check: DerivativeCheck | None) -> bool:
+    return check is not None and check.outcome is CheckOutcome.FAILED
+
+
+def _check_conformance(
+    derivatives: list[Derivative], work_dir: Path, progress: Progress
+) -> list[str]:
+    """JHOVE で形式の適合性を検査し、各派生物の conformance に結果を付ける。
+
+    **黙って飛ばさない。** 検査できなかった派生物にも SKIPPED を付け、
+    理由を記録に残す。JHOVE そのものが動かなかったときは、report に
+    1 行だけ警告を出す（件数分出すと、他の警告が埋もれる）。
+    """
+    if not derivatives:
+        return []
+
+    targets = [
+        d for d in derivatives
+        if d.path.suffix.lstrip(".").lower() in jhove.MODULE_FOR_EXTENSION
+    ]
+    for d in derivatives:
+        if d not in targets:
+            # 利用者が足した規則は任意の形式を出せるので、ここは普通に起こる。
+            d.conformance = DerivativeCheck(
+                CheckOutcome.SKIPPED,
+                "形式の適合性は未検査（JHOVE の検査部品が無い形式: "
+                f".{d.path.suffix.lstrip('.') or '拡張子なし'}）",
+            )
+    if not targets:
+        return []
+
+    progress(f"形式の適合性検査（JHOVE）: {len(targets)} 件")
+    try:
+        results, release = jhove.validate([d.path for d in targets], work_dir)
+    except jhove.JhoveUnavailable as exc:
+        for d in targets:
+            d.conformance = DerivativeCheck(
+                CheckOutcome.SKIPPED, f"形式の適合性は未検査（{exc}）"
+            )
+        note = (
+            f"形式の適合性検査（JHOVE）を実施できませんでした: {exc}。"
+            f"変換結果 {len(targets)} 件は開き直しの確認だけで保存しています"
+        )
+        progress(note)
+        return [note]
+
+    for d in targets:
+        result = results.get(d.path)
+        if result is None:
+            d.conformance = DerivativeCheck(
+                CheckOutcome.SKIPPED,
+                "形式の適合性は未検査（JHOVE が結果を返しませんでした）", agent=release,
+            )
+            continue
+        agent = f"{release} ({result.module})" if result.module else release
+        described = " ".join(x for x in (result.format, result.version) if x)
+        note = f"JHOVE: {described + ' ' if described else ''}{result.status}"
+        if result.messages:
+            note += " — " + "; ".join(result.messages[:5])
+        outcome = {
+            True: CheckOutcome.PASSED, False: CheckOutcome.FAILED, None: CheckOutcome.SKIPPED,
+        }[result.conforms]
+        if outcome is CheckOutcome.SKIPPED:
+            # "Unknown" など。不適合とは言えないので捨てない。
+            note = f"形式の適合性を判定できませんでした（{note}）"
+        d.conformance = DerivativeCheck(outcome, note[:500], agent=agent)
+    return []
 
 
 #: PREMIS の eventOutcome に書く値。CheckOutcome の綴りをそのまま出さないのは、
@@ -380,22 +487,22 @@ _CHECK_OUTCOMES = {
 }
 
 
-def _append_validation_event(f: AIPFile, derivative: Derivative, now: str) -> None:
-    """派生物を開き直した結果を PREMIS の event として残す。
+def _append_validation_event(
+    f: AIPFile, derivative: Derivative, check: DerivativeCheck | None, now: str
+) -> None:
+    """派生物の検証結果（開き直し・形式の適合性）を PREMIS の event として残す。
 
     **eventType は PREMIS の語彙どおり "validation"。** 独自の名前を付けると、
     他のシステムがこの AIP を読んだときに何の記録か分からなくなる。
+    2 種類の検証を同じ eventType で書き、何を見たかは agent（道具と版）と
+    eventOutcomeDetailNote で区別する。Archivematica も JHOVE の検査を
+    "validation" で書いている。
 
     **成功も失敗も、確認しなかったことも書く。** 「確認していない」と
     「確認して通った」は別の事実である。イベントが無いことで「不明」を表すと、
     後から見た人はまず区別できない（ウイルス検査は実施の有無が SIP 側の
     記録から分かるので書かない、という別の判断をしている）。
-
-    ただしここで言う validation は **読み戻せたかどうかだけ** であり、
-    veraPDF や JHOVE のような形式適合性の判定ではない。何を見たかが
-    eventOutcomeDetailNote から読み取れるように、道具の名前を note に入れる。
     """
-    check = derivative.check
     if check is None:
         return
     agent_ids = [APP_AGENT_ID]
@@ -564,15 +671,26 @@ OAIS 参照モデルにいう保存用のひとまとまりで、資料そのも
     突き合わせれば同じことができます。</li>
 <li>何が行われたかを知るには <code>data/METS.{aip_uuid}.xml</code> を開き、
     <code>premis:event</code> を読んでください。取り込み・完全性確認・
-    フォーマット識別・ウイルス検査・形式変換・変換結果の読み戻し確認が、
+    フォーマット識別・ウイルス検査・形式変換・変換結果の検証が、
     ファイルごとに記録されています。</li>
 </ol>
 
 <h2>注意</h2>
 
-<p>変換結果については「保存用に作ったファイルを開き直せたか」までを確認しています。
-<strong>形式の仕様に適合しているかどうかの検査（veraPDF や JHOVE に相当するもの）は
-行っていません。</strong>記録の読み方を誤らないよう、ここに明記しておきます。</p>
+<p>変換で作った TIFF と PDF は、開き直せることに加えて、<strong>JHOVE で形式の仕様に
+適合しているかを検査しています。</strong>開けなかったもの・適合しなかったものは
+このパッケージに入れず、原本だけを保存しています。</p>
+
+<p>ただし、次のことは<strong>確かめていません。</strong>記録の読み方を誤らないよう、
+ここに明記しておきます。</p>
+<ul>
+<li>原本そのものの形式の適合性（検査したのは変換で作ったファイルだけです）</li>
+<li>PDF が PDF/A に適合しているか（veraPDF による検査は行っていません。
+    変換で作る PDF は PDF/A ではありません）</li>
+<li>JHOVE を動かせなかった環境では、形式の検査は行われていません。
+    その場合は METS の <code>premis:event</code>（validation）に
+    「未検査」（skipped）と記録されています</li>
+</ul>
 
 <hr>
 
@@ -617,16 +735,26 @@ done to them, in one container. It was produced by
     <code>manifest-sha256.txt</code> against the SHA-256 of the file achieves the same.</li>
 <li>To see what was done, open <code>data/METS.{aip_uuid}.xml</code> and read the
     <code>premis:event</code> elements: ingestion, fixity check, format
-    identification, virus check, normalisation, and the read-back check of each
+    identification, virus check, normalisation, and the validation of each
     converted file are recorded per file.</li>
 </ol>
 
 <h2>A caution</h2>
 
-<p>For converted files, we checked only that the generated copy can be opened again.
-<strong>No format conformance validation (the equivalent of veraPDF or JHOVE) was
-performed.</strong> This is stated here so that the records are not read as claiming
-more than they do.</p>
+<p>Converted TIFF and PDF files were opened again and <strong>validated against their
+format specification with JHOVE.</strong> Copies that could not be opened or did not
+conform were left out of this package; only the original was kept.</p>
+
+<p>The following was <strong>not</strong> checked. This is stated here so that the
+records are not read as claiming more than they do.</p>
+<ul>
+<li>The format conformance of the originals themselves (only converted copies were
+    validated).</li>
+<li>PDF/A conformance (no veraPDF validation; the PDFs produced by conversion are not
+    PDF/A).</li>
+<li>Where JHOVE could not be run, no format validation took place. This is recorded as
+    <code>skipped</code> in the validation events of the METS file.</li>
+</ul>
 
 </body>
 </html>

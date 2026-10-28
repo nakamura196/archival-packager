@@ -48,6 +48,7 @@ from .core import (
     bundled,
     clamav,
     conversion_registry,
+    jhove,
     package_report,
     rule_table,
     sip_pipeline,
@@ -623,6 +624,7 @@ def _cmd_check(args: argparse.Namespace, reporter: _Reporter) -> int:
         "siegfried_signature": _as_str(bundled.signature_home()),
         "clamscan": _as_str(clamav.find_tool()),
         "freshclam": _as_str(clamav.find_updater()),
+        "jhove": _as_str(jhove_tool.java if (jhove_tool := jhove.locate()) else None),
     }
     table = conversion_registry.table()
     user_rules = rule_table.user_table_path()
@@ -654,6 +656,8 @@ def _cmd_check(args: argparse.Namespace, reporter: _Reporter) -> int:
         f"  シグネチャ default.sig:     {tools['siegfried_signature'] or '無し'}",
         f"  ウイルス検査 clamscan:      {tools['clamscan'] or '無し（検査はスキップされます）'}",
         f"  定義取得 freshclam:         {tools['freshclam'] or '無し'}",
+        f"  形式検査 JHOVE（Java）:     "
+        f"{tools['jhove'] or '無し（変換結果の形式検査は未検査になります）'}",
         clamav.database_status(database),
         f"  置き場所: {database}",
         "変換規則表",

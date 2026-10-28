@@ -447,8 +447,8 @@ def _events_tab(report: package_report.PackageReport) -> ft.Control:
     if not report.events:
         return _empty(
             t("処理の記録がありません"),
-            t("SIP の段階では、処理の記録はまだありません。"
-              "この SIP から AIP を作ると、行った処理がここに並びます。"),
+            t("この SIP には処理の記録（premis.xml）がありません。"
+              "古い版で作った SIP です。この SIP から AIP を作ると、行った処理がここに並びます。"),
         )
 
     rows = [
@@ -502,6 +502,7 @@ def _stage_label(event_type: str) -> str:
     ここで画面の言語に合わせる。知らない種類は eventType をそのまま出す。
     """
     return {
+        "filename change": t("ファイル名の変更"),
         "ingestion": t("取り込み"),
         "virus check": t("ウイルス検査"),
         "format identification": t("フォーマットの識別"),
@@ -521,11 +522,13 @@ def _stage_hint(event_type: str) -> str:
         "format identification": t("Siegfried で PRONOM の形式を特定した記録です。"),
         "normalization": t("長期保存に向く形式へ変換した記録です。"
                            "対象の形式だけが変換されます。"),
-        "validation": t("変換で作ったファイルを開き直せたかの確認です。"
-                        "原本の形式適合性の検査（JHOVE など）ではありません。"),
+        "validation": t("変換で作ったファイルを開き直せたか、JHOVE で形式の仕様に"
+                        "適合しているかの確認です。原本は検査していません。"),
+        "filename change": t("SIP を作るとき、ファイル名を安全な名前に変えた記録です。"
+                             "元の名前は詳細と accession.csv に残っています。"),
         "message digest calculation": t(
-            "SHA-256 は各ファイルの記録（PREMIS object）に入っています。"
-            "算出そのものは処理の記録としては書いていません。"),
+            "SIP を作るときに SHA-256 を算出した記録です。"
+            "古い版で作った SIP では記録が無く、値だけが各ファイルに入っています。"),
         "fixity check": t("SIP の BagIt マニフェストとチェックサムを照合した記録です。"),
     }.get(event_type, "")
 
@@ -598,8 +601,8 @@ def _workflow_tab(report: package_report.PackageReport) -> ft.Control:
     if not report.events:
         return _empty(
             t("処理の記録がありません"),
-            t("SIP の段階では、処理の記録はまだありません。"
-              "この SIP から AIP を作ると、行った処理がここに並びます。"),
+            t("この SIP には処理の記録（premis.xml）がありません。"
+              "古い版で作った SIP です。この SIP から AIP を作ると、行った処理がここに並びます。"),
         )
 
     stages = package_report.workflow(report)

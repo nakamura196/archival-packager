@@ -290,7 +290,7 @@ class TestCheck:
         assert payload["version"]
         assert "virus_database" in payload
         assert set(payload["bundled_tools"]) == {
-            "siegfried", "siegfried_signature", "clamscan", "freshclam"
+            "siegfried", "siegfried_signature", "clamscan", "freshclam", "jhove"
         }
 
     def test_does_not_claim_a_missing_database_is_clean(self, monkeypatch, tmp_path, capsys):

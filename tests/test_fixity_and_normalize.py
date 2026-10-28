@@ -646,8 +646,8 @@ class TestDerivativeReadback:
     壊れ方で、しかも**読めないものを保存用として記録するほうが、変換でき
     なかったと記録するより悪い**（後から見た人が「保存用がある」と信じる）。
 
-    ここで確かめているのは読み戻せるかどうかだけで、**形式の適合性検査
-    （veraPDF / JHOVE 相当）ではない。** それらは Java 製で同梱できない。
+    ここで確かめているのは読み戻せるかどうかだけ。形式の適合性は
+    別に JHOVE で検査する（tests/test_jhove.py）。
     """
 
     def _derivative(self, path: Path) -> Derivative:

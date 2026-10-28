@@ -126,9 +126,39 @@ options are on ("Defaults" when none are).
 | Wrap the output as a BagIt bag | Writes the SIP as a BagIt bag (`bagit.txt` and `manifest-sha256.txt`) |
 | Scan for personally identifiable information (PII) | Looks for email addresses, phone numbers, Japanese individual numbers, card numbers and Japanese postal codes, and lists candidates in `pii-report.csv` |
 | Run a virus scan | Scans with the bundled ClamAV. **The definition database has to be downloaded first** ([below](#the-virus-definition-database)) |
-| Sanitize file names | Repairs characters that cannot be used and names that are too long. The original names are kept in `accession.csv` |
+| Sanitize file names | Replaces characters that Windows and other systems cannot use with `_`, removes trailing dots and spaces, and avoids reserved names such as `CON`. Colliding names get `_2`. Japanese text is kept. Paths that are too long are not shortened, only warned about. `accession.csv` lists the original name next to the name in the SIP |
 | Serialize the output as a ZIP | Packs the finished package into an uncompressed ZIP, for handing over |
 | Normalize to preservation formats (AIP) | Converts images to TIFF and PostScript/EPS to PDF while building the AIP |
+
+#### Should file names be sanitized?
+
+**Turn it on if the package goes to another institution or to a Windows
+machine.** It is off by default.
+
+Left off, files whose names contain `\` `:` `*` `?` and similar characters
+cannot be extracted or copied on Windows. Names created on macOS may also store
+accented and Japanese voiced characters in decomposed form (two code points
+that look like one). They look the same, but the receiving system may not treat
+them as the same name. Sanitizing fixes both.
+
+Some files will then be renamed. `accession.csv` keeps the original name under
+"原パス（受入時）" and the new name under "SIP 内のパス". Leave the option off
+if the names themselves must be kept as part of the record.
+
+#### Japanese file names
+
+**Japanese file names are handled as they are.** Sanitizing does not replace
+Japanese text.
+
+Archivematica has failed on Japanese file names. The cause is the Java tools it
+runs (JHOVE, FITS and others): when the environment's locale is ASCII, they
+cannot read non-ASCII names and report "file not found" (tested in July 2026;
+a configuration problem, not a bug in the tools).
+
+The tools this application uses for identification and scanning (Siegfried,
+ClamAV) treat file names as bytes, regardless of locale. Where JHOVE is used to
+validate converted files, Japanese names are not passed to it: it checks copies
+linked under short ASCII names.
 
 The PII scan recognises **five categories, all defined around Japanese
 conventions** — Japanese individual numbers (マイナンバー) and Japanese postal
@@ -193,11 +223,18 @@ Building an AIP does three things:
 - normalizes to preservation formats, if you asked for it
 - writes a METS with PREMIS events embedded, and wraps the whole thing as a BagIt bag
 
-Derivatives produced by normalization are **opened again and read back** —
-a TIFF is fully decoded with Pillow, a PDF is re-opened with pypdf and must
-report at least one page. A derivative that cannot be read back is discarded,
-and the event is recorded as a failure. This is not format validation: opening
-a file says nothing about whether it conforms to its specification.
+Derivatives produced by normalization are validated in two steps:
+
+1. **Opened again and read back** — a TIFF is fully decoded with Pillow, a PDF
+   is re-opened with pypdf and must report at least one page
+2. **Validated against the format specification with JHOVE** — only
+   "Well-Formed and valid" counts as conforming
+
+A derivative that fails either step is discarded (the original is kept), and
+the event is recorded as a failure. Only converted files are validated, not
+the originals, and PDF/A conformance (veraPDF) is not checked. If JHOVE cannot
+be run (on an Intel Mac, for instance), this is recorded as "not checked" and
+the report carries a one-line warning.
 
 ---
 
@@ -395,8 +432,9 @@ is what watches the application itself for regressions).
       description.csv           AtoM / ISAD(G) description sheet (filled in by a person)
       atom-import.csv           For importing into AtoM (machine column names)
       formats.csv               Technical inventory (format, PRONOM, size, SHA-256, virus scan)
-      accession.csv             Accession record (original file names and paths)
+      accession.csv             Accession record (original file names and paths, and the path in the SIP)
       dfxml.xml                 Technical metadata (DFXML)
+      premis.xml                Processing record of the SIP (PREMIS: identification, checksums, virus scan, renaming)
       report.txt / report.html  Summary for people to read
       checksum.sha256           SHA-256, paths relative to the SIP root
       pii-report.csv            Personal information candidates (only with --scan-pii)
@@ -409,6 +447,11 @@ With `--bag`, all of the above goes under `data/`, and `bagit.txt` and
 **The two files a person fills in are `description.csv` and `metadata.csv`.**
 What is written in `metadata.csv` goes into the METS as file-level description
 when the AIP is built.
+
+`premis.xml` records, for each file, what was done while the SIP was being
+made, with the date and the tool. Steps that were not performed (for example,
+when the virus scan was turned off) are not recorded. When the AIP is built,
+these events are carried into the METS with their original dates.
 
 The column headings of these CSV files and the text of the reports are in
 Japanese, whatever the interface language (see
@@ -471,7 +514,7 @@ nothing.
 
 Read these before relying on the output:
 
-- [Known limits](../README.md#known-limits) — the range of normalization, the absence of format validation, and the rest
+- [Known limits](../README.md#known-limits) — the range of normalization, what format validation covers, and the rest
 - [docs/pii-accuracy.md](pii-accuracy.md) — the personal information scan covers five categories; measured misses and false positives
 - [docs/interoperability.md](interoperability.md) — the comparison with AtoM and Archivematica is **against their specifications**, not yet against running instances
 - [docs/rules.md](rules.md) — how to add your own normalization rules

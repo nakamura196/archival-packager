@@ -34,10 +34,13 @@ from __future__ import annotations
 import csv
 import io
 import uuid as _uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from .aip_models import AIPFile, AIPPipelineError, DescriptiveMetadata
+from lxml import etree
+
+from . import sip_premis
+from .aip_models import AIPFile, AIPPipelineError, DescriptiveMetadata, PremisAgent
 from .checksums import sha256_of
 
 _SUBDOC_CANDIDATES = (
@@ -58,6 +61,12 @@ class ParsedSIP:
     descriptive: DescriptiveMetadata | None = None  # description.csv から継承
     inherited_hashes: int = 0  # SIP から継承できたハッシュ件数（レポート用）
     recomputed_hashes: int = 0  # 再計算したハッシュ件数
+    #: SIP が premis.xml（SIP 作成時の処理の記録）を持っていたか。
+    #: 持っていれば、その event が各 AIPFile.events の先頭に入っている。
+    #: 2026-10-27 より前に作った SIP には無い。
+    has_sip_provenance: bool = False
+    #: premis.xml に出てきた agent（ClamAV・Siegfried など）。
+    sip_agents: list[PremisAgent] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -124,6 +133,8 @@ def read(sip_root: Path, *, is_bag: bool | None = None) -> ParsedSIP:
             if whole is not None:
                 descriptive = DescriptiveMetadata.merge(whole, descriptive)
 
+    provenance = _read_provenance(subdoc)
+
     # マニフェストからのハッシュ継承（formats.csv が無い場合の次点）。
     manifest_hashes = _parse_manifest(sip_root, is_bag=is_bag)
 
@@ -162,6 +173,8 @@ def read(sip_root: Path, *, is_bag: bool | None = None) -> ParsedSIP:
                 mime_type=entry.mime,
                 virus_state=entry.virus_state,
                 descriptive=entry.descriptive,
+                # SIP 作成時の event は、日時と識別子を変えずにそのまま移す。
+                events=list(provenance.events.get(rel, [])) if provenance else [],
             )
         )
 
@@ -175,7 +188,27 @@ def read(sip_root: Path, *, is_bag: bool | None = None) -> ParsedSIP:
         descriptive=descriptive,
         inherited_hashes=inherited,
         recomputed_hashes=recomputed,
+        has_sip_provenance=provenance is not None,
+        sip_agents=provenance.agents if provenance else [],
     )
+
+
+def _read_provenance(subdoc: Path | None) -> sip_premis.ParsedProvenance | None:
+    """submissionDocumentation/premis.xml を読む。無ければ None。
+
+    **読めなかったときは例外にする。** 黙って None にすると、AIP 側は
+    古い SIP とみなして formats.csv から記録を作り直し、日時が AIP 作成時に
+    すり替わる。壊れていることは、作る前に分かったほうがよい。
+    """
+    if subdoc is None:
+        return None
+    path = subdoc / sip_premis.FILE_NAME
+    if not path.is_file():
+        return None
+    try:
+        return sip_premis.parse(path.read_bytes())
+    except (OSError, etree.XMLSyntaxError) as exc:
+        raise AIPPipelineError.not_a_sip(f"{path.name} を読めません: {exc}") from exc
 
 
 # --------------------------------------------------------------------------
