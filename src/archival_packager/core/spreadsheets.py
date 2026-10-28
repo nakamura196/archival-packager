@@ -174,10 +174,14 @@ def atom_import(files: list[ScannedFile], metadata: SIPMetadata) -> str:
     whole_id = whole[1] or metadata.title
 
     rows: list[list[str]] = [list(ATOM_IMPORT_HEADERS), [whole_id, *whole]]
-    for f in files:
+    # identifier はファイル順の連番（001, 002, …）。相対パスは長く、AtoM が親の
+    # 識別子とつないで作る参照コードに入ると読めなくなる。桁は件数に合わせて増やし、
+    # 並べ替えても順が崩れないようにする。files は scan で相対パス順に並んでいる。
+    width = max(3, len(str(len(files))))
+    for n, f in enumerate(files, start=1):
         values = [""] * len(ATOM_HEADERS)
         values[0] = whole_id  # parentId — 全体行の legacyId を指す
-        values[1] = f.relative_path
+        values[1] = str(n).zfill(width)
         values[2] = f.relative_path.rsplit("/", 1)[-1]
         date = f.modified.strftime("%Y-%m-%d")
         values[4] = date
@@ -189,6 +193,7 @@ def atom_import(files: list[ScannedFile], metadata: SIPMetadata) -> str:
         # legacyId は「この SIP の中でこのファイル」を一意に指せばよい。
         # 相対パスを使うと、同じ資料を作り直したときも同じ値になり、
         # 再インポートで既存レコードを更新できる（重複しない）。
+        # 連番の identifier はファイルを足すとずれるので、legacyId には使わない。
         rows.append([f"{whole_id}/{f.relative_path}", *values])
 
     return _to_csv(rows, terminator=LF)

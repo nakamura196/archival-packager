@@ -389,9 +389,11 @@ class TestAtomImportCsv:
     def test_item_rows_point_at_real_payload_files(self, plain_sip: Path):
         """目録の各行が、実際に転送に入っているファイルを指していること。"""
         header, rows = _read_csv(self._path(plain_sip))
-        i_identifier = header.index("identifier")
+        whole_id = rows[0][0]
         for row in rows[1:]:
-            assert (plain_sip / "objects" / row[i_identifier]).is_file(), row[i_identifier]
+            # identifier は連番なので、ファイルの場所は legacyId（<識別子>/<相対パス>）から引く
+            rel = row[0].removeprefix(f"{whole_id}/")
+            assert (plain_sip / "objects" / rel).is_file(), row[0]
 
     def test_unix_line_breaks_and_no_bom(self, plain_sip: Path):
         """**AtoM 向けだけは BOM 無し・LF。** description.csv（Excel 向け）と逆。

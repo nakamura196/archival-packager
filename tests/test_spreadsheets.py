@@ -306,7 +306,36 @@ class TestAtomImport:
 
     def test_hostile_filenames_round_trip(self):
         rows = parse_csv(spreadsheets.atom_import([sf('quote"and,comma.txt')], SIPMetadata("i", "t")))
-        assert rows[2][rows[0].index("identifier")] == 'quote"and,comma.txt'
+        assert rows[2][rows[0].index("title")] == 'quote"and,comma.txt'
+        assert rows[2][0] == 'i/quote"and,comma.txt'
+
+    def test_item_identifier_is_zero_padded_serial(self):
+        """ファイル行の identifier は 001 からの連番。
+
+        相対パスのままだと、AtoM が親の識別子とつないで作る参照コードが長く読めなくなる。
+        ゼロ埋めは、文字列で並べ替えても順が崩れないようにするため。
+        """
+        files = [sf("a.txt"), sf("文書/b.txt")]
+        rows = parse_csv(spreadsheets.atom_import(files, SIPMetadata("id", "t")))
+        i = rows[0].index("identifier")
+        assert [r[i] for r in rows[2:]] == ["001", "002"]
+
+    def test_serial_widens_past_999_files(self):
+        """1,000 件を超えたら桁を増やす。3 桁固定だと 1000 が 999 より前に並ぶ。"""
+        files = [sf(f"f{n:04d}.txt") for n in range(1000)]
+        rows = parse_csv(spreadsheets.atom_import(files, SIPMetadata("id", "t")))
+        i = rows[0].index("identifier")
+        assert rows[2][i] == "0001"
+        assert rows[-1][i] == "1000"
+
+    def test_legacy_id_stays_path_based_when_files_are_added(self):
+        """連番はファイルを足すとずれるが、legacyId はずれてはいけない。
+
+        ずれると再インポートで別の記録として扱われ、重複する。
+        """
+        before = parse_csv(spreadsheets.atom_import([sf("b.txt")], SIPMetadata("id", "t")))
+        after = parse_csv(spreadsheets.atom_import([sf("a.txt"), sf("b.txt")], SIPMetadata("id", "t")))
+        assert before[2][0] == after[3][0] == "id/b.txt"
 
 
 class TestAccessionParsing:
