@@ -391,6 +391,7 @@ if [[ $VIRUS -gt 0 ]]; then print "要確認: ウイルス $VIRUS 件"; fi
       accession.csv             受入記録（元のファイル名・パスと、SIP 内のパス）
       dfxml.xml                 技術メタデータ（DFXML）
       premis.xml                SIP を作るときの処理の記録（PREMIS。識別・チェックサム・ウイルス検査・ファイル名の変更）
+      sip-mets.xml              同じ記録を METS に包んだもの（SIP の UUID 付き）
       report.txt / report.html  人が読むまとめ
       checksum.sha256           SIP ルートからの相対パスで SHA-256
       pii-report.csv            個人情報の候補（--scan-pii のときだけ）
@@ -408,6 +409,10 @@ METS に入ります。
 ファイルごとに残ります。行わなかった処理（ウイルス検査を OFF にした、など）は
 記録されません。AIP を作るときは、この記録を日時を変えずに METS へ移します。
 
+`sip-mets.xml` は同じ記録を METS の形にしたものです。Archivematica の AIP が
+受け入れ時の METS を持つのに合わせて書いています。AIP を作ると、
+`objects/submissionDocumentation/transfer-<SIP の名前>-<SIP の UUID>/METS.xml` に移ります。
+
 ### AIP
 
 ```
@@ -418,6 +423,8 @@ METS に入ります。
     objects/                    原本。変換した場合は保存用の派生物も
     objects/submissionDocumentation/
                                 SIP 段の提出書類と、実際に効いた変換規則表
+    objects/submissionDocumentation/transfer-<SIP の名前>-<uuid>/METS.xml
+                                SIP を作ったときの METS（Archivematica の transfer METS に当たる）
     logs/                       保存処理のログ
 ```
 

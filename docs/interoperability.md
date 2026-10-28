@@ -285,7 +285,8 @@ Archivematica の AIP は bag で、`data/` の下に `METS.<uuid>.xml`、`READM
 | 原本 | `data/objects/` | 同じ | 一致 |
 | 保存処理ログ | `data/logs/` | 同じ | 一致 |
 | 提出書類 | `data/objects/submissionDocumentation/` | 同じ | 一致 |
-| **受け入れ時の METS** | `submissionDocumentation/transfer-<名前>-<uuid>/METS.xml`。AIP の METS はこれを合わせて作る | SIP では METS を書かず、PREMIS だけの `premis.xml` を書く。AIP はそれを複写し、event を AIP の METS に移す | **不一致** |
+| **受け入れ時の METS** | `submissionDocumentation/transfer-<名前>-<uuid>/METS.xml`。AIP の METS はこれを合わせて作る | SIP で `sip-mets.xml` を書き、AIP では `transfer-<SIP の名前>-<SIP の UUID>/METS.xml` に移す（2026-10-28〜）。event は AIP の METS にも日時を変えずに移す | 一致 |
+| **受け入れ時の提出書類** | 提出書類も transfer ごとのフォルダに分ける | `METS.xml` だけを `transfer-*/` に置き、`formats.csv` などは `submissionDocumentation/` 直下のまま | **不一致（実害小）** |
 | METS のセクション | dmdSec / amdSec / fileSec / structMap | 4 つとも出力 | 一致 |
 | PREMIS | object / event / agent で来歴を表す | 3 つとも出力（PREMIS v3 名前空間）。SIP 作成時の event（識別・チェックサム・ウイルス検査）は SIP の `premis.xml` から日時を変えずに移す（2026-10-27〜）。agent には道具の版と、シグネチャ・定義 DB の版を書く（2026-10-28〜） | 一致 |
 | structMap | 物理構造 | `TYPE="physical"` | 一致 |
@@ -299,6 +300,20 @@ SIP の METS が入っていて、ウイルス検査などの記録もそこに�
 公式文書が述べるのは「transfer METS がそこにある」ことまでで、その METS に
 どの PREMIS event が入るかは書かれていない（ウイルス検査が入る点は、実際に
 Archivematica を使った経験による）。
+
+2026-10-28 に SIP の METS を書くようにした（#49）。決めたことは 3 つ。
+
+- **SIP の中の名前は `METS.xml` にせず `sip-mets.xml` にした。** Archivematica は
+  取り込んだ SIP の提出書類を `transfer-*/` に移し、そこに自分の `METS.xml` を書く。
+  同じ名前だと、どちらかが消える。`METS.xml` の名前にするのは、このアプリが
+  AIP を作るときだけ。
+- **`premis.xml` は残した。** 同じ記録を 2 つの形で書いている（event の識別子も一致する）。
+  2026-10-27〜28 に作った SIP には `premis.xml` しか無く、AIP 作成と確認画面は
+  引き続き `premis.xml` を読む。
+- **SIP に UUID を 1 つ振り、METS の `OBJID` に書いた。** フォルダ名の `<uuid>` はこれ。
+  原本の UUID は従来どおり AIP を作るときに振る（SIP の METS の object は相対パスで識別する）。
+
+提出書類のほかのファイルまで `transfer-*/` に移すことはしていない（5.2 の 13）。
 
 tagmanifest のアルゴリズム差は BagIt 仕様上どちらも適法で、Archivematica が
 MD5 を要求しているわけではない。SHA-256 に揃えているのは意図した選択
@@ -316,7 +331,7 @@ MD5 を要求しているわけではない。SHA-256 に揃えているのは�
 1 対 1 で対応する。5.1（是正したもの）は同じファイルの assert に対応する。
 **片方だけ直すと、また「主張と検証の乖離」が生まれる。必ず両方直すこと。**
 
-### 5.1 是正したもの（2026年9月12日）
+### 5.1 是正したもの（2026年9月12日・10月28日）
 
 **直したものは `KNOWN_GAPS` から外し、上の各節の assert へ移してある。**
 壊れたら `tests/test_interoperability.py` が落ちる。
@@ -331,9 +346,12 @@ MD5 を要求しているわけではない。SHA-256 に揃えているのは�
 | 6 | AM: `checksum.sha256` の位置 | `metadata/submissionDocumentation/` のみ | `metadata/` 直下にも置く | 移動ではなく 2 本に分けた。理由は 3.1 の補足を参照（`core/fixity.py` と旧 SIP が旧位置を前提にしている） |
 | 7 | AM: `checksum.sha256` のパス表記 | `objects/<相対パス>` | `metadata/` 直下の方は接頭辞なし | 公式例（`beihai.tif`）に合わせた。`submissionDocumentation/` 側は従来どおり `objects/` 付き（読み手が違う） |
 | 9 | AIP: `data/README.html` | `data/logs/README.txt` のみ | `data/README.html` を書く | 日本語と英語で、これが何か・何が入っているか・どう読むか・**何を確認していないか**を書いた自己完結の HTML。外部の CSS も画像も参照しない。`bagit.make_bag` の前に書くので payload に入り、`manifest-sha256.txt` に載る。記述メタデータは複写していない（正本は METS の dmdSec で、2 か所に書くといずれ食い違う） |
+| 12 | AIP: 受け入れ時の METS（10月28日） | SIP は METS を書かず `premis.xml`（PREMIS のみ）。AIP はそれを複写 | AIP の `submissionDocumentation/transfer-<SIP の名前>-<SIP の UUID>/METS.xml` | SIP で同じ記録を METS に包んだ `sip-mets.xml` を書き、AIP を作るときにそこへ移す。理由は 4 節の補足を参照（Issue #49） |
 
 **後方互換について。** 1〜7 はファイルの配置と中身が変わる（9 は
-ファイルを 1 つ足すだけなので、読み戻しには影響しない）。
+ファイルを 1 つ足すだけなので、読み戻しには影響しない。12 も同じで、SIP に
+ファイルを 1 つ足し、AIP ではそれを移すだけ。`sip-mets.xml` の無い SIP からは、
+これまでどおり `transfer-*/` の無い AIP ができる）。
 `core/sip_reader.py` は**新旧どちらの形も読む**ようにした。
 
 - `checksum.sha256`: 新（`metadata/` 直下・接頭辞なし）と
@@ -352,7 +370,7 @@ MD5 を要求しているわけではない。SHA-256 に揃えているのは�
 | 8 | AM: PREMIS rights | `rights.csv` を作らず `rightsMD` も出さない | `metadata/rights.csv` から生成 | 中。利用条件が機械的に読めない | **機能追加が要る。** 権利情報（利用条件・根拠・期間）を入力する画面が無く、入力元が無いまま空の `rights.csv` を出しても意味がない |
 | 10 | AIP: tagmanifest | `tagmanifest-sha256.txt` | 公式例は `tagmanifest-md5.txt` | なし | **直さない。** BagIt 仕様上どちらも適法で、Archivematica が MD5 を要求しているわけではない。SHA-256 に揃えているのは意図した選択 |
 | 11 | AtoM: `culture` 列 | 出していない | 記述そのものの言語（`ja` / `en` …） | 小。AtoM の既定の言語で取り込まれる | **機能追加が要る。** 記述の言語を入力する欄が無い。`ja` を決め打ちすると英語で記述する利用者の記録に誤った言語が付く。9月12日の是正作業中に、1〜3 を直しても残ることが分かったので新たに記録した |
-| 12 | AIP: 受け入れ時の METS | SIP は METS を書かず `premis.xml`（PREMIS のみ）。AIP はそれを複写 | `submissionDocumentation/transfer-<名前>-<uuid>/METS.xml` を AIP に残す | 小〜中。記録の中身（event と日時）は AIP の METS にも `premis.xml` にもある。ただ、Archivematica の AIP と同じ形を前提に読む道具からは見つからない | **機能追加が要る。** SIP と AIP を作る処理の両方に手が入る（Issue #49） |
+| 13 | AIP: 受け入れ時の提出書類の置き場所 | `METS.xml` だけ `transfer-<名前>-<uuid>/` に置き、`formats.csv` など他の提出書類は `submissionDocumentation/` 直下のまま | 提出書類も transfer ごとのフォルダに分ける（aip-structure 1.16） | 小。このアプリの AIP の transfer は常に 1 つなので取り違えは起きない | **直さない（今のところ）。** 移すと確認画面と、既に作った AIP を読む処理が提出書類を見つけられなくなる。12 を直したあとに残った差として記録した |
 
 ---
 

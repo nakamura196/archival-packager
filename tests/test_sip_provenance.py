@@ -18,6 +18,7 @@ from archival_packager.core import (
     clamav,
     package_report,
     siegfried,
+    sip_mets,
     sip_pipeline,
     sip_premis,
 )
@@ -273,6 +274,87 @@ class TestAIPInheritsTheRecord:
         (sip / "metadata" / "submissionDocumentation" / "premis.xml").write_text("<broken")
         with pytest.raises(AIPPipelineError):
             make_aip(sip, tmp_path, monkeypatch)
+
+
+class TestSIPWritesMets:
+    """SIP の記録を METS にも包んで書き、AIP では Archivematica と同じ位置に置く（#49）。
+
+    Archivematica の AIP は受け入れ時の METS を
+    submissionDocumentation/transfer-<名前>-<uuid>/METS.xml に持つ。
+    こちらは premis.xml しか無く、同じ形を前提に読む道具からは記録が見つからなかった。
+    """
+
+    def mets_of(self, sip: Path, *parts: str) -> etree._Element:
+        base = sip.joinpath(*parts) if parts else sip
+        path = base / "metadata" / "submissionDocumentation" / sip_mets.FILE_NAME
+        return etree.parse(str(path)).getroot()
+
+    def test_valid_mets(self, source, tmp_path, monkeypatch, fake_clamav):
+        """METS と PREMIS のスキーマに合うこと。合わなければ他のシステムでは読めない。"""
+        doc = self.mets_of(make_sip(source, tmp_path, monkeypatch, scan_virus=True))
+        schema = etree.XMLSchema(etree.parse(str(SCHEMAS / "mets-with-premis.xsd")))
+        assert schema.validate(doc), schema.error_log
+
+    def test_same_events_as_premis(self, source, tmp_path, monkeypatch, fake_clamav):
+        """premis.xml と同じ記録であること。event の識別子まで一致する。
+
+        2 つの形で書くので、片方だけ違う中身になると、どちらが正しいか分からなくなる。
+        """
+        sip = make_sip(source, tmp_path, monkeypatch, scan_virus=True)
+        ids = lambda doc: sorted(  # noqa: E731
+            e.text for e in doc.iterfind(".//premis:eventIdentifierValue", NS)
+        )
+        assert ids(self.mets_of(sip)) == ids(premis_of(sip))
+        assert ids(premis_of(sip))
+        types = event_types(self.mets_of(sip))
+        assert "virus check" in types and "message digest calculation" in types
+
+    def test_every_file_has_an_amdsec_and_a_file_entry(self, source, tmp_path, monkeypatch):
+        doc = self.mets_of(make_sip(source, tmp_path, monkeypatch))
+        mns = {"mets": sip_mets.METS_NS}
+        hrefs = sorted(
+            el.get(f"{{{sip_mets.XLINK_NS}}}href")
+            for el in doc.iterfind(".//mets:fileGrp[@USE='original']/mets:file/mets:FLocat", mns)
+        )
+        assert hrefs == ["objects/a.txt", "objects/文書/b&c.txt"]
+        adm = {el.get("ADMID") for el in doc.iterfind(".//mets:file", mns)}
+        assert adm == {el.get("ID") for el in doc.iterfind("mets:amdSec", mns)}
+
+    def test_bag_also_has_mets(self, source, tmp_path, monkeypatch):
+        sip = make_sip(source, tmp_path, monkeypatch, make_bag=True)
+        assert self.mets_of(sip, "data").get("OBJID")
+
+    def test_aip_moves_it_to_the_transfer_folder(self, source, tmp_path, monkeypatch):
+        sip = make_sip(source, tmp_path, monkeypatch)
+        sip_uuid = self.mets_of(sip).get("OBJID")
+        aip = make_aip(sip, tmp_path, monkeypatch)
+        subdoc = aip / "data" / "objects" / "submissionDocumentation"
+        moved = subdoc / f"transfer-{sip.name}-{sip_uuid}" / "METS.xml"
+        assert moved.is_file()
+        assert not (subdoc / sip_mets.FILE_NAME).exists()
+
+    def test_broken_mets_is_kept_and_reported(self, source, tmp_path, monkeypatch):
+        """読めない METS は黙って捨てず、元の名前のまま残して警告を出す。"""
+        sip = make_sip(source, tmp_path, monkeypatch)
+        (sip / "metadata" / "submissionDocumentation" / sip_mets.FILE_NAME).write_text("<x")
+        monkeypatch.undo()
+        out = tmp_path / "aip-out"
+        out.mkdir()
+        result = aip_pipeline.run(sip_root=sip, output_parent=out, options=AIPOptions())
+        subdoc = result.aip_path / "data" / "objects" / "submissionDocumentation"
+        assert (subdoc / sip_mets.FILE_NAME).is_file()
+        assert not list(subdoc.glob("transfer-*"))
+        assert any(sip_mets.FILE_NAME in w for w in result.warnings)
+
+    @pytest.mark.parametrize("objid", ["../../escape", "", "not-a-uuid"])
+    def test_objid_must_be_a_uuid(self, objid):
+        """OBJID はフォルダ名に入る。UUID の形でなければ受け付けない。
+
+        受け付けると、手を加えた SIP から AIP の外にファイルを書かせられる。
+        """
+        data = f'<mets xmlns="{sip_mets.METS_NS}" OBJID="{objid}"/>'.encode()
+        with pytest.raises(ValueError):
+            sip_mets.read_identifier(data)
 
 
 class TestViewer:
