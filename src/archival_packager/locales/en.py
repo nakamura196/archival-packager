@@ -500,7 +500,18 @@ TEXTS: dict[str, str] = {
     "中身を確かめてから進んでください。日を改めるときは「AIP 作成」でこのフォルダを選びます。":
         "Look inside before going on. To do it another day, choose \"Create an AIP\" "
         "and pick this folder.",
-    "AIP 作成に切り替え、作った SIP を入力にしました。出力先を確かめて「実行」を押してください。":
-        "Switched to \"Create an AIP\" with the new SIP as the input. Check the "
-        "destination, then press \"Run\".",
+    "次は左側で操作してください": "Next, continue on the left",
+    "「AIP 作成」に切り替えました。AIP はまだ作っていません。":
+        "Switched to \"Create an AIP\". The AIP has not been built yet.",
+    "(1) 左の「入力」に、いま作った SIP が入っています。":
+        "(1) \"Input\" on the left now holds the SIP you just made.",
+    "(2) 左の「出力先」を確かめてください。":
+        "(2) Check \"Destination\" on the left.",
+    "(3) 必要なら「オプション」で、保存用フォーマットへの変換を選びます。":
+        "(3) If needed, choose conversion to preservation formats under \"Options\".",
+    "(4) 左下の「実行」を押すと、AIP を作り始めます。":
+        "(4) Press \"Run\" at the bottom left to start building the AIP.",
+    "進み具合は、ここに表示されます。": "Progress will appear here.",
+    "出力先を確かめてから「実行」を押すと、AIP を作ります":
+        "Check the destination, then press \"Run\" to build the AIP",
 }
