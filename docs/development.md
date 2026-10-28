@@ -111,7 +111,7 @@ Swift 版はこれを行っていない。
 | siegfried | フォーマット識別 | ✅ | 公式ビルドあり。`default.sig` も必須なので一緒に入れる |
 | ClamAV | ウイルス検査 | ✅ | 公式ビルドあり。定義 DB はアプリから `freshclam` で取得 |
 | Pillow | 画像 → TIFF | ✅（pip） | 外部プロセス不要。両OSで同一 wheel＝同一 libtiff |
-| JHOVE | 変換した派生物の形式検査 | ✅（jar） | LGPL-2.1。Maven Central の jar をハッシュ固定で取得 |
+| JHOVE | TIFF・PDF の形式検査（派生物と原本） | ✅（jar） | LGPL-2.1。Maven Central の jar をハッシュ固定で取得 |
 | Java（Temurin 21） | JHOVE の実行 | ✅ | GPL-2.0 + Classpath Exception。jlink で 3 モジュールに絞り約 50MB |
 | veraPDF | PDF/A の検査 | ❌ | 変換で作る PDF が PDF/A ではないため、入れても意味が無い |
 | Ghostscript | PostScript/EPS → PDF | ❌ | **AGPL-3.0**。macOS 向け公式ビルドも無い |

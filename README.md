@@ -65,7 +65,8 @@ source** — arguments do not reach the packaged builds. See
 
 Please read [既知の限界](docs/limits.md) (Japanese) before relying on this in
 production. In short: normalisation covers images and PostScript/EPS only;
-converted files are validated with JHOVE, but originals are not, and there is no
+TIFF and PDF files (converted ones and originals) are validated with JHOVE,
+but originals in other formats are not, and there is no
 PDF/A validation (no veraPDF); the personal
 information scan looks at five categories and has measured limits
 ([docs/pii-accuracy.md](docs/pii-accuracy.md)); and interoperability has been
@@ -143,7 +144,7 @@ source availability obligation.
 
 - 保存用の形式に変換するのは、画像と PostScript/EPS だけです。Office 文書・音声・動画は原本のまま保存します
 - 利用のための縮小版やサムネイルは作りません
-- ファイル形式として正しいかの検査（JHOVE）は、変換で作ったファイルだけに行います。受け入れた原本は検査しません
+- ファイル形式として正しいかの検査（JHOVE）は、TIFF と PDF だけに行います（変換で作ったものと原本の両方）。原本は不適合でも捨てずに保存し、警告を出します
 - 個人情報の検出は 5 種類だけです。「見つからなかった」は「個人情報が無い」という意味ではありません
 - AtoM と Archivematica との受け渡しは、仕様と突き合わせただけで、動いているシステムではまだ確かめていません
 - 画面は日本語と英語です。パッケージの中の見出しなどは日本語のままです
