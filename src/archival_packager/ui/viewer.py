@@ -248,6 +248,19 @@ def _image_view(path: Path) -> ft.Control:
     return ft.Column(items, spacing=6)
 
 
+def _tree_label(name: str, **style) -> ft.Text:
+    """ツリーの 1 行の名前。長ければ「…」で切り、全体はマウスを載せると出す。
+
+    **切らないと、隣の内容の欄に重なって描かれる。** AIP の
+    transfer-<SIP の名前>-<UUID>/ は 60 字を超え、ツリーの幅（340）に収まらなかった
+    （2026-10-29、0.1.9 で報告を受けた）。expand で行の残り幅に収め、1 行に限って切る。
+    """
+    return ft.Text(
+        name, size=12, expand=True, max_lines=1,
+        overflow=ft.TextOverflow.ELLIPSIS, tooltip=name, **style,
+    )
+
+
 def _raw_browser(root: Path) -> ft.Control:
     """従来の表示（左にツリー、右に中身）。XML や CSV を直接読みたいとき用。"""
     body = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=0)
@@ -277,7 +290,7 @@ def _raw_browser(root: Path) -> ft.Control:
             row = ft.Row(
                 [
                     ft.Icon(ft.Icons.FOLDER, size=14, color=ft.Colors.AMBER_700),
-                    ft.Text(entry.name, size=12, weight=ft.FontWeight.W_500),
+                    _tree_label(entry.name, weight=ft.FontWeight.W_500),
                 ],
                 spacing=6,
             )
@@ -295,7 +308,7 @@ def _raw_browser(root: Path) -> ft.Control:
                 [
                     ft.Icon(_icon_for(entry.name), size=14,
                             color=ft.Colors.ON_SURFACE_VARIANT),
-                    ft.Text(entry.name, size=12, font_family=_MONO),
+                    _tree_label(entry.name, font_family=_MONO),
                 ],
                 spacing=6,
             )

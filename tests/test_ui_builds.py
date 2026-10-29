@@ -274,6 +274,38 @@ class TestPackageContentsViews:
         assert viewer._text_view(xml_path) is not None
         assert viewer._file_header(csv_path) is not None
 
+    def test_long_tree_names_are_cut_not_overlapping(self, tmp_path):
+        """長いフォルダ名が、隣の内容の欄に重なって描かれた（2026-10-29、0.1.9）。
+
+        AIP の transfer-<SIP の名前>-<UUID>/ がツリーの幅に収まらなかった。
+        名前は行の残り幅に収め、1 行で「…」で切り、全体はツールチップで見せる。
+        """
+        import flet as ft
+
+        from archival_packager.ui import viewer
+
+        long_name = "transfer-2026-10-29 2-b2d4d0ac-93c3-4a48-b439-a65c685811d6"
+        (tmp_path / long_name).mkdir()
+        (tmp_path / long_name / "METS.xml").write_text("<a/>", encoding="utf-8")
+
+        labels = []
+        stack = [viewer._raw_browser(tmp_path)]
+        while stack:
+            c = stack.pop()
+            if isinstance(c, ft.Text) and c.value in (long_name, "METS.xml"):
+                labels.append(c)
+            for attr in ("controls", "content"):
+                child = getattr(c, attr, None)
+                if isinstance(child, list):
+                    stack.extend(child)
+                elif child is not None:
+                    stack.append(child)
+        assert len(labels) == 2
+        for label in labels:
+            assert label.expand and label.max_lines == 1
+            assert label.overflow == ft.TextOverflow.ELLIPSIS
+            assert label.tooltip == label.value
+
     def test_column_width_counts_japanese_as_wide(self):
         """表の部品に列幅を任せたら、日本語の列が 1 字ぶん狭く測られて「昭和2年」が切れた。"""
         from archival_packager.ui import viewer
