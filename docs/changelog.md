@@ -14,6 +14,13 @@ alternate: { title: English, url: changelog-en.html, lang: en }
 最新の版は、Windows は Microsoft Store から、Mac は [GitHub のリリース](https://github.com/nakamura196/archival-packager/releases/latest)から入手できます。
 入れ方は[はじめての方へ](guide/)をご覧ください。
 
+## 0.1.10（2026-10-29）
+
+### 直した不具合
+
+- **「パッケージの中身」の一覧で、長いフォルダ名が右の欄に重なって表示されていたのを直しました。**
+  欄に収まらない名前は、末尾を「…」で切って表示します。名前の全体は、マウスを重ねると出ます。
+
 ## 0.1.9（2026-10-28）
 
 ### 主な変更

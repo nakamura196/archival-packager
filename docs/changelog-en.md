@@ -23,6 +23,13 @@ Readers use the application: say what changes on screen and in the packages, not
 Get the latest version from the Microsoft Store (Windows) or from the [GitHub releases](https://github.com/nakamura196/archival-packager/releases/latest) (Mac).
 See [Getting started](guide/en.html) for how to install it.
 
+## 0.1.10 (2026-10-29)
+
+### Fixes
+
+- **Long folder names in the "Package contents" tree no longer run over the pane next to it.**
+  A name that does not fit is cut short with "…". Hover over it to see the full name.
+
 ## 0.1.9 (2026-10-28)
 
 ### Highlights
