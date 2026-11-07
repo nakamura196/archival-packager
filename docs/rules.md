@@ -187,3 +187,90 @@ out_extension = "pdf"
 ```
 
 同じ形式に対して自分の規則を書くと、そちらが優先されます。
+
+## 例: Ghostscript で PDF/A-2b を作る
+
+最初から入っている `postscript-to-pdf` が作るのは、ふつうの PDF です。
+PostScript / EPS から PDF/A-2b を作りたいときは、次の規則を足します。
+アプリの機能として組み込んでいない理由は
+[既知の限界](limits.md#pdfa-は作らない) にあります。
+
+**Ghostscript（`gs`）が入っている機械でだけ動きます。** アプリには同梱していません。
+
+### 1. 準備するファイル
+
+PDF/A には、色の基準になる ICC プロファイル（出力インテント）を埋め込む必要があります。
+Ghostscript に付属の 2 つのファイルを、1 つのフォルダに写します。
+ここでは `rules.toml` と同じ場所の `pdfa` というフォルダにします
+（例は macOS で、利用者名を `you` としています）。
+
+| ファイル | 付属している場所（Homebrew の例） |
+| --- | --- |
+| `PDFA_def.ps` | `/opt/homebrew/share/ghostscript/<版>/lib/PDFA_def.ps` |
+| `srgb.icc` | `/opt/homebrew/share/ghostscript/<版>/iccprofiles/srgb.icc` |
+
+写した `PDFA_def.ps` の 1 か所を、ICC プロファイルの**絶対パス**に書き換えます。
+
+```postscript
+/ICCProfile (/Users/you/.local/share/ArchivalPackager/pdfa/srgb.icc) % Customise
+```
+
+元の `(srgb.icc)` のままだと、Ghostscript は**アプリを起動したフォルダ**から探します。
+見つからなくても変換は成功扱いで終わり、PDF/A ではない PDF ができます（下の「注意」）。
+
+### 2. 規則
+
+```toml
+[[rule]]
+id              = "postscript-to-pdfa2b"
+puid_in         = ["fmt/124", "fmt/501", "x-fmt/91", "x-fmt/406", "x-fmt/407", "x-fmt/408", "fmt/122", "fmt/123"]
+executor        = "command"
+tool            = "gs"
+args            = [
+  "-dNOPAUSE", "-dBATCH", "-dSAFER",
+  "-dPDFA=2", "-dPDFACompatibilityPolicy=2", "-sColorConversionStrategy=RGB",
+  "-sDEVICE=pdfwrite",
+  "--permit-file-read=/Users/you/.local/share/ArchivalPackager/pdfa/",
+  "-sOutputFile={out}",
+  "/Users/you/.local/share/ArchivalPackager/pdfa/PDFA_def.ps",
+  "{in}",
+]
+puid_out        = "fmt/476"
+format_name_out = "Acrobat PDF/A - Portable Document Format 2b"
+out_extension   = "pdf"
+```
+
+`puid_in` が最初から入っている規則と同じなので、この規則が優先されます。
+引数の意味は次のとおりです。
+
+- `-dPDFA=2` … PDF/A-2 として書き出す
+- `-sColorConversionStrategy=RGB` … 色を RGB にそろえる（埋め込む ICC が RGB のため）
+- `-dPDFACompatibilityPolicy=2` … PDF/A にできない箇所があれば、PDF/A にするのを**やめる**。
+  `1` にすると、その箇所を黙って落として続けます。保存用には `2` を勧めます
+- `--permit-file-read=...` … `-dSAFER` は既定でファイルの読み込みを止めるので、
+  ICC プロファイルのあるフォルダだけを読めるようにする
+- `PDFA_def.ps` は `{in}` より**前に**置く
+
+Windows では、パスを `C:/Users/you/AppData/Local/ArchivalPackager/pdfa/` のように
+`/` で書きます（`PDFA_def.ps` の中も同じ）。
+
+### 3. 注意: できた PDF が PDF/A とは限らない
+
+**アプリは、できた PDF が PDF/A に適合するかを確かめていません。**
+確かめているのは、開き直せるかと、JHOVE で PDF として正しいかだけです。
+
+困るのは、準備が不十分でも**変換が成功扱いで終わる**ことです。
+2026年11月6日、Ghostscript 10.07.1 で、ICC プロファイルが見つからない状態で試しました。
+Ghostscript は「PDF/A の処理を中止した」と表示しながら終了コード 0 で終わりました。
+できたファイルには PDF/A-2b を名乗る印が入っていて、出力インテントはありませんでした。
+この規則のままでは、その PDF が PREMIS に「PDF/A-2b（fmt/476）」と記録されます。
+
+規則を足したら、最初の何件かを [veraPDF](https://verapdf.org/) で検査してください。
+
+```
+verapdf -f 2b <できた PDF>
+```
+
+フォントを埋め込めない PostScript や、透明・特殊な色を使う PostScript は、
+PDF/A にできないことがあります。`-dPDFACompatibilityPolicy=2` のときは、
+その旨を表示して、PDF/A ではない PDF を書き出すことがあります。これも veraPDF で分かります。
