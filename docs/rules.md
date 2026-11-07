@@ -235,7 +235,7 @@ args            = [
   "/Users/you/.local/share/ArchivalPackager/pdfa/PDFA_def.ps",
   "{in}",
 ]
-puid_out        = "fmt/476"
+puid_out        = "fmt/477"
 format_name_out = "Acrobat PDF/A - Portable Document Format 2b"
 out_extension   = "pdf"
 ```
@@ -263,7 +263,12 @@ Windows では、パスを `C:/Users/you/AppData/Local/ArchivalPackager/pdfa/` �
 2026年11月6日、Ghostscript 10.07.1 で、ICC プロファイルが見つからない状態で試しました。
 Ghostscript は「PDF/A の処理を中止した」と表示しながら終了コード 0 で終わりました。
 できたファイルには PDF/A-2b を名乗る印が入っていて、出力インテントはありませんでした。
-この規則のままでは、その PDF が PREMIS に「PDF/A-2b（fmt/476）」と記録されます。
+この規則のままでは、その PDF が PREMIS に「PDF/A-2b（fmt/477）」と記録されます。
+
+**JHOVE では見分けられません。** 同梱の JHOVE 1.34.0 は、この PDF も、
+正しく作れた PDF も、同じ「Well-Formed and valid」と判定しました。
+JHOVE が見るのは PDF の仕様に沿っているかで、PDF/A の条件（出力インテント、
+フォントの埋め込みなど）は見ていません。
 
 規則を足したら、最初の何件かを [veraPDF](https://verapdf.org/) で検査してください。
 

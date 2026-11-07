@@ -46,6 +46,20 @@ LibreOffice（Office → PDF/A）や ffmpeg（音声・動画）が要るが、�
 `gs` を入れられる環境で PDF/A が要る人は、それを写して使える。
 その場合も、できた PDF の適合はアプリでは確かめないので、veraPDF で確かめる必要がある。
 
+**Archivematica と a3m も、適合までは確かめていない。** 2026年11月7日に、両者の
+規則の一覧（FPR。Archivematica `main` の 973c421 と a3m `main` の ebe6c1d の初期データ）を読んだ。
+
+- PDF（1.0〜1.7、PDF/X など）を保存用に変換する規則は、Ghostscript の
+  `gs -dPDFA -dBATCH -dNOPAUSE -sDEVICE=pdfwrite -dPDFACompatibilityPolicy=1 ...` である。
+  出力は PDF/A-1b（fmt/354）として記録される。ICC プロファイルも `PDFA_def.ps` も渡していない
+- 変換後の検査は JHOVE（PDF-hul）だけで、veraPDF の規則は無い
+- このコマンドを Ghostscript 10.07.1 で、RGB の色を含む簡単な PDF 1 件に使うと、警告も出ずに終了コード 0 で終わった。
+  できた PDF は PDF/A-1b を名乗るが、出力インテントが無い。同梱の JHOVE は
+  「Well-Formed and valid」と判定した
+
+つまり、Archivematica が「PDF/A にした」と記録する PDF も、条件を満たしている保証は無い。
+AP がこれに合わせて同じ規則を組み込むと、同じ不確かさを持ち込むことになる。
+
 見直すのは、Ghostscript 以外に同梱できる PDF/A の作り方が見つかったときか、
 PDF/A を求める利用者が実際に出てきたときとする。
 
