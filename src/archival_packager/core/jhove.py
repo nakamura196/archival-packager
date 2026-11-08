@@ -1,4 +1,6 @@
-"""JHOVE による形式の適合性検査（変換で作った派生物と、原本の TIFF・PDF が対象）。
+"""JHOVE による形式の適合性検査（変換で作った派生物と、原本が対象）。
+
+対象の形式は MODULE_FOR_EXTENSION にあるもの（TIFF・PDF・WAVE・GIF）。
 
 識別（これは何形式か）は siegfried が答える。ここで答えるのは
 **「その形式の仕様に適合しているか」**で、Archivematica が変換後の派生物に
@@ -10,7 +12,8 @@ JHOVE は Java 製なので、Java の実行環境ごと同梱する。
 
     bin/jre/      jlink で必要なモジュール（java.base / java.desktop /
                   java.logging）だけに絞った Temurin 21。約 50MB
-    bin/jhove/    JHOVE 本体と TIFF・PDF の検査部品（jar 4 本、約 1.3MB）
+    bin/jhove/    JHOVE 本体と検査部品（jar 7 本、約 1.3MB）。aiff-hul は
+                  WAVE の部品が使う共通部品の入れ物で、AIFF の検査には使わない
 
 取得は scripts/fetch-binaries.*。版は両OSで揃える。
 
@@ -57,12 +60,48 @@ from lxml import etree
 from . import bundled
 
 #: 拡張子ごとの検査部品。**ここに無い形式は検査しない**（呼び出し側が「未検査」と記録する）。
-MODULE_FOR_EXTENSION = {"tif": "TIFF-hul", "tiff": "TIFF-hul", "pdf": "PDF-hul"}
+#:
+#: 部品は、実物で 2 つを確かめてから足す（2026-11-07、Issue #50）。
+#: (1) 健全なファイルを不適合と誤判定しないか (2) 途中で切れたファイルを
+#: 適合と見逃さないか。(2) を見逃す部品を入れると、壊れた原本に
+#: 「適合（pass）」と記録してしまう。記録が保証の範囲を偽ることになるので、
+#: 誤判定より悪い。
+#:
+#: - WAVE: この Mac にある実物 900 本で、仕様に沿ったものの誤判定なし
+#:   （不適合 27 本は、中身が CAF・ビッグエンディアンの RIFX・埋め草の
+#:   1 バイトが無い・意図して壊した試験用ファイル）。BWF・RF64・
+#:   WAVE_FORMAT_EXTENSIBLE・浮動小数点など 12 種の作り分けもすべて適合。
+#:   切れたもの 60/60 を検出
+#: - GIF: 実物 1,520 本で誤判定なし（不適合 9 本は、中身が GIF でない・
+#:   終端が無いなど本当に仕様から外れたもの）。切れたもの 58/60 を検出、
+#:   残る 2 本は判定できず（Unknown。適合とは記録されない）
+#:
+#: 入れていないもの:
+#:
+#: - AIFF（AIFF-hul）: 切れたもの 120 本中 66 本を適合と見逃す（音声データの
+#:   途中で切れても気づかない）。Logic で作った 21 本を、COMT の後ろの空きを
+#:   読み違えて「Common Chunk が無い」と誤判定する。なお、AIFF-C や MARK を
+#:   含むものは、同梱の Java に jdk.charsets（MacRoman の文字コード）が無いと
+#:   必ず判定不能になる。入れるときは JRE_MODULES にも足す（約 1MB 増）
+#: - JPEG 2000（JPEG2000-hul）: 箱の構造しか見ず、切れたもの 4/4 を適合と
+#:   見逃す（OpenJPEG では読めない）。規格の試験用ファイル（openjpeg-data の
+#:   conformance/file1〜9.jp2）を 9 本とも「not valid」とする
+#: - JPEG（JPEG-hul）: CMYK の JPEG（Adobe の APP14 だけを持つもの）を
+#:   「not valid」と誤判定する。途中で切れた JPEG を valid と見逃す
+#: - PNG: JHOVE 1.34.0 の部品は Maven Central に無い
+MODULE_FOR_EXTENSION = {
+    "tif": "TIFF-hul", "tiff": "TIFF-hul",
+    "pdf": "PDF-hul",
+    "wav": "WAVE-hul", "wave": "WAVE-hul",
+    "gif": "GIF-hul",
+}
 
 #: 検査部品の名前 → 設定ファイルに書く Java のクラス名。
 _MODULE_CLASSES = {
     "TIFF-hul": "edu.harvard.hul.ois.jhove.module.TiffModule",
     "PDF-hul": "edu.harvard.hul.ois.jhove.module.PdfModule",
+    "WAVE-hul": "edu.harvard.hul.ois.jhove.module.WaveModule",
+    "GIF-hul": "edu.harvard.hul.ois.jhove.module.GifModule",
 }
 
 VALID = "Well-Formed and valid"
@@ -208,9 +247,11 @@ def _run(
                 raise JhoveUnavailable(f"検査用の写しを作れません: {path.name}: {exc}") from exc
             names[name] = path
 
-        modules = "\n".join(
-            f" <module><class>{cls}</class></module>" for cls in _MODULE_CLASSES.values()
-        )
+        # 設定には、いま使う部品だけを書く。JHOVE は設定にある部品を起動時に
+        # すべて読み込み、1 つでも jar が無いと何も検査せずに終わる
+        # （2026-11-07 に実測）。全部を書くと、たとえば WAVE の jar が欠けた
+        # だけで TIFF の検査まで止まる。
+        modules = f" <module><class>{_MODULE_CLASSES[module]}</class></module>"
         (scratch / "jhove.conf").write_text(_CONFIG.format(modules=modules), encoding="utf-8")
 
         args = [

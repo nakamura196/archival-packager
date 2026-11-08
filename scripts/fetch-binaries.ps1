@@ -27,7 +27,11 @@ $JhoveJars = @(
     @{ Path = "jhove-apps/1.34.0/jhove-apps-1.34.0.jar";    Sha256 = "35dd738db51befe430ce48e3567f7f70a99ed1f14834fa23962b8e790cc9881b" },
     @{ Path = "jhove-core/1.34.0/jhove-core-1.34.0.jar";    Sha256 = "337a0a14c335272335f41f375118a51f7e025d5b016c5ee59e7869043d361dd0" },
     @{ Path = "modules/tiff-hul/1.9.5/tiff-hul-1.9.5.jar";  Sha256 = "c0ce300c28db5553bbc706a5190e433adf5b7c12a478795b01b3f38747ea0170" },
-    @{ Path = "modules/pdf-hul/1.12.8/pdf-hul-1.12.8.jar";  Sha256 = "c5acf4e2c84aec6575390bcc43d9e015c6237b75eec5f1f354de7102e6e023bb" }
+    @{ Path = "modules/pdf-hul/1.12.8/pdf-hul-1.12.8.jar";  Sha256 = "c5acf4e2c84aec6575390bcc43d9e015c6237b75eec5f1f354de7102e6e023bb" },
+    @{ Path = "modules/wave-hul/1.8.3/wave-hul-1.8.3.jar";  Sha256 = "f8ce277ee2defbd745fc77fda7e7cf8329e285455874a9291dde156ca209f020" },
+    # wave-hul が使う共通部品（module/iff）の入れ物。AIFF の検査には使わない
+    @{ Path = "modules/aiff-hul/1.6.2/aiff-hul-1.6.2.jar";  Sha256 = "4f3c45245c635826d7b039f537e73b1895f0ee1a6d30c71068634e812de11cf0" },
+    @{ Path = "modules/gif-hul/1.4.3/gif-hul-1.4.3.jar";  Sha256 = "7195dc9c613b9534438b537be16a292d9d2bdd0c047778b542610f1fdf8ba560" }
 )
 
 function Assert-Sha256([string]$File, [string]$Expected) {
@@ -129,6 +133,7 @@ try {
     }
 
     # 実際に検査できるところまで確かめる（設定ファイルはアプリと同じ最小構成）。
+    # 部品はアプリで使うものをすべて書く。起動時に全部を読み込むので、jar の欠けも分かる。
     $conf = Join-Path $Work "jhove.conf"
     Set-Content -Encoding utf8 -Path $conf -Value @'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -136,6 +141,8 @@ try {
  <jhoveHome>.</jhoveHome>
  <module><class>edu.harvard.hul.ois.jhove.module.TiffModule</class></module>
  <module><class>edu.harvard.hul.ois.jhove.module.PdfModule</class></module>
+ <module><class>edu.harvard.hul.ois.jhove.module.WaveModule</class></module>
+ <module><class>edu.harvard.hul.ois.jhove.module.GifModule</class></module>
 </jhoveConfig>
 '@
     $cp = (Get-ChildItem -Path $jhoveDir -Filter "*.jar" | ForEach-Object { $_.FullName }) -join ";"

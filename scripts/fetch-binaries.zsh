@@ -38,6 +38,8 @@ CLAMAV_VERSION="1.5.3"
 # Java は Temurin の JDK を取り、jlink で要るモジュールだけの実行環境を作る。
 # JRE をそのまま入れると約 150MB、絞ると約 50MB（2026-10-27 実測）。
 # 要るモジュールは jdeps で調べた（jhove-apps / jhove-core / tiff-hul / pdf-hul）。
+# wave / gif の部品を足しても、Java のモジュールは増えない
+# （2026-11-07、同梱の実行環境で各形式を検査して確認）。
 #
 # **ハッシュを固定する。** 配布物に入って利用者の機械で動くので、取得元が
 # 差し替えられたら気づける形にしておく。版を上げるときはハッシュも書き換える。
@@ -51,6 +53,11 @@ JHOVE_JARS=(
   "jhove-core/1.34.0/jhove-core-1.34.0.jar 337a0a14c335272335f41f375118a51f7e025d5b016c5ee59e7869043d361dd0"
   "modules/tiff-hul/1.9.5/tiff-hul-1.9.5.jar c0ce300c28db5553bbc706a5190e433adf5b7c12a478795b01b3f38747ea0170"
   "modules/pdf-hul/1.12.8/pdf-hul-1.12.8.jar c5acf4e2c84aec6575390bcc43d9e015c6237b75eec5f1f354de7102e6e023bb"
+  "modules/wave-hul/1.8.3/wave-hul-1.8.3.jar f8ce277ee2defbd745fc77fda7e7cf8329e285455874a9291dde156ca209f020"
+  # wave-hul は aiff-hul の中の共通部品（module/iff）を使う。AIFF の検査には使わない
+  # （理由は core/jhove.py の MODULE_FOR_EXTENSION）が、これが無いと WAVE が起動しない
+  "modules/aiff-hul/1.6.2/aiff-hul-1.6.2.jar 4f3c45245c635826d7b039f537e73b1895f0ee1a6d30c71068634e812de11cf0"
+  "modules/gif-hul/1.4.3/gif-hul-1.4.3.jar 7195dc9c613b9534438b537be16a292d9d2bdd0c047778b542610f1fdf8ba560"
 )
 
 case "$(uname -s)" in
@@ -242,6 +249,8 @@ done
 
 # 実際に検査できるところまで確かめる。モジュールが足りなければここで落ちる
 # （jlink で絞りすぎると、起動はしても検査の途中で ClassNotFound になる）。
+# 設定にはアプリで使う部品をすべて書く。JHOVE は起動時に全部を読み込むので、
+# jar の欠け（wave-hul が使う aiff-hul など）もここで分かる。
 # 設定ファイルが無いと JHOVE は ~/jhove/conf/ を探して落ちるので、アプリと
 # 同じ最小構成（core/jhove.py の _CONFIG）を置く。検査する物は何でもよい。
 cat > "${WORK}/jhove.conf" <<'CONF'
@@ -250,6 +259,8 @@ cat > "${WORK}/jhove.conf" <<'CONF'
  <jhoveHome>.</jhoveHome>
  <module><class>edu.harvard.hul.ois.jhove.module.TiffModule</class></module>
  <module><class>edu.harvard.hul.ois.jhove.module.PdfModule</class></module>
+ <module><class>edu.harvard.hul.ois.jhove.module.WaveModule</class></module>
+ <module><class>edu.harvard.hul.ois.jhove.module.GifModule</class></module>
 </jhoveConfig>
 CONF
 # 絶対パスは cd の前に求める。サブシェルの中で ${DEST:A} を書くと、

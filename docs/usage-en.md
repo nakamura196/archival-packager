@@ -233,10 +233,10 @@ Derivatives produced by normalization are validated in two steps:
 A derivative that fails either step is discarded (the original is kept), and
 the event is recorded as a failure.
 
-Original TIFF and PDF files are validated with JHOVE as well. An original that
-does not conform is **kept, not discarded** — there is nothing to replace it
-with — and the result is recorded and reported as a warning. Originals in other
-formats are not validated, and PDF/A conformance (veraPDF) is not checked. If JHOVE cannot
+Original TIFF, PDF, WAVE and GIF files are validated with JHOVE as well. An
+original that does not conform is **kept, not discarded** — there is nothing to
+replace it with — and the result is recorded and reported as a warning. Originals
+in other formats (JPEG, PNG, JPEG 2000, AIFF and others) are not validated, and PDF/A conformance (veraPDF) is not checked. If JHOVE cannot
 be run (on an Intel Mac, for instance), this is recorded as "not checked" and
 the report carries a one-line warning.
 
