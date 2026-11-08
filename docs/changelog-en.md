@@ -23,6 +23,21 @@ Readers use the application: say what changes on screen and in the packages, not
 Get the latest version from the Microsoft Store (Windows) or from the [GitHub releases](https://github.com/nakamura196/archival-packager/releases/latest) (Mac).
 See [Getting started](guide/en.html) for how to install it.
 
+## 0.1.11 (2026-11-08)
+
+### Highlights
+
+- **Original WAVE (audio) and GIF (image) files are now checked with JHOVE.**
+  Until now, only original TIFF and PDF files were checked.
+  An original that fails the check is handled as before: it is kept, a warning is shown, and the result is recorded.
+
+### Security updates
+
+- **The component used to read PDF files (pypdf) has been updated to a version with fixes.**
+  A specially crafted PDF could make processing never finish or use too much memory.
+- **A component included in the application framework (oauthlib) has also been updated to a version with fixes.**
+  The problem does not affect how this application works, but the old version should not stay in the distributed files.
+
 ## 0.1.10 (2026-10-29)
 
 ### Fixes
