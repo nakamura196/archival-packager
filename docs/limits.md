@@ -25,6 +25,44 @@
 LibreOffice（Office → PDF/A）や ffmpeg（音声・動画）が要るが、同梱すると
 「インストール不要」が壊れ、ライセンスの判断も要る（Ghostscript を同梱しない理由は [development.md](development.md#ghostscript-を同梱しない理由)）。
 
+## PDF/A は作らない
+
+組み込みの `postscript-to-pdf` が作るのは、ふつうの PDF である。
+**PDF/A を作る機能は、2026年11月6日に見送った**（Issue #50）。
+
+難しいのは技術ではない。Ghostscript で PDF/A-2b を作る引数は分かっている。
+問題は、それが動く機械が限られることである。
+
+- **Ghostscript は同梱できない**（AGPL。[development.md](development.md#ghostscript-を同梱しない理由)）。
+  規則が動くのは、利用者が自分で `gs` を入れた機械だけになる。
+  Windows ストアから入れて、コマンドを使わない担当者の機械では、まず動かない
+- **ICC プロファイルを置き、その絶対パスを設定に書く必要がある。**
+  これを誤ると、Ghostscript は成功扱いのまま、PDF/A を名乗るだけの PDF を書き出す
+- **確かめるには veraPDF が要る。** 同梱すると約 10 MB 増える（Java の部品の追加を含む）。
+  変換が動く機械が少ないのに、検査の道具だけを全員に配ることになる
+
+そこで、組み込みにはせず、**利用者が足せる規則の例**として
+[docs/rules.md](rules.md#例-ghostscript-で-pdfa-2b-を作る) に載せた。
+`gs` を入れられる環境で PDF/A が要る人は、それを写して使える。
+その場合も、できた PDF の適合はアプリでは確かめないので、veraPDF で確かめる必要がある。
+
+**Archivematica と a3m も、適合までは確かめていない。** 2026年11月7日に、両者の
+規則の一覧（FPR。Archivematica `main` の 973c421 と a3m `main` の ebe6c1d の初期データ）を読んだ。
+
+- PDF（1.0〜1.7、PDF/X など）を保存用に変換する規則は、Ghostscript の
+  `gs -dPDFA -dBATCH -dNOPAUSE -sDEVICE=pdfwrite -dPDFACompatibilityPolicy=1 ...` である。
+  出力は PDF/A-1b（fmt/354）として記録される。ICC プロファイルも `PDFA_def.ps` も渡していない
+- 変換後の検査は JHOVE（PDF-hul）だけで、veraPDF の規則は無い
+- このコマンドを Ghostscript 10.07.1 で、RGB の色を含む簡単な PDF 1 件に使うと、警告も出ずに終了コード 0 で終わった。
+  できた PDF は PDF/A-1b を名乗るが、出力インテントが無い。同梱の JHOVE は
+  「Well-Formed and valid」と判定した
+
+つまり、Archivematica が「PDF/A にした」と記録する PDF も、条件を満たしている保証は無い。
+AP がこれに合わせて同じ規則を組み込むと、同じ不確かさを持ち込むことになる。
+
+見直すのは、Ghostscript 以外に同梱できる PDF/A の作り方が見つかったときか、
+PDF/A を求める利用者が実際に出てきたときとする。
+
 ## 利用用の派生物とサムネイルは作らない
 
 `DerivativePurpose` に `ACCESS` を定義してあるが、**作らない。**
@@ -62,8 +100,9 @@ METS に残る（成功・失敗・確かめていない、の 3 通りを書き
 - **TIFF・PDF 以外の原本の形式の適合性。** JPEG・JPEG 2000・WAVE などは
   JHOVE に検査部品があるが、まだ組み込んでいない。部品ごとに、健全な
   ファイルを不適合と誤判定しないかを実物で確かめてから足す
-- **PDF/A への適合。** veraPDF は入れていない。変換で作る PDF が PDF/A では
-  ないため、入れても判定が必ず「不適合」になるだけである
+- **PDF/A への適合。** veraPDF は入れていない。組み込みの規則で作る PDF は
+  PDF/A ではないため、入れても判定が必ず「不適合」になるだけである。
+  利用者の規則で PDF/A を作った場合も、適合は確かめていない（上の「PDF/A は作らない」）
 - **JHOVE を動かせなかったとき。** 同梱の Java は Apple Silicon 用なので、
   Intel Mac では起動しない。その場合は「未検査」と記録し、report に 1 行の
   警告を出して、開き直しの確認だけで保存する
