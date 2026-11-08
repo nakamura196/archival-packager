@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import wave
+
 import pytest
 from PIL import Image
 
@@ -165,9 +167,93 @@ class TestBundledJhove:
         jhove.validate([path], tmp_path)
         assert sorted(p.name for p in tmp_path.iterdir()) == before
 
-    def test_other_extensions_are_left_out(self, tmp_path):
-        """検査部品の無い形式は結果に含めない（呼び出し側が未検査と記録する）。"""
-        path = tmp_path / "a.jp2"
+    @pytest.mark.parametrize("sample_width", [1, 2, 3])
+    def test_wave_is_valid(self, tmp_path, sample_width):
+        """標準ライブラリの wave で書いた 8・16・24 ビットの WAVE が適合すること。
+
+        WAVE は 2026-11-07 に、実物 900 本と 12 通りの作り分けで誤判定が
+        無いことを確かめてから足した（core/jhove.py の MODULE_FOR_EXTENSION）。
+        """
+        path = tmp_path / f"{sample_width}.wav"
+        with wave.open(str(path), "wb") as out:
+            out.setnchannels(2)
+            out.setsampwidth(sample_width)
+            out.setframerate(48000)
+            out.writeframes(bytes(range(256)) * 300)
+
+        results, _ = jhove.validate([path], tmp_path)
+        assert results[path].status == jhove.VALID
+        assert results[path].module.startswith("WAVE-hul")
+
+    def test_truncated_wave_is_not_valid(self, tmp_path):
+        """途中で切れた WAVE を不適合と判定すること。
+
+        **切れたものを見逃さないことが、部品を入れる条件。** 見逃す部品
+        （AIFF・JPEG 2000）は、壊れた原本に「適合」と記録してしまうので
+        入れていない。
+        """
+        whole = tmp_path / "whole.wav"
+        with wave.open(str(whole), "wb") as out:
+            out.setnchannels(1)
+            out.setsampwidth(2)
+            out.setframerate(44100)
+            out.writeframes(b"\x00\x01" * 44100)
+        cut = tmp_path / "cut.wav"
+        cut.write_bytes(whole.read_bytes()[:40000])
+
+        results, _ = jhove.validate([cut], tmp_path)
+        assert results[cut].conforms is False
+
+    def test_gif_is_valid(self, tmp_path):
+        """Pillow で書いた GIF（1 枚・アニメーション）が適合すること。"""
+        still = tmp_path / "still.gif"
+        Image.new("P", (40, 30), 3).save(still)
+        moving = tmp_path / "moving.gif"
+        frames = [Image.new("P", (40, 30), i) for i in range(4)]
+        frames[0].save(moving, save_all=True, append_images=frames[1:], loop=0, duration=100)
+
+        results, _ = jhove.validate([still, moving], tmp_path)
+        assert results[still].status == jhove.VALID
+        assert results[moving].status == jhove.VALID
+        assert results[still].module.startswith("GIF-hul")
+
+    def test_truncated_gif_is_not_valid(self, tmp_path):
+        """途中で切れた GIF を不適合と判定すること（理由は WAVE と同じ）。"""
+        whole = tmp_path / "whole.gif"
+        Image.effect_noise((200, 200), 64).convert("P").save(whole)
+        cut = tmp_path / "cut.gif"
+        cut.write_bytes(whole.read_bytes()[: len(whole.read_bytes()) // 2])
+
+        results, _ = jhove.validate([cut], tmp_path)
+        assert results[cut].conforms is False
+
+    def test_a_missing_module_jar_does_not_stop_other_formats(self, tmp_path):
+        """ある形式の jar が欠けても、ほかの形式は検査できること。
+
+        JHOVE は設定ファイルに書かれた部品を起動時にすべて読み込み、1 つでも
+        読めないと何も検査せずに終わる（2026-11-07 に実測）。そのため設定には
+        いま使う部品だけを書いている。全部を書く形に戻すと、ここで落ちる。
+        """
+        tool = jhove.locate()
+        assert tool is not None
+        without_gif = jhove.Tool(
+            tool.java, [jar for jar in tool.classpath if not jar.name.startswith("gif-hul")]
+        )
+        path = tmp_path / "a.tif"
+        Image.new("RGB", (8, 8)).save(path, format="TIFF", compression=None)
+
+        results, _ = jhove.validate([path], tmp_path, tool=without_gif)
+        assert results[path].status == jhove.VALID
+
+    @pytest.mark.parametrize("name", ["a.jp2", "a.aif", "a.aiff", "a.jpg", "a.png"])
+    def test_other_extensions_are_left_out(self, tmp_path, name):
+        """検査部品の無い形式は結果に含めない（呼び出し側が未検査と記録する）。
+
+        AIFF と JPEG 2000 は JHOVE に部品があるが、途中で切れたファイルを
+        適合と見逃すので入れていない（2026-11-07 に実測。理由の詳細は
+        core/jhove.py の MODULE_FOR_EXTENSION）。うっかり足したらここで分かる。
+        """
+        path = tmp_path / name
         path.write_bytes(b"x")
         results, _ = jhove.validate([path], tmp_path)
         assert results == {}

@@ -804,10 +804,14 @@ OAIS 参照モデルにいう保存用のひとまとまりで、資料そのも
 適合しているかを検査しています。</strong>開けなかったもの・適合しなかったものは
 このパッケージに入れず、原本だけを保存しています。</p>
 
+<p>原本のうち TIFF・PDF・WAVE・GIF も、JHOVE で同じように検査しています。
+適合しなかった原本も捨てずに保存し、結果を METS の <code>premis:event</code>
+（validation）に記録しています。</p>
+
 <p>ただし、次のことは<strong>確かめていません。</strong>記録の読み方を誤らないよう、
 ここに明記しておきます。</p>
 <ul>
-<li>原本そのものの形式の適合性（検査したのは変換で作ったファイルだけです）</li>
+<li>それ以外の形式（JPEG・PNG・JPEG 2000・AIFF など）の原本の形式の適合性</li>
 <li>PDF が PDF/A に適合しているか（veraPDF による検査は行っていません。
     変換で作る PDF は PDF/A ではありません）</li>
 <li>JHOVE を動かせなかった環境では、形式の検査は行われていません。
@@ -869,11 +873,15 @@ done to them, in one container. It was produced by
 format specification with JHOVE.</strong> Copies that could not be opened or did not
 conform were left out of this package; only the original was kept.</p>
 
+<p>Original TIFF, PDF, WAVE and GIF files were validated with JHOVE as well. An
+original that did not conform was kept nonetheless, and the result is recorded in the
+<code>premis:event</code> (validation) elements of the METS file.</p>
+
 <p>The following was <strong>not</strong> checked. This is stated here so that the
 records are not read as claiming more than they do.</p>
 <ul>
-<li>The format conformance of the originals themselves (only converted copies were
-    validated).</li>
+<li>The format conformance of originals in other formats (JPEG, PNG, JPEG 2000, AIFF
+    and others).</li>
 <li>PDF/A conformance (no veraPDF validation; the PDFs produced by conversion are not
     PDF/A).</li>
 <li>Where JHOVE could not be run, no format validation took place. This is recorded as

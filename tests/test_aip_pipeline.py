@@ -990,6 +990,45 @@ class TestOriginalConformance:
         assert result.aip_path in path.parents
         assert sip_with_tiff not in path.parents
 
+    @pytest.mark.skipif(jhove.locate() is None, reason="JHOVE が同梱されていない")
+    def test_wave_and_gif_originals_with_the_bundled_jhove(self, tmp_path):
+        """原本の WAVE・GIF を、同梱の JHOVE で実際に検査すること（Issue #50）。
+
+        2026-11-07 に WAVE・GIF の部品を足した。部品の jar を入れ忘れる
+        （wave-hul は aiff-hul の中の共通部品を使う）と、偽の JHOVE を使う
+        ほかのテストでは気づけないので、取り込みの流れを本物で通す。
+        切れた WAVE は不適合として警告し、原本は残す。
+        """
+        import wave
+
+        from PIL import Image
+
+        src = tmp_path / "av-in"
+        src.mkdir()
+        with wave.open(str(src / "録音.wav"), "wb") as out:
+            out.setnchannels(1)
+            out.setsampwidth(2)
+            out.setframerate(44100)
+            out.writeframes(b"\x00\x01" * 44100)
+        (src / "切れた録音.wav").write_bytes((src / "録音.wav").read_bytes()[:40000])
+        Image.new("P", (16, 16), 2).save(src / "図.gif")
+        out_dir = tmp_path / "av-sip-out"
+        out_dir.mkdir()
+        sip = sip_pipeline.run(
+            input_path=src, output_parent=out_dir,
+            metadata=SIPMetadata(identifier="2026-音声", title="音声の検査"),
+            options=SIPOptions(), progress=lambda _m: None,
+        ).sip_path
+
+        result, _ = run_aip(sip, tmp_path, normalize=False)
+
+        outcomes = {note.split(":")[0]: outcome for outcome, note, _ in self._events(result.mets_path)}
+        assert outcomes == {"録音.wav": "pass", "図.gif": "pass", "切れた録音.wav": "fail"}
+        assert (result.aip_path / "data" / "objects" / "切れた録音.wav").is_file(), "原本は残す"
+        assert [w for w in result.warnings if "適合しない原本" in w][0].startswith(
+            "形式の仕様に適合しない原本: 切れた録音.wav — "
+        )
+
     def test_runs_without_normalization(self, sip_with_tiff, tmp_path, monkeypatch):
         """変換を切っても原本の検査はする（変換とは別の検査なので）。"""
         self._fake_jhove(monkeypatch, jhove.VALID)
@@ -1072,6 +1111,23 @@ class TestReadmeHtml:
         result, _ = run_aip(sip, tmp_path)
         text = (result.aip_path / "data" / "README.html").read_text(encoding="utf-8")
         assert "veraPDF" in text and "JHOVE" in text
+
+    def test_names_every_format_checked_on_originals(self):
+        """原本を検査する形式を、案内が日英とも漏れなく挙げていること。
+
+        案内の形式名は手で書いている。2026-11-07 に WAVE と GIF を足すまで、
+        案内は「原本は検査していない」のまま残っていた（原本の検査は #48 から
+        入っていた）。検査の対象を変えて案内を直し忘れると、ここで落ちる。
+        """
+        from archival_packager.core import jhove
+
+        families = {module.split("-")[0] for module in jhove.MODULE_FOR_EXTENSION.values()}
+        ja, en = aip_pipeline._README_HTML.split("<h1>About this package</h1>")
+        ja_line = next(line for line in ja.splitlines() if line.startswith("<p>原本のうち"))
+        en_line = next(line for line in en.splitlines() if line.startswith("<p>Original "))
+        for family in families:
+            assert family in ja_line, family
+            assert family in en_line, family
 
 
 def test_output_inside_the_sip_is_refused(sip, tmp_path):
