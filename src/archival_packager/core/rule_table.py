@@ -38,6 +38,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import fpr
 from .aip_models import DerivativePurpose, Executor, NormalizationRule, RuleSource
 
 # --------------------------------------------------------------------------
@@ -90,19 +91,33 @@ format_name_out = "Acrobat PDF 1.7 - Portable Document Format"
 out_extension = "pdf"
 """
 
-#: 利用者の表のファイル名。記録（errors.log）と同じディレクトリに置く。
+#: 利用者の表のファイル名（旧書式の TOML）。記録（errors.log）と同じディレクトリに置く。
 #: 場所を増やさないのは、「どこに置けばよいか」が利用者にとって最大の障壁だから。
+#: **0.1.9 から配布している書式なので、読み続ける。** 新しく書くなら rules.json。
 USER_FILE_NAME = "rules.toml"
+
+#: 利用者の表のファイル名（Archivematica の FPR の書式。core/fpr.py）。
+#: TOML と同じフォルダに置く。同じ (purpose, PUID) に両方があれば、こちらを使う。
+USER_JSON_NAME = "rules.json"
 
 #: AIP に同梱するときの名前。
 DOCUMENT_NAME = "normalization-rules.toml"
 
+#: rules.json を AIP に同梱するときの名前。**読み込んだ文面のまま**入れる
+#: （Archivematica に loaddata でそのまま読ませられるように）。
+JSON_DOCUMENT_NAME = "normalization-rules-archivematica.json"
+
 
 def user_table_path() -> Path:
-    """利用者の規則表の置き場所。"""
+    """利用者の規則表（旧書式の TOML）の置き場所。"""
     from . import applog
 
     return applog.log_path().parent / USER_FILE_NAME
+
+
+def user_json_path() -> Path:
+    """利用者の規則表（FPR の JSON）の置き場所。TOML と同じフォルダ。"""
+    return user_table_path().parent / USER_JSON_NAME
 
 
 # --------------------------------------------------------------------------
@@ -325,6 +340,8 @@ class RuleTable:
     warnings: list[str] = field(default_factory=list)
     #: AIP に同梱する、実際に効いていた表そのもの（TOML）。
     document: str = ""
+    #: AIP に同梱する rules.json の原文。読めない・無いときは空（同梱しない）。
+    json_document: str = ""
 
     def rule_for(self, puid: str | None, purpose: DerivativePurpose) -> NormalizationRule | None:
         if not puid:
@@ -360,27 +377,29 @@ def parse(text: str, *, source: RuleSource) -> tuple[list[RuleEntry], list[str]]
     return entries, warnings
 
 
-def load(user_path: Path | None = None) -> RuleTable:
+def load(user_path: Path | None = None, json_path: Path | None = None) -> RuleTable:
     """組み込みと利用者の表を読んで 1 つにする。
 
     利用者の表が無ければ組み込みだけで動く（**既定では何も設定せずに動くこと**）。
     同じ PUID に規則が重なったときは利用者が勝つ。自分の運用に合わせて
     上書きできないと、表を書ける意味が半分になる。
+
+    利用者の表は 2 種類ある。FPR の JSON（rules.json）と旧書式の TOML（rules.toml）。
+    JSON の置き場所は、指定が無ければ TOML と同じフォルダ。**TOML の指定に追従させる**
+    のは、テストが TOML の場所を一時フォルダへ向けたとき、開発機に置いてある本物の
+    rules.json を読んでしまわないようにするため。
     """
     builtin_entries, warnings = parse(BUILTIN_TOML, source=RuleSource.BUILTIN)
     # 組み込みが検証を通らないのはアプリの不具合であって利用者には直せない。
     # ここで気づけるよう、テストで空でないことを固定してある。
 
     path = user_table_path() if user_path is None else user_path
-    user_text = ""
-    user_entries: list[RuleEntry] = []
-    try:
-        if path.is_file():
-            user_text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        warnings.append(f"規則表を読めませんでした（{path}）: {exc}")
-        user_text = ""
+    jpath = (path.parent / USER_JSON_NAME) if json_path is None else json_path
 
+    user_text = _read(path, warnings)
+    json_text = _read(jpath, warnings)
+
+    user_entries: list[RuleEntry] = []
     user_readable = False
     if user_text:
         user_entries, user_warnings = parse(user_text, source=RuleSource.USER)
@@ -389,32 +408,58 @@ def load(user_path: Path | None = None) -> RuleTable:
         # そもそも読めないのでは、後から見た人の役に立たない）。
         user_readable = not any("書式が壊れています" in w for w in user_warnings)
 
+    json_rules: list[NormalizationRule] = []
+    json_readable = False
+    if json_text:
+        json_rules, json_warnings = fpr.parse(json_text)
+        warnings += json_warnings
+        json_readable = not any("書式が壊れています" in w for w in json_warnings)
+
+    # 先に並べた方が、同じ表の中の重複では勝つ。JSON を TOML の前に置くので、
+    # 両方に同じ (purpose, PUID) があれば JSON が残り、TOML 側に警告が出る。
+    candidates: list[tuple[str, RuleSource, list[NormalizationRule]]] = [
+        (e.rule_id, e.source, e.to_rules()) for e in builtin_entries
+    ]
+    candidates += [(r.rule_id, RuleSource.USER, [r]) for r in json_rules]
+    candidates += [(e.rule_id, e.source, e.to_rules()) for e in user_entries]
+
     table = RuleTable(warnings=warnings)
     ids: set[str] = set()
-    for entry in [*builtin_entries, *user_entries]:
-        if entry.rule_id in ids:
+    for rule_id, source, rules in candidates:
+        if rule_id in ids:
             # id は PREMIS にそのまま書かれる。重複を許すと、AIP を読んだ人が
             # 「どちらの規則で作られたか」を決められなくなる。
-            warnings.append(
-                f"規則 {entry.rule_id}: 同じ id が既にあります。あとの方は使いません。"
-            )
+            warnings.append(f"規則 {rule_id}: 同じ id が既にあります。あとの方は使いません。")
             continue
-        ids.add(entry.rule_id)
-        for rule in entry.to_rules():
+        ids.add(rule_id)
+        for rule in rules:
             key = (rule.purpose.value, rule.puid_in)
             existing = table.rules.get(key)
-            if existing is not None and existing.source is entry.source:
-                # 同じ表の中での重複。先に書いた方を残す（あとから足した行が
-                # 黙って前の行を消すより、気づける形にする）。
+            if existing is not None and existing.source is source:
+                # 同じ利用者の表どうし（rules.json と rules.toml、または同じ表の中）の重複。
+                # 先に書いた方を残す（あとから足した行が黙って前の行を消すより、
+                # 気づける形にする）。rules.json は rules.toml より先に読む。
                 warnings.append(
-                    f"規則 {entry.rule_id}: {rule.puid_in} には既に "
-                    f"{existing.rule_id} があります。先に書いた方を使います。"
+                    f"規則 {rule_id}: {rule.puid_in} には既に "
+                    f"{existing.rule_id} があります。先に書いた方を使います"
+                    "（rules.json は rules.toml より優先されます）。"
                 )
                 continue
             table.rules[key] = rule
 
     table.document = _document(user_text if user_readable else "", warnings)
+    table.json_document = json_text if json_readable else ""
     return table
+
+
+def _read(path: Path, warnings: list[str]) -> str:
+    """規則のファイルを読む。無ければ空。読めなければ理由を warnings に足して空。"""
+    try:
+        if path.is_file():
+            return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        warnings.append(f"規則表を読めませんでした（{path}）: {exc}")
+    return ""
 
 
 def _document(user_text: str, warnings: list[str]) -> str:

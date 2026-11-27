@@ -12,10 +12,11 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import tempfile
 import uuid as _uuid
 from pathlib import Path
 
-from . import bundled, image_normalize
+from . import bundled, fpr, image_normalize
 from .aip_models import (
     AIPFile,
     AIPPipelineError,
@@ -29,17 +30,42 @@ from .aip_models import (
 from .checksums import sha256_of
 
 
+#: PATH に無いときに探す場所（macOS と Linux だけ）。
+#:
+#: **Finder や Dock から開いたアプリの PATH は短い**（/usr/bin:/bin:/usr/sbin:/sbin）。
+#: ターミナルの PATH はシェルの設定ファイルが足したもので、画面から開いたアプリには
+#: 届かない。そのため Homebrew で入れた gs や、利用者が ~/.local/bin に置いた
+#: 変換用のコマンドが、ターミナルから開いたときだけ見つかる、という食い違いが
+#: 起きた（2026-11-25、LibreOffice 連携の試験で確認）。
+#:
+#: 利用者がソフトを入れる定番の場所だけを足す。並びは PATH の後ろなので、
+#: PATH で見つかるものの選ばれ方は変わらない。Windows は画面から開いても
+#: PATH が全部届くので足さない。
+def extra_tool_dirs() -> list[Path]:
+    if os.name == "nt":
+        return []
+    return [
+        Path.home() / ".local" / "bin",
+        Path("/opt/homebrew/bin"),
+        Path("/usr/local/bin"),
+    ]
+
+
 def locate(tool: str) -> Path | None:
     """変換ツールを探す。
 
-    解決順は 同梱 -> PATH。Swift 版は /usr/bin/sips や Homebrew の固定パスも
-    見ていたが、それは macOS 固有の事情なので持ち込まない。同梱を第一とし、
-    開発時の利便のために PATH も見る。
+    解決順は 同梱 -> PATH -> extra_tool_dirs()。同梱を第一とし、
+    利用者の環境にあるものは PATH から探す。画面から開いたアプリは PATH が
+    短いので、利用者がソフトを入れる定番の場所も最後に見る。
     """
     found = bundled.find(tool)
     if found is not None:
         return found
     which = shutil.which(tool)
+    if which:
+        return Path(which)
+    extra = os.pathsep.join(str(d) for d in extra_tool_dirs())
+    which = shutil.which(tool, path=extra) if extra else None
     return Path(which) if which else None
 
 
@@ -122,7 +148,12 @@ def event_detail(derivative: Derivative) -> str:
     分からなければ同じバイト列になるか分からない）。
     """
     version = derivative.tool_version or "unknown"  # 空欄だと「聞き忘れ」と読めてしまう
-    parts = [f'rule="{derivative.rule_id}"']
+    parts = []
+    if derivative.fpr_command_id:
+        # FPR の規則で作ったときは、Archivematica と同じ書き出しを先頭に置く
+        # （Archivematica の normalize.py が eventDetail に最初に書く属性）。
+        parts.append(f'ArchivematicaFPRCommandID="{derivative.fpr_command_id}"')
+    parts.append(f'rule="{derivative.rule_id}"')
     # 規則が組み込みか、利用者が足したものかを別の属性で書く。
     # **rule="image-to-tiff(user)" のように識別子へ混ぜない。** 識別子は過去の
     # AIP にそのまま書き込まれている文字列で、後年それと突き合わせるためにある。
@@ -152,6 +183,8 @@ def normalize(file: AIPFile, rule: NormalizationRule, work_dir: Path) -> Derivat
     # 指定できない（rule_table.validate が拒む）。
     if rule.executor is Executor.BUILTIN:
         return _normalize_in_process(file, rule, work_dir)
+    if rule.executor is Executor.FPR:
+        return _normalize_by_fpr(file, rule, work_dir)
     return _normalize_by_subprocess(file, rule, work_dir)
 
 
@@ -231,6 +264,85 @@ def _normalize_by_subprocess(
                        command_line=" ".join([rule.tool, *args]))
 
 
+def _normalize_by_fpr(file: AIPFile, rule: NormalizationRule, work_dir: Path) -> Derivative:
+    """Archivematica の FPR の命令（rules.json）で変換する。
+
+    流れは Archivematica の normalize.py と同じ。変換 → 検証 → eventDetail。
+    **変換は専用の作業フォルダの中で行い、できたファイルだけを AP の置き場所へ移す。**
+    スクリプトが自分で一時ファイルや soffice のプロファイルを作っても、
+    work_dir（のちに objects/ へ複写される場所）を汚さない。
+    """
+    spec = rule.fpr
+    if spec is None:  # 表を通った規則では起きない。起きたらアプリの不具合
+        raise AIPPipelineError.tool_not_found(rule.tool)
+
+    work_dir.mkdir(parents=True, exist_ok=True)
+    derivative_uuid, postfix = fpr.new_postfix()
+    run_dir = Path(tempfile.mkdtemp(prefix="fpr-", dir=work_dir))
+    try:
+        values = fpr.replacements(
+            file.absolute_path, output_dir=run_dir, postfix=postfix, file_uuid=file.uuid
+        )
+        output_location = fpr.substitute(spec.command.output_location, values)
+        produced = Path(output_location)
+        if not fpr.inside(produced, run_dir):
+            # 読み込みのとき %outputDirectory% で始まることは確かめてあるが、
+            # ".." などで外に出る書き方は置き換えの後でないと分からない。
+            raise AIPPipelineError.tool_failed(
+                rule.tool, -1, f"出力先が作業フォルダの外を指しています: {output_location}"
+            )
+        values["%outputLocation%"] = output_location
+
+        code, _out, err, text = _run_fpr(rule, spec.command, values)
+        if code != 0:
+            raise AIPPipelineError.tool_failed(rule.tool, code, err[:500])
+        if not produced.is_file():
+            raise AIPPipelineError.tool_failed(rule.tool, 0, "出力が生成されませんでした")
+
+        if spec.verification is not None:
+            vcode, _vout, verr, _vtext = _run_fpr(rule, spec.verification, values)
+            if vcode != 0:
+                # 変換は終わったが、利用者が書いた確認を通らなかった。派生物は作らない。
+                raise AIPPipelineError.tool_failed(
+                    rule.tool, vcode, f"検証の命令が失敗しました: {verr[:400]}"
+                )
+
+        tool_name, tool_version = rule.tool, ""
+        if spec.event_detail is not None:
+            # 取れなくても変換は成功のまま。記録が少し薄くなるだけ（tool_version と同じ扱い）。
+            try:
+                ecode, eout, _eerr, _etext = fpr.run_command(spec.event_detail, values)
+            except fpr.FprError:
+                ecode, eout = -1, ""
+            if ecode == 0:
+                program, version = fpr.parse_event_detail(eout)
+                tool_name = program or tool_name
+                tool_version = version
+
+        out_path = work_dir / f"{derivative_uuid}.{rule.out_extension}"
+        shutil.move(str(produced), str(out_path))
+    finally:
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+    return _derivative(
+        file, rule, out_path, derivative_uuid,
+        tool_name=tool_name, tool_version=tool_version,
+        # bashScript の全文は PREMIS に入れない（長い。AIP に同梱する rules.json に
+        # command の uuid で辿れる）。1 行のコマンドだけは、実際に走らせた形を残す。
+        command_line=text if spec.command.script_type == "command" else "",
+        fpr_command_id=spec.command.uuid,
+    )
+
+
+def _run_fpr(rule: NormalizationRule, command, values) -> tuple[int, str, str, str]:
+    try:
+        return fpr.run_command(command, values)
+    except fpr.FprError as exc:
+        if "bash が見つかりません" in str(exc):
+            raise AIPPipelineError.tool_not_found("bash") from exc
+        raise AIPPipelineError.tool_failed(rule.tool, -1, str(exc)) from exc
+
+
 def _derivative(
     file: AIPFile,
     rule: NormalizationRule,
@@ -240,6 +352,7 @@ def _derivative(
     tool_name: str,
     command_line: str,
     tool_version: str = "",
+    fpr_command_id: str = "",
 ) -> Derivative:
     if not out_path.is_file():
         raise AIPPipelineError.tool_failed(rule.tool, 0, "出力が生成されませんでした")
@@ -254,6 +367,7 @@ def _derivative(
         tool_version=tool_version,
         rule_id=rule.rule_id,
         rule_source=rule.source.value,
+        fpr_command_id=fpr_command_id,
         command_line=command_line,
         sha256=sha256_of(out_path),
         puid_out=rule.puid_out,

@@ -103,6 +103,9 @@ def run(
     # 規則表は、変換を始める前に 1 回だけ確定させる。**AIP に同梱するのは
     # 「実際に効いていた表」でなければならない**ので、参照するのは常にこの文字列。
     rules_document = conversion_registry.document()
+    # rules.json（Archivematica の FPR の書式）があれば、原文のまま同梱する。
+    # Archivematica に loaddata で読ませれば、この AIP を作った規則がそのまま再現できる。
+    rules_json = conversion_registry.json_document()
 
     work_dir = Path(tempfile.mkdtemp(prefix="archival-packager-normalize-"))
     try:
@@ -130,7 +133,9 @@ def run(
                 agents=agents,
                 descriptive=descriptive,
                 created_iso=now,
-                submission_documentation=_submission_documents(parsed, transfer_mets),
+                submission_documentation=_submission_documents(
+                    parsed, transfer_mets, with_rules_json=bool(rules_json)
+                ),
                 # Archivematica と同じ "<名前>-<uuid>"
                 package_name=f"{sip_root.name}-{aip_uuid}",
             )
@@ -144,6 +149,7 @@ def run(
             fixity_status=fixity_status,
             warnings=warnings,
             rules_document=rules_document,
+            rules_json=rules_json,
             transfer_mets=transfer_mets,
             now=now,
             progress=progress,
@@ -186,6 +192,8 @@ def _agents(options: AIPOptions) -> list[PremisAgent]:
 
 #: AIP に同梱する規則表の置き場所（data/ からの相対）。
 RULES_DOCUMENT_HREF = f"objects/submissionDocumentation/{rule_table.DOCUMENT_NAME}"
+#: 同じく、rules.json（FPR の書式）の置き場所。利用者が書いたときだけ同梱する。
+RULES_JSON_HREF = f"objects/submissionDocumentation/{rule_table.JSON_DOCUMENT_NAME}"
 
 
 def _place_transfer_mets(
@@ -213,7 +221,7 @@ def _place_transfer_mets(
 
 
 def _submission_documents(
-    parsed, transfer_mets: str | None = None
+    parsed, transfer_mets: str | None = None, *, with_rules_json: bool = False
 ) -> list[mets.SubmissionDocument]:
     """AIP に継承する提出書類を、METS に載せる形で並べる。
 
@@ -231,13 +239,15 @@ def _submission_documents(
             href = f"objects/submissionDocumentation/{rel}"
             if transfer_mets and rel == sip_mets.FILE_NAME:
                 href = transfer_mets  # 置き場所を移す（_build が実体を移す）
-            if href == RULES_DOCUMENT_HREF:
+            if href in (RULES_DOCUMENT_HREF, RULES_JSON_HREF):
                 # AIP を入力にして作り直した場合、継承元に同じ名前の表がある。
                 # 二重に載せず、今回の表（下で足す方）で置き換える。
                 continue
             docs.append(mets.SubmissionDocument(href=href, uuid=str(_uuid.uuid4())))
 
     docs.append(mets.SubmissionDocument(href=RULES_DOCUMENT_HREF, uuid=str(_uuid.uuid4())))
+    if with_rules_json:
+        docs.append(mets.SubmissionDocument(href=RULES_JSON_HREF, uuid=str(_uuid.uuid4())))
     return docs
 
 
@@ -639,6 +649,7 @@ def _build(
     rules_document: str,
     now: str,
     progress: Progress,
+    rules_json: str = "",
     transfer_mets: str | None = None,
 ) -> AIPResult:
     import bagit
@@ -686,6 +697,13 @@ def _build(
     rules_doc = aip_dir / RULES_DOCUMENT_HREF
     rules_doc.parent.mkdir(parents=True, exist_ok=True)
     rules_doc.write_text(rules_document, encoding="utf-8")
+    if not rules_json:
+        # AIP を入力にして作り直した場合、継承元の rules.json が残っている。
+        # 今回は効いていなかった表なので、METS に載せていない物を残さない。
+        (aip_dir / RULES_JSON_HREF).unlink(missing_ok=True)
+    else:
+        # 原文のまま（書き直さない）。Archivematica の loaddata に渡せる形を保つため。
+        (aip_dir / RULES_JSON_HREF).write_text(rules_json, encoding="utf-8")
 
     (logs / "README.txt").write_bytes(
         "AIP 保存処理ログ（将来: 正規化・検証の詳細）。\n".encode()

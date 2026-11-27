@@ -100,3 +100,8 @@ def warnings() -> list[str]:
 def document() -> str:
     """AIP に同梱する、実際に効いていた表そのもの（TOML）。"""
     return table().document
+
+
+def json_document() -> str:
+    """AIP に同梱する rules.json の原文。無い（または読めない）ときは空文字。"""
+    return table().json_document

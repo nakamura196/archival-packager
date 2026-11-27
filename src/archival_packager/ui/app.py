@@ -40,7 +40,7 @@ from ..core.models import (
     is_same_or_inside,
 )
 from ..i18n import t
-from . import about, messages, viewer
+from . import about, messages, rules, viewer
 from . import platform as plat
 
 MODE_SIP = "sip"
@@ -963,6 +963,12 @@ def main(page: ft.Page) -> None:
         shell.content = about.build(on_close=close_viewer)
         shell.update()
 
+    def open_rules(_e: ft.ControlEvent | None = None) -> None:
+        # 処理中かどうかは進捗のバーで見る（worker の finally で必ず消える）。
+        shell.content = rules.build(on_close=close_viewer,
+                                    is_busy=lambda: bool(progress_bar.visible))
+        shell.update()
+
     state.open_viewer = open_viewer
 
     def continue_to_aip(sip_path: Path) -> None:
@@ -1065,6 +1071,13 @@ def main(page: ft.Page) -> None:
                         color=ft.Colors.ON_SURFACE_VARIANT),
                 ft.Container(expand=True),
                 language,
+                # 変換の規則。利用者の規則（rules.toml）を画面からたどれる唯一の入口。
+                ft.TextButton(
+                    t("変換の規則"),
+                    icon=ft.Icons.RULE,
+                    tooltip=t("AIP を作るときの変換の規則を見る・足す"),
+                    on_click=open_rules,
+                ),
                 ft.IconButton(
                     ft.Icons.INFO_OUTLINE,
                     tooltip=t("使い方・ライセンス・連絡先"),
