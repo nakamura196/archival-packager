@@ -628,6 +628,7 @@ def _cmd_check(args: argparse.Namespace, reporter: _Reporter) -> int:
     }
     table = conversion_registry.table()
     user_rules = rule_table.user_table_path()
+    user_json = rule_table.user_json_path()
 
     payload = {
         "command": "check",
@@ -644,6 +645,8 @@ def _cmd_check(args: argparse.Namespace, reporter: _Reporter) -> int:
         "normalization_rules": {
             "user_table": str(user_rules),
             "user_table_present": user_rules.is_file(),
+            "user_json": str(user_json),
+            "user_json_present": user_json.is_file(),
             "rule_count": len(table.rules),
             "warnings": list(table.warnings),
         },
@@ -664,6 +667,8 @@ def _cmd_check(args: argparse.Namespace, reporter: _Reporter) -> int:
         f"  引き当てられる PUID: {len(table.rules)} 件",
         f"  利用者の表: {user_rules}"
         f"（{'あり' if user_rules.is_file() else '未作成。無くても動きます'}）",
+        f"  利用者の表（FPR の書式）: {user_json}"
+        f"（{'あり' if user_json.is_file() else '未作成。無くても動きます'}）",
     ]
     lines += [f"  警告: {w}" for w in table.warnings]
     if not tools["clamscan"]:

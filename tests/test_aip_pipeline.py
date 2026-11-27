@@ -447,6 +447,26 @@ out_extension = "flac"
         assert "wav-to-flac" in text
         assert "--best" in text, "引数まで残す（何をしたかは引数で決まる）"
 
+    def test_rules_json_is_embedded_verbatim_and_listed_in_the_mets(self, sip, tmp_path):
+        """rules.json は原文のまま入れ、METS にも載せる（Archivematica にそのまま読ませるため）。"""
+        text = '[{"model": "fpr.fptool", "fields": {"uuid": "t", "description": "X"}}]\n'
+        (tmp_path / "rules.json").write_text(text, encoding="utf-8")
+        conversion_registry.reload(tmp_path / "rules.toml")
+
+        result, _ = run_aip(sip, tmp_path)
+        doc = (result.aip_path / "data" / "objects" / "submissionDocumentation"
+               / "normalization-rules-archivematica.json")
+        assert doc.read_text(encoding="utf-8") == text
+        root = etree.fromstring(result.mets_path.read_bytes())
+        hrefs = root.xpath("//mets:FLocat/@xlink:href",
+                           namespaces={**NS, "xlink": "http://www.w3.org/1999/xlink"})
+        assert "objects/submissionDocumentation/normalization-rules-archivematica.json" in hrefs
+
+    def test_no_rules_json_means_no_extra_document(self, sip, tmp_path):
+        result, _ = run_aip(sip, tmp_path)
+        assert not (result.aip_path / "data" / "objects" / "submissionDocumentation"
+                    / "normalization-rules-archivematica.json").exists()
+
     def test_a_broken_table_is_reported_but_does_not_stop_the_aip(self, sip, tmp_path):
         """表の書き間違いで資料を受け入れられなくなるのは本末転倒。
 

@@ -235,6 +235,9 @@ class Derivative:
     #: 装飾を足すと、同じ規則で作った古い AIP と新しい AIP の値が食い違う。
     #: 別の欄に持ち、PREMIS では別の属性として書く。
     rule_source: str = ""
+    #: FPR の規則で作ったときの fpcommand の uuid。PREMIS の eventDetail に
+    #: `ArchivematicaFPRCommandID="…"` として書く（Archivematica と同じ形）。
+    fpr_command_id: str = ""
     #: 派生物を開き直した結果。**None は「まだ確かめていない」を意味する**
     #: （normalizer が必ず付ける。テストが手で組んだ Derivative では付かない）。
     #: 「確かめて通った」は CheckOutcome.PASSED で表す。両者を混ぜないこと。
@@ -276,14 +279,19 @@ class AIPFile:
 class Executor(Enum):
     """規則を誰が実行するか。
 
-    **この 2 つしかない。** コードを差し込む道（プラグイン）は用意しない。
+    **この 3 つしかない。** コードを差し込む道（プラグイン）は用意しない。
     公証・ストア審査を通した配布物が、実行時に外部のコードを読むことになるため。
+    （FPR は「コードを読み込む」のではなく、利用者が書いたシェルスクリプトを
+    利用者自身の環境で走らせるだけ。COMMAND と同じく、動くのは利用者の環境にある物。）
     """
 
     #: アプリ内蔵の処理（現状は Pillow の画像変換）。利用者の表からは指定できない。
     BUILTIN = "builtin"
     #: 利用者の環境にある外部コマンドを呼ぶ。利用者が足せるのはこちらだけ。
     COMMAND = "command"
+    #: Archivematica の FPR 書式（rules.json）で書かれた規則。シェルスクリプトを
+    #: 走らせる。書式の説明と理由は core/fpr.py。利用者が足せるのはこちらも同じ。
+    FPR = "fpr"
 
 
 class RuleSource(Enum):
@@ -296,6 +304,36 @@ class RuleSource(Enum):
 
     BUILTIN = "builtin"
     USER = "user"
+
+
+@dataclass(frozen=True, slots=True)
+class FprCommand:
+    """FPR の fpcommand 1 件（実行に要る分だけ）。
+
+    FPR の書式のまま持つ。**AP 独自の言い換えを挟まない**のは、同じ JSON を
+    Archivematica にも読ませるため（読み違いの余地を増やさない）。
+    """
+
+    uuid: str
+    #: "bashScript"（スクリプト全文）または "command"（1 行のコマンド。シェルを通さない）。
+    script_type: str
+    text: str
+    #: 出力先のひな形（"%outputDirectory%%prefix%%fileName%%postfix%.pdf" など）。
+    #: 検証・event_detail の command では空。
+    output_location: str = ""
+
+
+@dataclass(slots=True)
+class FprSpec:
+    """Executor.FPR の規則が持つ、FPR の命令の組。"""
+
+    command: FprCommand
+    #: fpcommand の description（画面に出す人向けの 1 行）。
+    description: str = ""
+    #: 変換のあとに走らせる検証。終了コードが 0 でなければ変換の失敗として扱う。
+    verification: FprCommand | None = None
+    #: 標準出力が PREMIS の eventDetail に入る（program="…" version="…"）。
+    event_detail: FprCommand | None = None
 
 
 @dataclass(slots=True)
@@ -327,6 +365,8 @@ class NormalizationRule:
     #: 既定が BUILTIN なのは、コードの中で組み立てた規則は定義上 BUILTIN だから
     #: （利用者の表から来た規則は rule_table が必ず USER を明示して作る）。
     source: RuleSource = RuleSource.BUILTIN
+    #: Executor.FPR のときだけ入る。ほかの executor では None。
+    fpr: FprSpec | None = None
 
 
 # --------------------------------------------------------------------------

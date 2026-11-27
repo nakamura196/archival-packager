@@ -44,3 +44,21 @@ def open_path(path: Path) -> None:
             subprocess.run(["xdg-open", str(path)], check=False)
     except OSError:
         pass
+
+
+def open_text(path: Path) -> None:
+    """テキストエディタで開く（規則のファイル rules.json 用）。
+
+    open_path を使わないのは、.json や .toml に結び付いたアプリが無い環境が多いため。
+    macOS では何も起きず、Windows では「このファイルを開く方法」を聞かれる。
+    macOS は既定のテキストエディタ（open -t）、Windows はメモ帳で開く。
+    """
+    try:
+        if IS_MACOS:
+            subprocess.run(["open", "-t", str(path)], check=False)
+        elif IS_WINDOWS:
+            subprocess.Popen(["notepad.exe", str(path)])
+        else:
+            subprocess.run(["xdg-open", str(path)], check=False)
+    except OSError:
+        pass

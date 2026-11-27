@@ -24,6 +24,45 @@ TEXTS: dict[str, str] = {
     # ------------------------------------------------------------------
     "表示言語": "Display language",
     "使い方・ライセンス・連絡先": "How to use, licenses, contact",
+    # ------------------------------------------------------------------
+    # 変換の規則（ui/rules.py）
+    # ------------------------------------------------------------------
+    "変換の規則": "Conversion rules",
+    "AIP を作るときの変換の規則を見る・足す": "View or add the conversion rules used when creating an AIP",
+    "AIP を作るとき、どの形式をどう変換するかの規則です。"
+    "自分で規則を足すには、規則のファイルに書いて保存し、「読み直す」を押します。":
+        "These rules decide which formats are converted, and how, when an AIP is created. "
+        "To add your own rule, write it in the rules file, save it, and press Reload.",
+    "規則のファイル: {path}": "Rules file: {path}",
+    "規則のファイルを開く": "Open the rules file",
+    "読み直す": "Reload",
+    "規則のファイルを作れませんでした: {error}": "Could not create the rules file: {error}",
+    "処理の途中は読み直せません。終わってから押してください。":
+        "The rules cannot be reloaded while a package is being created. Press it again when it has finished.",
+    "読み直しました。読めなかった規則が {count} 件あります。":
+        "Reloaded. {count} rule(s) could not be read.",
+    "読み直しました。次に作る AIP から、この規則が使われます。":
+        "Reloaded. These rules apply from the next AIP you create.",
+    "読めなかった規則があります（その規則は使いません）": "Some rules could not be read (they are not used)",
+    "いま効いている規則": "Rules in effect",
+    "自分で足した規則": "Added by you",
+    "最初から入っている規則": "Built in",
+    "アプリに内蔵の変換を使います": "Uses the conversion built into the application",
+    "{tool} が見つかりません": "{tool} was not found",
+    "対象の形式: {puids}": "Applies to: {puids}",
+    "変換後: {target}（.{ext}）": "Converted to: {target} (.{ext})",
+    "コマンド: {command}": "Command: {command}",
+    "道具: {tool} / 規則の UUID: {uuid}": "Tool: {tool} / Rule UUID: {uuid}",
+    (
+        "rules.json に、無効にしてある規則が {n} 件あります（\"enabled\": false）。"
+        "使うには true にして、読み直してください。"
+    ):
+        "rules.json has {n} disabled rule(s) (\"enabled\": false). To use one, set it to true and reload.",
+    "bash が見つかりません": "bash was not found",
+    "rules.json のコマンド（Archivematica の FPR の書式）で変換します":
+        "Converts with the command in rules.json (Archivematica FPR format)",
+    "{where}。この規則の対象のファイルは、変換せず原本のまま保存されます。":
+        "{where}. Files this rule applies to are kept as originals, without conversion.",
     "閉じる": "Close",
     "開く": "Open",
     "場所を開く": "Show in folder",
